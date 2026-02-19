@@ -13,11 +13,13 @@ import {
   subMonths,
   isSameMonth,
   isSameDay,
-  isAfter,
+  isBefore,
+  isToday,
+  startOfDay,
   getDay,
 } from "date-fns";
 import { es, enUS } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, ChevronDown, ChevronUp } from "lucide-react";
 import { stylists } from "@/data/stylists";
 import { services } from "@/data/services";
 import { useLanguage } from "@/providers/LanguageProvider";
@@ -36,6 +38,8 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
   const { state, dispatch } = useBooking();
   const { isAuthenticated } = useAuth();
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [viewMode, setViewMode] = useState<"week" | "month">("week");
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date()));
 
   const locale = language === "es" ? es : enUS;
 
@@ -59,7 +63,16 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
     [selectedServices]
   );
 
-  // Generate calendar days
+  // Generate week days for week view
+  const weekDays = useMemo(() => {
+    const days: Date[] = [];
+    for (let i = 0; i < 7; i++) {
+      days.push(addDays(currentWeekStart, i));
+    }
+    return days;
+  }, [currentWeekStart]);
+
+  // Generate calendar days for month view
   const calendarDays = useMemo(() => {
     const monthStart = startOfMonth(currentMonth);
     const monthEnd = endOfMonth(currentMonth);
@@ -75,11 +88,32 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
     return days;
   }, [currentMonth]);
 
+  // Week view header text
+  const weekHeaderText = useMemo(() => {
+    const weekEnd = addDays(currentWeekStart, 6);
+    const startMonth = format(currentWeekStart, "MMM", { locale });
+    const endMonth = format(weekEnd, "MMM", { locale });
+    const startDay = format(currentWeekStart, "d");
+    const endDay = format(weekEnd, "d");
+    const year = format(weekEnd, "yyyy");
+
+    if (language === "es") {
+      if (startMonth === endMonth) {
+        return `${startDay} - ${endDay} ${startMonth} ${year}`;
+      }
+      return `${startDay} ${startMonth} - ${endDay} ${endMonth} ${year}`;
+    }
+    if (startMonth === endMonth) {
+      return `${startMonth} ${startDay} - ${endDay}, ${year}`;
+    }
+    return `${startMonth} ${startDay} - ${endMonth} ${endDay}, ${year}`;
+  }, [currentWeekStart, language, locale]);
+
   // Check if a date is available based on stylist schedule
   const isDayAvailable = useCallback(
     (date: Date): boolean => {
       if (!stylist) return false;
-      if (!isAfter(date, new Date())) return false;
+      if (isBefore(date, startOfDay(new Date()))) return false;
       const dayOfWeek = getDay(date);
       const schedule = stylist.schedule.find(
         (s) => s.dayOfWeek === dayOfWeek && s.isAvailable
@@ -131,6 +165,10 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
   const handleDateSelect = (date: Date) => {
     if (isDayAvailable(date)) {
       dispatch({ type: "SET_DATE", payload: format(date, "yyyy-MM-dd") });
+      if (viewMode === "month") {
+        setViewMode("week");
+        setCurrentWeekStart(startOfWeek(date));
+      }
     }
   };
 
@@ -146,10 +184,107 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
     }
   };
 
+  const handlePrev = () => {
+    if (viewMode === "week") {
+      setCurrentWeekStart(addDays(currentWeekStart, -7));
+    } else {
+      setCurrentMonth(subMonths(currentMonth, 1));
+    }
+  };
+
+  const handleNext = () => {
+    if (viewMode === "week") {
+      setCurrentWeekStart(addDays(currentWeekStart, 7));
+    } else {
+      setCurrentMonth(addMonths(currentMonth, 1));
+    }
+  };
+
+  const toggleViewMode = () => {
+    if (viewMode === "week") {
+      // When expanding to month, sync month to the week being viewed
+      setCurrentMonth(currentWeekStart);
+      setViewMode("month");
+    } else {
+      // When collapsing, sync week to the current month start
+      setCurrentWeekStart(startOfWeek(currentMonth));
+      setViewMode("week");
+    }
+  };
+
   const selectedDate = state.selectedDate ? new Date(state.selectedDate + "T12:00:00") : null;
   const dayNames = language === "es"
     ? ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "S\u00e1"]
     : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  // Render a single day cell (shared between week and month views)
+  const renderDayCell = (day: Date, index: number, isMonthView: boolean) => {
+    const isCurrentMonth = isMonthView ? isSameMonth(day, currentMonth) : true;
+    const isAvailable = isDayAvailable(day);
+    const isSelected = selectedDate && isSameDay(day, selectedDate);
+    const dayIsToday = isToday(day);
+    const showTodayDot = dayIsToday && !isSelected;
+
+    return (
+      <motion.button
+        key={index}
+        whileHover={isAvailable ? { scale: 1.15 } : {}}
+        whileTap={isAvailable ? { scale: 0.9 } : {}}
+        onClick={() => handleDateSelect(day)}
+        disabled={!isAvailable}
+        className="flex flex-col items-center justify-center p-1"
+        style={{
+          width: "100%",
+          aspectRatio: "1",
+          cursor: isAvailable ? "pointer" : "default",
+          background: "none",
+          border: "none",
+        }}
+      >
+        <span
+          className="flex items-center justify-center rounded-full"
+          style={{
+            width: 38,
+            height: 38,
+            fontSize: 14,
+            fontWeight: isSelected ? 700 : 400,
+            color: isSelected
+              ? "#FAF8F5"
+              : isAvailable
+              ? "#FAF8F5"
+              : isCurrentMonth
+              ? "rgba(107, 101, 96, 0.4)"
+              : "rgba(107, 101, 96, 0.2)",
+            background: isSelected
+              ? "linear-gradient(135deg, #8E7B54, #C4A96A)"
+              : isAvailable
+              ? "rgba(255, 255, 255, 0.04)"
+              : "transparent",
+            boxShadow: isSelected
+              ? "0 4px 15px rgba(142, 123, 84, 0.4)"
+              : "none",
+            transition: "all 0.2s ease",
+          }}
+        >
+          {format(day, "d")}
+        </span>
+        {/* Today indicator dot */}
+        {showTodayDot && (
+          <span
+            style={{
+              width: 4,
+              height: 4,
+              borderRadius: "50%",
+              background: "#C4A96A",
+              marginTop: 2,
+              display: "block",
+              flexShrink: 0,
+            }}
+          />
+        )}
+      </motion.button>
+    );
+  };
 
   return (
     <section className="py-12 sm:py-16 px-4" style={{ background: "#0A0A0A" }}>
@@ -184,14 +319,14 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
             overflow: "hidden",
           }}
         >
-          {/* Month Navigation */}
+          {/* Navigation Header */}
           <div className="flex items-center justify-between px-6 py-4"
             style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.06)" }}
           >
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
-              onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+              onClick={handlePrev}
               style={{ color: "#C4A96A", cursor: "pointer", background: "none", border: "none" }}
             >
               <ChevronLeft size={20} />
@@ -200,12 +335,15 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
               className="text-base font-semibold capitalize"
               style={{ color: "#FAF8F5", fontFamily: "var(--font-display)" }}
             >
-              {format(currentMonth, "MMMM yyyy", { locale })}
+              {viewMode === "week"
+                ? weekHeaderText
+                : format(currentMonth, "MMMM yyyy", { locale })
+              }
             </h3>
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
-              onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+              onClick={handleNext}
               style={{ color: "#C4A96A", cursor: "pointer", background: "none", border: "none" }}
             >
               <ChevronRight size={20} />
@@ -225,59 +363,66 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
             ))}
           </div>
 
-          {/* Day Grid */}
-          <div className="grid grid-cols-7 px-4 pb-4">
-            {calendarDays.map((day, i) => {
-              const isCurrentMonth = isSameMonth(day, currentMonth);
-              const isAvailable = isDayAvailable(day);
-              const isSelected = selectedDate && isSameDay(day, selectedDate);
+          {/* Day Grid with AnimatePresence for view transitions */}
+          <AnimatePresence mode="wait" initial={false}>
+            {viewMode === "week" ? (
+              <motion.div
+                key="week-view"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                style={{ overflow: "hidden" }}
+              >
+                <div className="grid grid-cols-7 px-4 pb-2">
+                  {weekDays.map((day, i) => renderDayCell(day, i, false))}
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="month-view"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                style={{ overflow: "hidden" }}
+              >
+                <div className="grid grid-cols-7 px-4 pb-2">
+                  {calendarDays.map((day, i) => renderDayCell(day, i, true))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-              return (
-                <motion.button
-                  key={i}
-                  whileHover={isAvailable ? { scale: 1.15 } : {}}
-                  whileTap={isAvailable ? { scale: 0.9 } : {}}
-                  onClick={() => handleDateSelect(day)}
-                  disabled={!isAvailable}
-                  className="flex items-center justify-center p-1"
-                  style={{
-                    width: "100%",
-                    aspectRatio: "1",
-                    cursor: isAvailable ? "pointer" : "default",
-                    background: "none",
-                    border: "none",
-                  }}
-                >
-                  <span
-                    className="flex items-center justify-center rounded-full"
-                    style={{
-                      width: 38,
-                      height: 38,
-                      fontSize: 14,
-                      fontWeight: isSelected ? 700 : 400,
-                      color: isSelected
-                        ? "#FAF8F5"
-                        : isAvailable
-                        ? "#FAF8F5"
-                        : isCurrentMonth
-                        ? "rgba(107, 101, 96, 0.4)"
-                        : "rgba(107, 101, 96, 0.2)",
-                      background: isSelected
-                        ? "linear-gradient(135deg, #8E7B54, #C4A96A)"
-                        : isAvailable
-                        ? "rgba(255, 255, 255, 0.04)"
-                        : "transparent",
-                      boxShadow: isSelected
-                        ? "0 4px 15px rgba(142, 123, 84, 0.4)"
-                        : "none",
-                      transition: "all 0.2s ease",
-                    }}
-                  >
-                    {format(day, "d")}
-                  </span>
-                </motion.button>
-              );
-            })}
+          {/* Toggle View Button */}
+          <div className="px-4 pb-4">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={toggleViewMode}
+              className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl"
+              style={{
+                background: "rgba(255, 255, 255, 0.03)",
+                border: "1px solid rgba(255, 255, 255, 0.06)",
+                color: "#C4A96A",
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+              }}
+            >
+              {viewMode === "week" ? (
+                <>
+                  {language === "es" ? "Ver m\u00e1s fechas" : "See more dates"}
+                  <ChevronDown size={14} />
+                </>
+              ) : (
+                <>
+                  {language === "es" ? "Ver menos" : "See less"}
+                  <ChevronUp size={14} />
+                </>
+              )}
+            </motion.button>
           </div>
         </motion.div>
 

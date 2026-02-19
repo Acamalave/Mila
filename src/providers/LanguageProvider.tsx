@@ -24,12 +24,25 @@ interface LanguageContextValue {
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<Language>("en");
+  const [language, setLanguageState] = useState<Language>("es");
 
   useEffect(() => {
-    const stored = getStoredData<Language>("mila-lang", "en");
-    if (stored !== "en") setLanguageState(stored);
+    const stored = getStoredData<Language | null>("mila-lang", null);
+    if (stored) {
+      // User has a saved preference
+      setLanguageState(stored);
+    } else {
+      // Detect from browser language
+      const browserLang = navigator.language || "";
+      const detected: Language = browserLang.startsWith("en") ? "en" : "es";
+      setLanguageState(detected);
+    }
   }, []);
+
+  // Sync html lang attribute
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
 
   const setLanguage = useCallback((lang: Language) => {
     setLanguageState(lang);

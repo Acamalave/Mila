@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
-import { Inter, Playfair_Display, Cormorant_Garamond } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Inter, Montserrat, Cormorant_Garamond } from "next/font/google";
 import "./globals.css";
 import AppProviders from "@/providers/AppProviders";
 
@@ -9,10 +9,10 @@ const inter = Inter({
   weight: ["300", "400", "500", "600", "700"],
 });
 
-const playfair = Playfair_Display({
+const montserrat = Montserrat({
   variable: "--font-display",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["300", "400", "500", "600", "700"],
 });
 
 const cormorant = Cormorant_Garamond({
@@ -20,6 +20,13 @@ const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600"],
 });
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
 
 export const metadata: Metadata = {
   title: "MILA CONCEPT | Luxury Beauty Salon",
@@ -36,9 +43,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="es">
       <body
-        className={`${inter.variable} ${playfair.variable} ${cormorant.variable} antialiased`}
+        className={`${inter.variable} ${montserrat.variable} ${cormorant.variable} antialiased`}
       >
         <AppProviders>{children}</AppProviders>
       </body>

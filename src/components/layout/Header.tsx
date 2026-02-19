@@ -3,12 +3,14 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useAuth } from "@/providers/AuthProvider";
 import { Globe, User, LogOut, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 export default function Header() {
+  const router = useRouter();
   const { language, setLanguage, t } = useLanguage();
   const { user, isAuthenticated, logout } = useAuth();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -123,6 +125,7 @@ export default function Header() {
                         onClick={() => {
                           logout();
                           setProfileOpen(false);
+                          router.push("/");
                         }}
                         className="w-full text-left px-4 py-3 text-sm flex items-center gap-2 transition-colors"
                         style={{ color: "#9B4D4D" }}

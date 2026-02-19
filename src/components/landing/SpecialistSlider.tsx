@@ -12,6 +12,19 @@ interface SpecialistSliderProps {
   onSelect?: (stylistId: string) => void;
 }
 
+const rotatingRingStyle = (size: number): React.CSSProperties => ({
+  position: "absolute",
+  top: -8,
+  left: -8,
+  width: size + 16,
+  height: size + 16,
+  borderRadius: "50%",
+  background: "conic-gradient(from 0deg, #8E7B54, #C4A96A, #D4C5A0, #8E7B54)",
+  filter: "blur(8px)",
+  opacity: 0.6,
+  zIndex: 0,
+});
+
 export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
   const { language, t } = useLanguage();
   const { state, dispatch } = useBooking();
@@ -121,6 +134,7 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                 const stylist = stylists[idx];
                 const isCenter = i === 1;
                 const isSelected = stylist.id === selectedId;
+                const photoSize = isCenter ? 240 : 180;
 
                 return (
                   <motion.div
@@ -141,18 +155,28 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                       }
                     }}
                   >
-                    <motion.div
-                      whileHover={{ scale: isCenter ? 1.05 : 0.83 }}
-                      style={ringStyle(isSelected, isCenter)}
-                    >
-                      <Image
-                        src={stylist.avatar}
-                        alt={stylist.name}
-                        fill
-                        className="object-cover"
-                        sizes={isCenter ? "240px" : "180px"}
-                      />
-                    </motion.div>
+                    {/* Photo container with rotating ring */}
+                    <div style={{ position: "relative" }}>
+                      {isCenter && (
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
+                          style={rotatingRingStyle(photoSize)}
+                        />
+                      )}
+                      <motion.div
+                        whileHover={{ scale: isCenter ? 1.05 : 0.83 }}
+                        style={{ ...ringStyle(isSelected, isCenter), position: "relative", zIndex: 1 }}
+                      >
+                        <Image
+                          src={stylist.avatar}
+                          alt={stylist.name}
+                          fill
+                          className="object-cover"
+                          sizes={isCenter ? "240px" : "180px"}
+                        />
+                      </motion.div>
+                    </div>
                     <motion.div
                       className="mt-4 text-center"
                       animate={{ opacity: isCenter ? 1 : 0.5 }}
@@ -247,14 +271,22 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                 className="flex flex-col items-center"
                 onClick={() => handleSelect(currentStylist.id)}
               >
-                <div style={mobileRingStyle(currentStylist.id === selectedId)}>
-                  <Image
-                    src={currentStylist.avatar}
-                    alt={currentStylist.name}
-                    fill
-                    className="object-cover"
-                    sizes="200px"
+                {/* Mobile photo container with rotating ring */}
+                <div style={{ position: "relative" }}>
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
+                    style={rotatingRingStyle(200)}
                   />
+                  <div style={{ ...mobileRingStyle(currentStylist.id === selectedId), position: "relative", zIndex: 1 }}>
+                    <Image
+                      src={currentStylist.avatar}
+                      alt={currentStylist.name}
+                      fill
+                      className="object-cover"
+                      sizes="200px"
+                    />
+                  </div>
                 </div>
                 <div className="mt-4 text-center">
                   <p

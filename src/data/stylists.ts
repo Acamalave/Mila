@@ -3,14 +3,14 @@ import type { Stylist } from "@/types/stylist";
 export const stylists: Stylist[] = [
   {
     id: "stylist-mila",
-    name: "Mila Rodr\u00edguez",
+    name: "Milagros Pi\u00f1ate",
     role: {
       en: "Creative Director",
       es: "Directora Creativa",
     },
     bio: {
-      en: "Mila is the visionary founder of Mila Concept. With over 15 years of experience in luxury hair artistry, she brings an artistic eye and unparalleled expertise to every transformation. Her philosophy blends European techniques with modern trends.",
-      es: "Mila es la fundadora visionaria de Mila Concept. Con m\u00e1s de 15 a\u00f1os de experiencia en cabello de lujo, aporta una visi\u00f3n art\u00edstica y experiencia inigualable a cada transformaci\u00f3n. Su filosof\u00eda fusiona t\u00e9cnicas europeas con tendencias modernas.",
+      en: "Milagros is the visionary founder of Mila Concept. With over 15 years of experience in luxury hair artistry, she brings an artistic eye and unparalleled expertise to every transformation. Her philosophy blends European techniques with modern trends.",
+      es: "Milagros es la fundadora visionaria de Mila Concept. Con m\u00e1s de 15 a\u00f1os de experiencia en cabello de lujo, aporta una visi\u00f3n art\u00edstica y experiencia inigualable a cada transformaci\u00f3n. Su filosof\u00eda fusiona t\u00e9cnicas europeas con tendencias modernas.",
     },
     avatar: "/specialist-mila.jpg",
     specialties: ["Creative Cuts", "Luxury Color", "Balayage", "Hair Treatments"],

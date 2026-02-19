@@ -14,6 +14,7 @@ interface PhoneLoginModalProps {
 }
 
 const countryCodes = [
+  { code: "+507", flag: "\u{1F1F5}\u{1F1E6}", name: "PA" },
   { code: "+1", flag: "\u{1F1FA}\u{1F1F8}", name: "US" },
   { code: "+1", flag: "\u{1F1E8}\u{1F1E6}", name: "CA" },
   { code: "+52", flag: "\u{1F1F2}\u{1F1FD}", name: "MX" },

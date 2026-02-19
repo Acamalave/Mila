@@ -58,7 +58,7 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
     background: isSelected ? "rgba(142, 123, 84, 0.15)" : "#141414",
     border: isSelected ? "2px solid #C4A96A" : "2px solid rgba(255, 255, 255, 0.08)",
     borderRadius: 16,
-    padding: "20px 16px",
+    padding: "14px 16px",
     cursor: "pointer",
     position: "relative" as const,
     transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
@@ -167,7 +167,7 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
           <div className="flex-1 h-px" style={{ background: "rgba(255, 255, 255, 0.06)" }} />
         </div>
 
-        {/* Services Grid */}
+        {/* Services List */}
         <motion.div
           initial="hidden"
           animate="visible"
@@ -178,7 +178,7 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
               transition: { staggerChildren: 0.05, delayChildren: 0.15 },
             },
           }}
-          className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4"
+          className="flex flex-col gap-3 pb-24"
         >
           {availableServices.map((service) => {
             const isSelected = selectedIds.includes(service.id);
@@ -191,40 +191,15 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                   hidden: { opacity: 0, y: 20, scale: 0.95 },
                   visible: { opacity: 1, y: 0, scale: 1 },
                 }}
-                whileHover={{ y: -4, boxShadow: "0 12px 30px rgba(0, 0, 0, 0.4)" }}
-                whileTap={{ scale: 0.97 }}
+                whileHover={{ y: -2, boxShadow: "0 8px 25px rgba(0, 0, 0, 0.3)" }}
+                whileTap={{ scale: 0.98 }}
                 style={cardStyle(isSelected)}
                 onClick={() => toggleService(service.id)}
+                className="flex items-center gap-4"
               >
-                {/* Selected checkmark */}
-                <AnimatePresence>
-                  {isSelected && (
-                    <motion.div
-                      initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0, opacity: 0 }}
-                      transition={{ type: "spring", stiffness: 500, damping: 25 }}
-                      style={{
-                        position: "absolute",
-                        top: 10,
-                        right: 10,
-                        width: 24,
-                        height: 24,
-                        borderRadius: "50%",
-                        background: "linear-gradient(135deg, #8E7B54, #C4A96A)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <Check size={14} color="#FAF8F5" strokeWidth={3} />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
                 {/* Icon */}
                 <div
-                  className="flex items-center justify-center mb-3"
+                  className="flex items-center justify-center flex-shrink-0"
                   style={{
                     width: 44,
                     height: 44,
@@ -233,39 +208,63 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                       ? "linear-gradient(135deg, #8E7B54, #C4A96A)"
                       : "rgba(142, 123, 84, 0.12)",
                     transition: "all 0.3s ease",
-                    margin: "0 auto",
                   }}
                 >
                   <IconComp size={20} style={{ color: isSelected ? "#FAF8F5" : "#C4A96A" }} />
                 </div>
 
-                {/* Service Info */}
-                <div className="text-center">
+                {/* Service Name + Duration */}
+                <div className="flex-1 min-w-0">
                   <p
-                    className="font-medium leading-tight"
+                    className="font-medium"
                     style={{
-                      fontSize: 13,
+                      fontSize: 14,
                       color: "#FAF8F5",
-                      minHeight: 36,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
+                      lineHeight: 1.3,
                     }}
                   >
                     {service.name[language]}
                   </p>
-                  <div className="flex items-center justify-center gap-2 mt-2">
-                    <span style={{ fontSize: 15, fontWeight: 700, color: "#C4A96A" }}>
-                      {formatPrice(service.price)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-center gap-1 mt-1">
+                  <div className="flex items-center gap-1" style={{ marginTop: 3 }}>
                     <Clock size={11} style={{ color: "#6B6560" }} />
-                    <span style={{ fontSize: 11, color: "#6B6560" }}>
+                    <span style={{ fontSize: 12, color: "#6B6560" }}>
                       {service.durationMinutes} min
                     </span>
                   </div>
                 </div>
+
+                {/* Price */}
+                <span
+                  className="flex-shrink-0"
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 700,
+                    color: "#C4A96A",
+                  }}
+                >
+                  {formatPrice(service.price)}
+                </span>
+
+                {/* Checkmark */}
+                <AnimatePresence>
+                  {isSelected && (
+                    <motion.div
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                      className="flex items-center justify-center flex-shrink-0"
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: "50%",
+                        background: "linear-gradient(135deg, #8E7B54, #C4A96A)",
+                      }}
+                    >
+                      <Check size={14} color="#FAF8F5" strokeWidth={3} />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </motion.div>
             );
           })}
