@@ -287,7 +287,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
   };
 
   return (
-    <section className="py-12 sm:py-16 px-4" style={{ background: "#0A0A0A" }}>
+    <section className="py-12 sm:py-16 px-4 relative">
       <div className="max-w-2xl mx-auto">
         {/* Section Title */}
         <motion.div

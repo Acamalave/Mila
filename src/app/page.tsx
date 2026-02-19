@@ -129,7 +129,50 @@ export default function HomePage() {
     <>
       <Header />
 
-      <main style={{ paddingTop: 56, background: "#0A0A0A", minHeight: "100vh" }}>
+      <main className="relative" style={{ paddingTop: 56, background: "#060608", minHeight: "100vh" }}>
+        {/* Animated gradient blobs for glass effect */}
+        <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
+          <div
+            className="absolute animate-blob-1"
+            style={{
+              top: "10%",
+              left: "15%",
+              width: "clamp(300px, 40vw, 600px)",
+              height: "clamp(300px, 40vw, 600px)",
+              borderRadius: "50%",
+              background: "radial-gradient(circle, rgba(142, 123, 84, 0.12) 0%, rgba(142, 123, 84, 0.04) 40%, transparent 70%)",
+              filter: "blur(60px)",
+            }}
+          />
+          <div
+            className="absolute animate-blob-2"
+            style={{
+              bottom: "20%",
+              right: "10%",
+              width: "clamp(250px, 35vw, 500px)",
+              height: "clamp(250px, 35vw, 500px)",
+              borderRadius: "50%",
+              background: "radial-gradient(circle, rgba(107, 123, 141, 0.1) 0%, rgba(107, 123, 141, 0.03) 40%, transparent 70%)",
+              filter: "blur(60px)",
+            }}
+          />
+          <div
+            className="absolute animate-blob-3"
+            style={{
+              top: "50%",
+              left: "50%",
+              width: "clamp(200px, 30vw, 450px)",
+              height: "clamp(200px, 30vw, 450px)",
+              borderRadius: "50%",
+              background: "radial-gradient(circle, rgba(196, 169, 106, 0.08) 0%, rgba(196, 169, 106, 0.02) 40%, transparent 70%)",
+              filter: "blur(80px)",
+              transform: "translate(-50%, -50%)",
+            }}
+          />
+        </div>
+
+        {/* Content layers above gradient */}
+        <div className="relative" style={{ zIndex: 1 }}>
         {/* Step 1: Specialist Selection - directly, no hero */}
         <SpecialistSlider onSelect={handleSpecialistSelect} />
 
@@ -168,6 +211,7 @@ export default function HomePage() {
             </motion.div>
           )}
         </AnimatePresence>
+        </div>
       </main>
 
       <Footer />
