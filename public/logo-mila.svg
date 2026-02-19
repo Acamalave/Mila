@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 100" width="300" height="100">
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8E7B54"/>
+      <stop offset="50%" style="stop-color:#C4A96A"/>
+      <stop offset="100%" style="stop-color:#8E7B54"/>
+    </linearGradient>
+  </defs>
+  <text x="150" y="52" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="48" font-weight="bold" letter-spacing="12" fill="#110D09">MILA</text>
+  <text x="150" y="78" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="16" letter-spacing="14" fill="url(#goldGrad)">CONCEPT</text>
+  <line x1="85" y1="58" x2="215" y2="58" stroke="url(#goldGrad)" stroke-width="1" opacity="0.5"/>
+</svg>

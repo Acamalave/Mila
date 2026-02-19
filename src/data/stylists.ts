@@ -1,0 +1,170 @@
+import type { Stylist } from "@/types/stylist";
+
+export const stylists: Stylist[] = [
+  {
+    id: "stylist-mila",
+    name: "Mila Rodríguez",
+    role: {
+      en: "Creative Director & Master Stylist",
+      es: "Directora Creativa y Estilista Principal",
+    },
+    bio: {
+      en: "Mila is the visionary founder of Mila Concept. With over 15 years of experience in luxury beauty, she brings an artistic eye and unparalleled expertise to every transformation. Her philosophy blends European techniques with modern trends.",
+      es: "Mila es la fundadora visionaria de Mila Concept. Con más de 15 años de experiencia en belleza de lujo, aporta una visión artística y una experiencia inigualable a cada transformación. Su filosofía fusiona técnicas europeas con tendencias modernas.",
+    },
+    avatar: "/specialist-mila.jpg",
+    specialties: ["Creative Cuts", "Luxury Color", "Bridal", "Hair Treatments"],
+    serviceIds: [
+      "svc-hair-cut",
+      "svc-hair-color",
+      "svc-hair-highlights",
+      "svc-hair-treatment",
+      "svc-makeup-bridal",
+      "svc-makeup-event",
+    ],
+    rating: 5.0,
+    reviewCount: 203,
+    schedule: [
+      { dayOfWeek: 0, startTime: "09:00", endTime: "18:00", isAvailable: false },
+      { dayOfWeek: 1, startTime: "09:00", endTime: "19:00", isAvailable: true },
+      { dayOfWeek: 2, startTime: "09:00", endTime: "19:00", isAvailable: true },
+      { dayOfWeek: 3, startTime: "09:00", endTime: "19:00", isAvailable: true },
+      { dayOfWeek: 4, startTime: "09:00", endTime: "19:00", isAvailable: true },
+      { dayOfWeek: 5, startTime: "09:00", endTime: "18:00", isAvailable: true },
+      { dayOfWeek: 6, startTime: "10:00", endTime: "16:00", isAvailable: true },
+    ],
+    instagram: "@milaconcept",
+  },
+  {
+    id: "stylist-camila",
+    name: "Camila Reyes",
+    role: {
+      en: "Senior Hair Stylist & Colorist",
+      es: "Estilista Senior y Colorista",
+    },
+    bio: {
+      en: "With over 12 years of experience in cutting-edge hair techniques, Camila specializes in balayage, precision cuts, and transformative color work. She has trained in Milan and New York and brings an editorial eye to every appointment.",
+      es: "Con más de 12 años de experiencia en técnicas capilares de vanguardia, Camila se especializa en balayage, cortes de precisión y trabajo de color transformador. Se ha formado en Milán y Nueva York, aportando una visión editorial a cada cita.",
+    },
+    avatar:
+      "https://images.unsplash.com/photo-1594744803329-e58b31de8bf5?w=800&q=80",
+    specialties: ["Balayage", "Precision Cuts", "Color Correction", "Keratin"],
+    serviceIds: [
+      "svc-hair-cut",
+      "svc-hair-color",
+      "svc-hair-highlights",
+      "svc-hair-treatment",
+    ],
+    rating: 4.9,
+    reviewCount: 127,
+    schedule: [
+      { dayOfWeek: 0, startTime: "09:00", endTime: "18:00", isAvailable: false },
+      { dayOfWeek: 1, startTime: "09:00", endTime: "18:00", isAvailable: true },
+      { dayOfWeek: 2, startTime: "09:00", endTime: "18:00", isAvailable: true },
+      { dayOfWeek: 3, startTime: "10:00", endTime: "19:00", isAvailable: true },
+      { dayOfWeek: 4, startTime: "10:00", endTime: "19:00", isAvailable: true },
+      { dayOfWeek: 5, startTime: "09:00", endTime: "17:00", isAvailable: true },
+      { dayOfWeek: 6, startTime: "09:00", endTime: "15:00", isAvailable: true },
+    ],
+    instagram: "@camila.reyes.hair",
+  },
+  {
+    id: "stylist-valentina",
+    name: "Valentina Torres",
+    role: {
+      en: "Nail Artist & Spa Specialist",
+      es: "Artista de Uñas y Especialista en Spa",
+    },
+    bio: {
+      en: "Valentina is a certified nail technician and spa specialist known for her intricate nail art designs and relaxing spa pedicures. Her creative approach and attention to detail have earned her a loyal following.",
+      es: "Valentina es técnica de uñas certificada y especialista en spa, conocida por sus intrincados diseños de nail art y pedicuras de spa relajantes. Su enfoque creativo y atención al detalle le han ganado una clientela fiel.",
+    },
+    avatar:
+      "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=800&q=80",
+    specialties: ["Gel Nails", "Nail Art", "Spa Pedicure", "Acrylic Extensions"],
+    serviceIds: [
+      "svc-nails-classic-mani",
+      "svc-nails-gel",
+      "svc-nails-pedicure",
+      "svc-nails-art",
+    ],
+    rating: 4.8,
+    reviewCount: 93,
+    schedule: [
+      { dayOfWeek: 0, startTime: "09:00", endTime: "18:00", isAvailable: false },
+      { dayOfWeek: 1, startTime: "09:00", endTime: "17:00", isAvailable: true },
+      { dayOfWeek: 2, startTime: "09:00", endTime: "17:00", isAvailable: true },
+      { dayOfWeek: 3, startTime: "09:00", endTime: "17:00", isAvailable: true },
+      { dayOfWeek: 4, startTime: "09:00", endTime: "17:00", isAvailable: true },
+      { dayOfWeek: 5, startTime: "09:00", endTime: "17:00", isAvailable: true },
+      { dayOfWeek: 6, startTime: "10:00", endTime: "14:00", isAvailable: true },
+    ],
+    instagram: "@val.nailstudio",
+  },
+  {
+    id: "stylist-lucia",
+    name: "Lucia Fernandez",
+    role: {
+      en: "Skin Care Specialist & Esthetician",
+      es: "Especialista en Cuidado de la Piel y Esteticista",
+    },
+    bio: {
+      en: "Lucia is a licensed esthetician with advanced certifications in chemical peels, microdermabrasion, and LED therapy. She takes a holistic approach to skincare, customizing every treatment to each client's unique needs.",
+      es: "Lucia es esteticista licenciada con certificaciones avanzadas en peelings químicos, microdermoabrasión y terapia LED. Tiene un enfoque holístico del cuidado de la piel, personalizando cada tratamiento según las necesidades únicas de cada cliente.",
+    },
+    avatar:
+      "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=800&q=80",
+    specialties: ["Facials", "Chemical Peels", "Microdermabrasion", "LED Therapy"],
+    serviceIds: [
+      "svc-skin-facial",
+      "svc-skin-peel",
+      "svc-skin-microderm",
+      "svc-skin-hydra",
+    ],
+    rating: 5.0,
+    reviewCount: 68,
+    schedule: [
+      { dayOfWeek: 0, startTime: "09:00", endTime: "18:00", isAvailable: false },
+      { dayOfWeek: 1, startTime: "10:00", endTime: "18:00", isAvailable: true },
+      { dayOfWeek: 2, startTime: "10:00", endTime: "18:00", isAvailable: true },
+      { dayOfWeek: 3, startTime: "10:00", endTime: "18:00", isAvailable: true },
+      { dayOfWeek: 4, startTime: "10:00", endTime: "18:00", isAvailable: true },
+      { dayOfWeek: 5, startTime: "10:00", endTime: "18:00", isAvailable: true },
+      { dayOfWeek: 6, startTime: "09:00", endTime: "14:00", isAvailable: true },
+    ],
+    instagram: "@lucia.skincare",
+  },
+  {
+    id: "stylist-mariana",
+    name: "Mariana Delgado",
+    role: {
+      en: "Makeup Artist & Beauty Consultant",
+      es: "Maquilladora y Consultora de Belleza",
+    },
+    bio: {
+      en: "Mariana is a professional makeup artist with experience in bridal, editorial, and event makeup. She has worked with top beauty brands and brings a keen eye for color theory and face architecture to every look she creates.",
+      es: "Mariana es maquilladora profesional con experiencia en maquillaje de novias, editorial y eventos. Ha trabajado con las mejores marcas de belleza y aporta un ojo experto en teoría del color y arquitectura facial a cada look que crea.",
+    },
+    avatar:
+      "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=800&q=80",
+    specialties: ["Bridal Makeup", "Airbrush", "Color Theory", "Contouring"],
+    serviceIds: [
+      "svc-makeup-everyday",
+      "svc-makeup-event",
+      "svc-makeup-bridal",
+      "svc-makeup-lesson",
+    ],
+    rating: 4.7,
+    reviewCount: 84,
+    schedule: [
+      { dayOfWeek: 0, startTime: "09:00", endTime: "18:00", isAvailable: false },
+      { dayOfWeek: 1, startTime: "09:00", endTime: "18:00", isAvailable: true },
+      { dayOfWeek: 2, startTime: "09:00", endTime: "18:00", isAvailable: true },
+      { dayOfWeek: 3, startTime: "09:00", endTime: "18:00", isAvailable: true },
+      { dayOfWeek: 4, startTime: "09:00", endTime: "18:00", isAvailable: true },
+      { dayOfWeek: 5, startTime: "09:00", endTime: "18:00", isAvailable: true },
+      { dayOfWeek: 6, startTime: "10:00", endTime: "15:00", isAvailable: true },
+    ],
+    instagram: "@mariana.mua",
+  },
+];

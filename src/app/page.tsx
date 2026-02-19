@@ -1,65 +1,244 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+import { useRef, useEffect, useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "motion/react";
+import { useAuth } from "@/providers/AuthProvider";
+import { useBooking } from "@/providers/BookingProvider";
+import { getStoredData, setStoredData, generateId } from "@/lib/utils";
+import type { Booking } from "@/types";
+import Header from "@/components/layout/Header";
+import Footer from "@/components/layout/Footer";
+import SpecialistSlider from "@/components/landing/SpecialistSlider";
+import ServiceSelector from "@/components/landing/ServiceSelector";
+import CalendarPicker from "@/components/landing/CalendarPicker";
+import BookingSuccess from "@/components/landing/BookingSuccess";
+import PhoneLoginModal from "@/components/landing/PhoneLoginModal";
+
+export default function HomePage() {
+  const router = useRouter();
+  const { user, isAuthenticated, hydrated } = useAuth();
+  const { state, dispatch, resetBooking } = useBooking();
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [pendingBook, setPendingBook] = useState(false);
+
+  const servicesRef = useRef<HTMLDivElement>(null);
+  const calendarRef = useRef<HTMLDivElement>(null);
+
+  // Redirect authenticated users to dashboard
+  useEffect(() => {
+    if (hydrated && isAuthenticated) {
+      // Check if user has come here intentionally (e.g., to book another)
+      // Only redirect on initial load, not after booking
+      const hasBookingInProgress = state.selectedStylistId !== null;
+      if (!hasBookingInProgress && !showSuccess) {
+        router.push("/dashboard");
+      }
+    }
+  }, [hydrated, isAuthenticated, router, state.selectedStylistId, showSuccess]);
+
+  // Smooth scroll to section
+  const scrollToSection = useCallback((ref: React.RefObject<HTMLDivElement | null>) => {
+    setTimeout(() => {
+      ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+  }, []);
+
+  // When specialist is selected, show services and scroll
+  const handleSpecialistSelect = useCallback(() => {
+    dispatch({ type: "GO_TO_STEP", payload: 2 });
+    scrollToSection(servicesRef);
+  }, [dispatch, scrollToSection]);
+
+  // When services are confirmed, show calendar and scroll
+  const handleServicesContinue = useCallback(() => {
+    dispatch({ type: "GO_TO_STEP", payload: 3 });
+    scrollToSection(calendarRef);
+  }, [dispatch, scrollToSection]);
+
+  // Handle booking confirmation
+  const handleBook = useCallback(() => {
+    // Create the booking
+    const booking: Booking = {
+      id: generateId(),
+      serviceIds: state.isGeneralAppointment ? [] : state.selectedServiceIds,
+      stylistId: state.selectedStylistId!,
+      clientId: user?.id ?? null,
+      date: state.selectedDate!,
+      startTime: state.selectedTimeSlot!.startTime,
+      endTime: state.selectedTimeSlot!.endTime,
+      status: "confirmed",
+      totalPrice: 0, // Will be calculated
+      notes: state.notes,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Save to localStorage
+    const existing = getStoredData<Booking[]>("mila-bookings", []);
+    setStoredData("mila-bookings", [...existing, booking]);
+
+    // Show success
+    dispatch({ type: "GO_TO_STEP", payload: 4 });
+    setShowSuccess(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [state, user, dispatch]);
+
+  // Handle login required during booking
+  const handleLoginRequired = useCallback(() => {
+    setPendingBook(true);
+    setShowLoginModal(true);
+  }, []);
+
+  // After successful login, proceed with booking
+  const handleLoginSuccess = useCallback(() => {
+    setShowLoginModal(false);
+    if (pendingBook) {
+      setPendingBook(false);
+      // Short delay to let auth state update
+      setTimeout(() => handleBook(), 100);
+    }
+  }, [pendingBook, handleBook]);
+
+  // Go to dashboard after booking
+  const handleGoToDashboard = useCallback(() => {
+    router.push("/dashboard");
+  }, [router]);
+
+  // Book another appointment
+  const handleBookAnother = useCallback(() => {
+    resetBooking();
+    setShowSuccess(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [resetBooking]);
+
+  // Don't render until hydrated
+  if (!hydrated) return null;
+
+  // Show success screen
+  if (showSuccess) {
+    return (
+      <>
+        <Header />
+        <BookingSuccess
+          onGoToDashboard={handleGoToDashboard}
+          onBookAnother={handleBookAnother}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+      </>
+    );
+  }
+
+  const showServices = state.selectedStylistId !== null;
+  const showCalendar = showServices && (state.selectedServiceIds.length > 0 || state.isGeneralAppointment);
+
+  return (
+    <>
+      <Header />
+
+      <main style={{ paddingTop: 64 }}>
+        {/* Hero Mini - Logo + Tagline */}
+        <motion.section
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.8 }}
+          className="text-center py-10 sm:py-16 px-4"
+          style={{
+            background: "linear-gradient(180deg, #110D09 0%, #1A1614 60%, #FAF8F5 100%)",
+          }}
+        >
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.6 }}
+            className="text-3xl sm:text-5xl font-bold tracking-wider"
+            style={{
+              fontFamily: "var(--font-display)",
+              color: "#FAF8F5",
+              letterSpacing: "0.15em",
+            }}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            MILA CONCEPT
+          </motion.h1>
+          <motion.div
+            initial={{ scaleX: 0 }}
+            animate={{ scaleX: 1 }}
+            transition={{ delay: 0.5, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            style={{
+              width: 60,
+              height: 2,
+              background: "linear-gradient(90deg, #8E7B54, #C4A96A)",
+              margin: "12px auto",
+              borderRadius: 2,
+            }}
+          />
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.7 }}
+            className="text-sm sm:text-base"
+            style={{
+              color: "#ABA595",
+              letterSpacing: "0.3em",
+              textTransform: "uppercase" as const,
+              fontFamily: "var(--font-accent)",
+              fontWeight: 300,
+            }}
           >
-            Documentation
-          </a>
-        </div>
+            Where Art Meets Beauty
+          </motion.p>
+        </motion.section>
+
+        {/* Step 1: Specialist Selection */}
+        <SpecialistSlider onSelect={handleSpecialistSelect} />
+
+        {/* Step 2: Service Selection */}
+        <AnimatePresence>
+          {showServices && state.selectedStylistId && (
+            <motion.div
+              ref={servicesRef}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <ServiceSelector
+                stylistId={state.selectedStylistId}
+                onContinue={handleServicesContinue}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Step 3: Calendar & Time */}
+        <AnimatePresence>
+          {showCalendar && (
+            <motion.div
+              ref={calendarRef}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <CalendarPicker
+                onBook={handleBook}
+                onLoginRequired={handleLoginRequired}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
-    </div>
+
+      <Footer />
+
+      {/* Phone Login Modal */}
+      <PhoneLoginModal
+        isOpen={showLoginModal}
+        onClose={() => {
+          setShowLoginModal(false);
+          setPendingBook(false);
+        }}
+        onSuccess={handleLoginSuccess}
+      />
+    </>
   );
 }
