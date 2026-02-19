@@ -129,7 +129,7 @@ export default function HomePage() {
     <>
       <Header />
 
-      <main className="relative" style={{ paddingTop: 56, background: "#060608", minHeight: "100vh" }}>
+      <main className="relative" style={{ paddingTop: 56, background: "var(--color-bg-page)", minHeight: "100vh", transition: "background 0.3s ease" }}>
         {/* Animated gradient blobs for glass effect */}
         <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
           <div
@@ -140,7 +140,7 @@ export default function HomePage() {
               width: "clamp(300px, 40vw, 600px)",
               height: "clamp(300px, 40vw, 600px)",
               borderRadius: "50%",
-              background: "radial-gradient(circle, rgba(142, 123, 84, 0.12) 0%, rgba(142, 123, 84, 0.04) 40%, transparent 70%)",
+              background: "radial-gradient(circle, var(--blob-color-1) 0%, transparent 70%)",
               filter: "blur(60px)",
             }}
           />
@@ -152,7 +152,7 @@ export default function HomePage() {
               width: "clamp(250px, 35vw, 500px)",
               height: "clamp(250px, 35vw, 500px)",
               borderRadius: "50%",
-              background: "radial-gradient(circle, rgba(107, 123, 141, 0.1) 0%, rgba(107, 123, 141, 0.03) 40%, transparent 70%)",
+              background: "radial-gradient(circle, var(--blob-color-2) 0%, transparent 70%)",
               filter: "blur(60px)",
             }}
           />
@@ -164,7 +164,7 @@ export default function HomePage() {
               width: "clamp(200px, 30vw, 450px)",
               height: "clamp(200px, 30vw, 450px)",
               borderRadius: "50%",
-              background: "radial-gradient(circle, rgba(196, 169, 106, 0.08) 0%, rgba(196, 169, 106, 0.02) 40%, transparent 70%)",
+              background: "radial-gradient(circle, var(--blob-color-3) 0%, transparent 70%)",
               filter: "blur(80px)",
               transform: "translate(-50%, -50%)",
             }}

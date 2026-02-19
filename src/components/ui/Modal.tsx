@@ -44,7 +44,11 @@ export default function Modal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="absolute inset-0"
-            style={{ background: "rgba(0, 0, 0, 0.7)", backdropFilter: "blur(4px)" }}
+            style={{
+              background: "var(--color-bg-overlay)",
+              backdropFilter: "blur(4px)",
+              transition: "all 0.3s ease",
+            }}
             onClick={onClose}
           />
           <motion.div
@@ -59,26 +63,38 @@ export default function Modal({
               modalSizes[size]
             )}
             style={{
-              background: "#141414",
-              boxShadow: "0 -10px 40px rgba(0, 0, 0, 0.3), 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06)",
+              background: "var(--color-bg-card)",
+              boxShadow: "var(--shadow-float, 0 -10px 40px rgba(0, 0, 0, 0.3), 0 20px 50px rgba(0, 0, 0, 0.5))",
+              border: "1px solid var(--color-border-default)",
+              transition: "all 0.3s ease",
             }}
           >
             {title && (
               <div
                 className="flex items-center justify-between p-6"
-                style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.06)" }}
+                style={{
+                  borderBottom: "1px solid var(--color-border-default)",
+                  transition: "all 0.3s ease",
+                }}
               >
                 <h3
                   className="text-xl font-semibold"
-                  style={{ fontFamily: "var(--font-display)", color: "#FAF8F5" }}
+                  style={{
+                    fontFamily: "var(--font-display)",
+                    color: "var(--color-text-primary)",
+                    transition: "color 0.3s ease",
+                  }}
                 >
                   {title}
                 </h3>
                 <button
                   onClick={onClose}
                   className="p-2 rounded-lg transition-colors"
-                  style={{ color: "#6B6560" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)")}
+                  style={{
+                    color: "var(--color-text-muted)",
+                    transition: "all 0.3s ease",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-bg-glass-hover)")}
                   onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
                   <X size={20} />

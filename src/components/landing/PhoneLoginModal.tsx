@@ -71,9 +71,9 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
   };
 
   const inputStyle = (hasError: boolean): React.CSSProperties => ({
-    background: "rgba(255, 255, 255, 0.04)",
-    border: hasError ? "1px solid #9B4D4D" : "1px solid rgba(255, 255, 255, 0.08)",
-    color: "#FAF8F5",
+    background: "var(--color-bg-input)",
+    border: hasError ? "1px solid #9B4D4D" : "1px solid var(--color-border-default)",
+    color: "var(--color-text-primary)",
     fontSize: 15,
     outline: "none",
     transition: "border-color 0.2s ease, background 0.2s ease",
@@ -90,18 +90,18 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
             width: 52,
             height: 52,
             borderRadius: "50%",
-            background: "linear-gradient(135deg, rgba(142, 123, 84, 0.2), rgba(196, 169, 106, 0.15))",
+            background: "var(--color-accent-subtle)",
           }}
         >
-          <Phone size={22} style={{ color: "#C4A96A" }} />
+          <Phone size={22} style={{ color: "var(--color-accent)" }} />
         </div>
         <h3
           className="text-lg font-bold"
-          style={{ fontFamily: "var(--font-display)", color: "#FAF8F5" }}
+          style={{ fontFamily: "var(--font-display)", color: "var(--color-text-primary)" }}
         >
           {t("auth", "loginTitle")}
         </h3>
-        <p className="mt-0.5" style={{ fontSize: 13, color: "#6B6560" }}>
+        <p className="mt-0.5" style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
           {t("auth", "enterPhone")}
         </p>
       </div>
@@ -111,14 +111,14 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
         <div>
           <label
             className="block text-xs font-medium mb-1"
-            style={{ color: "#ABA595", letterSpacing: "0.05em" }}
+            style={{ color: "var(--color-text-secondary)", letterSpacing: "0.05em" }}
           >
             {t("auth", "name")} *
           </label>
           <div className="relative">
             <div
               className="absolute left-3 top-1/2 -translate-y-1/2"
-              style={{ color: "#6B6560" }}
+              style={{ color: "var(--color-text-muted)" }}
             >
               <User size={16} />
             </div>
@@ -130,12 +130,12 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
               className="w-full pl-10 pr-4 py-3"
               style={inputStyle(!!nameError)}
               onFocus={(e) => {
-                if (!nameError) e.currentTarget.style.borderColor = "#C4A96A";
-                e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)";
+                if (!nameError) e.currentTarget.style.borderColor = "var(--color-accent)";
+                e.currentTarget.style.background = "var(--color-bg-glass-hover)";
               }}
               onBlur={(e) => {
-                if (!nameError) e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.08)";
-                e.currentTarget.style.background = "rgba(255, 255, 255, 0.04)";
+                if (!nameError) e.currentTarget.style.borderColor = "var(--color-border-default)";
+                e.currentTarget.style.background = "var(--color-bg-input)";
               }}
             />
           </div>
@@ -158,7 +158,7 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
         <div>
           <label
             className="block text-xs font-medium mb-1"
-            style={{ color: "#ABA595", letterSpacing: "0.05em" }}
+            style={{ color: "var(--color-text-secondary)", letterSpacing: "0.05em" }}
           >
             {t("auth", "phone")} *
           </label>
@@ -171,9 +171,9 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
                 onClick={() => setShowCountries(!showCountries)}
                 className="flex items-center gap-1 px-2.5 py-3"
                 style={{
-                  background: "rgba(255, 255, 255, 0.04)",
-                  border: "1px solid rgba(255, 255, 255, 0.08)",
-                  color: "#FAF8F5",
+                  background: "var(--color-bg-input)",
+                  border: "1px solid var(--color-border-default)",
+                  color: "var(--color-text-primary)",
                   fontSize: 13,
                   cursor: "pointer",
                   minWidth: 82,
@@ -186,7 +186,7 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
                 <ChevronDown
                   size={12}
                   style={{
-                    color: "#6B6560",
+                    color: "var(--color-text-muted)",
                     transform: showCountries ? "rotate(180deg)" : "rotate(0deg)",
                     transition: "transform 0.2s ease",
                   }}
@@ -202,10 +202,10 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
                     transition={{ duration: 0.2 }}
                     className="absolute top-full left-0 mt-1 rounded-xl overflow-hidden z-50"
                     style={{
-                      background: "rgba(20, 20, 20, 0.98)",
+                      background: "var(--color-bg-overlay)",
                       backdropFilter: "blur(20px)",
-                      boxShadow: "0 10px 40px rgba(0, 0, 0, 0.6)",
-                      border: "1px solid rgba(255, 255, 255, 0.08)",
+                      boxShadow: "var(--shadow-float)",
+                      border: "1px solid var(--color-border-default)",
                       maxHeight: 200,
                       overflowY: "auto" as const,
                       width: 180,
@@ -221,18 +221,18 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
                         }}
                         className="w-full flex items-center gap-2 px-3 py-2 text-xs"
                         style={{
-                          background: selectedCountry.name === country.name ? "rgba(142, 123, 84, 0.15)" : "transparent",
-                          color: "#FAF8F5",
+                          background: selectedCountry.name === country.name ? "var(--color-accent-subtle)" : "transparent",
+                          color: "var(--color-text-primary)",
                           cursor: "pointer",
                           transition: "background 0.15s ease",
-                          borderBottom: i < countryCodes.length - 1 ? "1px solid rgba(255, 255, 255, 0.04)" : "none",
+                          borderBottom: i < countryCodes.length - 1 ? "1px solid var(--color-border-subtle)" : "none",
                         }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(142, 123, 84, 0.1)")}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = selectedCountry.name === country.name ? "rgba(142, 123, 84, 0.15)" : "transparent")}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-bg-glass-selected)")}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = selectedCountry.name === country.name ? "var(--color-accent-subtle)" : "transparent")}
                       >
                         <span style={{ fontSize: 15 }}>{country.flag}</span>
                         <span>{country.name}</span>
-                        <span style={{ color: "#6B6560", marginLeft: "auto" }}>{country.code}</span>
+                        <span style={{ color: "var(--color-text-muted)", marginLeft: "auto" }}>{country.code}</span>
                       </button>
                     ))}
                   </motion.div>
@@ -249,12 +249,12 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
               className="flex-1 px-3 py-3 min-w-0"
               style={inputStyle(!!phoneError)}
               onFocus={(e) => {
-                if (!phoneError) e.currentTarget.style.borderColor = "#C4A96A";
-                e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)";
+                if (!phoneError) e.currentTarget.style.borderColor = "var(--color-accent)";
+                e.currentTarget.style.background = "var(--color-bg-glass-hover)";
               }}
               onBlur={(e) => {
-                if (!phoneError) e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.08)";
-                e.currentTarget.style.background = "rgba(255, 255, 255, 0.04)";
+                if (!phoneError) e.currentTarget.style.borderColor = "var(--color-border-default)";
+                e.currentTarget.style.background = "var(--color-bg-input)";
               }}
             />
           </div>
@@ -280,9 +280,9 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
           whileTap={{ scale: 0.98 }}
           className="w-full py-3 rounded-xl font-semibold text-sm"
           style={{
-            background: "linear-gradient(135deg, #8E7B54, #C4A96A)",
-            color: "#110D09",
-            boxShadow: "0 4px 15px rgba(142, 123, 84, 0.3)",
+            background: "var(--gradient-accent)",
+            color: "var(--color-text-inverse)",
+            boxShadow: "var(--shadow-glow)",
             border: "none",
             cursor: "pointer",
             marginTop: 8,
@@ -298,9 +298,9 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
         animate={{ opacity: 1 }}
         transition={{ delay: 0.3 }}
         className="mt-4 p-2.5 rounded-lg"
-        style={{ background: "rgba(142, 123, 84, 0.06)" }}
+        style={{ background: "var(--color-accent-subtle)" }}
       >
-        <p className="text-xs text-center" style={{ color: "#6B6560", lineHeight: 1.4 }}>
+        <p className="text-xs text-center" style={{ color: "var(--color-text-muted)", lineHeight: 1.4 }}>
           {t("auth", "demoHint")}
         </p>
       </motion.div>

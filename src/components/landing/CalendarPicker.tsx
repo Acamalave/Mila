@@ -249,19 +249,19 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
             fontSize: 14,
             fontWeight: isSelected ? 700 : 400,
             color: isSelected
-              ? "#FAF8F5"
+              ? "var(--color-text-inverse)"
               : isAvailable
-              ? "#FAF8F5"
+              ? "var(--color-text-primary)"
               : isCurrentMonth
               ? "rgba(107, 101, 96, 0.4)"
               : "rgba(107, 101, 96, 0.2)",
             background: isSelected
-              ? "linear-gradient(135deg, #8E7B54, #C4A96A)"
+              ? "var(--gradient-accent)"
               : isAvailable
-              ? "rgba(255, 255, 255, 0.04)"
+              ? "var(--color-bg-input)"
               : "transparent",
             boxShadow: isSelected
-              ? "0 4px 15px rgba(142, 123, 84, 0.4)"
+              ? "var(--shadow-glow)"
               : "none",
             transition: "all 0.2s ease",
           }}
@@ -275,7 +275,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
               width: 4,
               height: 4,
               borderRadius: "50%",
-              background: "#C4A96A",
+              background: "var(--color-accent)",
               marginTop: 2,
               display: "block",
               flexShrink: 0,
@@ -299,11 +299,11 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
         >
           <h2
             className="text-2xl sm:text-3xl font-bold mb-3"
-            style={{ fontFamily: "var(--font-display)", color: "#FAF8F5" }}
+            style={{ fontFamily: "var(--font-display)", color: "var(--color-text-primary)" }}
           >
             {t("home", "chooseDate")}
           </h2>
-          <div style={{ width: 50, height: 2, background: "linear-gradient(90deg, #8E7B54, #C4A96A)", margin: "0 auto", borderRadius: 2 }} />
+          <div style={{ width: 50, height: 2, background: "var(--gradient-accent-h)", margin: "0 auto", borderRadius: 2 }} />
         </motion.div>
 
         {/* Calendar Card */}
@@ -312,28 +312,29 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
           style={{
-            background: "#141414",
+            background: "var(--color-bg-card)",
             borderRadius: 20,
-            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.4)",
-            border: "1px solid rgba(255, 255, 255, 0.06)",
+            boxShadow: "var(--shadow-card)",
+            border: "1px solid var(--color-border-default)",
             overflow: "hidden",
+            transition: "all 0.3s ease",
           }}
         >
           {/* Navigation Header */}
           <div className="flex items-center justify-between px-6 py-4"
-            style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.06)" }}
+            style={{ borderBottom: "1px solid var(--color-border-default)" }}
           >
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               onClick={handlePrev}
-              style={{ color: "#C4A96A", cursor: "pointer", background: "none", border: "none" }}
+              style={{ color: "var(--color-accent)", cursor: "pointer", background: "none", border: "none" }}
             >
               <ChevronLeft size={20} />
             </motion.button>
             <h3
               className="text-base font-semibold capitalize"
-              style={{ color: "#FAF8F5", fontFamily: "var(--font-display)" }}
+              style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-display)" }}
             >
               {viewMode === "week"
                 ? weekHeaderText
@@ -344,7 +345,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               onClick={handleNext}
-              style={{ color: "#C4A96A", cursor: "pointer", background: "none", border: "none" }}
+              style={{ color: "var(--color-accent)", cursor: "pointer", background: "none", border: "none" }}
             >
               <ChevronRight size={20} />
             </motion.button>
@@ -356,7 +357,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
               <div
                 key={d}
                 className="text-center py-2"
-                style={{ fontSize: 11, color: "#6B6560", fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}
+                style={{ fontSize: 11, color: "var(--color-text-muted)", fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}
               >
                 {d}
               </div>
@@ -402,9 +403,9 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
               onClick={toggleViewMode}
               className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl"
               style={{
-                background: "rgba(255, 255, 255, 0.03)",
-                border: "1px solid rgba(255, 255, 255, 0.06)",
-                color: "#C4A96A",
+                background: "var(--color-bg-glass)",
+                border: "1px solid var(--color-border-default)",
+                color: "var(--color-accent)",
                 fontSize: 13,
                 fontWeight: 500,
                 cursor: "pointer",
@@ -436,7 +437,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
               transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
               className="mt-6"
             >
-              <p className="text-sm font-medium mb-3" style={{ color: "#ABA595" }}>
+              <p className="text-sm font-medium mb-3" style={{ color: "var(--color-text-secondary)" }}>
                 {language === "es" ? "Horarios disponibles" : "Available times"}
               </p>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -455,18 +456,18 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
                       className="flex items-center justify-center py-3.5 px-2 rounded-xl"
                       style={{
                         background: isSelected
-                          ? "linear-gradient(135deg, #8E7B54, #C4A96A)"
-                          : "#141414",
+                          ? "var(--gradient-accent)"
+                          : "var(--color-bg-card)",
                         border: isSelected
-                          ? "2px solid #C4A96A"
-                          : "2px solid rgba(255, 255, 255, 0.08)",
-                        color: isSelected ? "#FAF8F5" : "#ABA595",
+                          ? "2px solid var(--color-accent)"
+                          : "2px solid var(--color-border-default)",
+                        color: isSelected ? "var(--color-text-inverse)" : "var(--color-text-secondary)",
                         fontSize: 15,
                         fontWeight: isSelected ? 700 : 500,
                         letterSpacing: "0.02em",
                         cursor: "pointer",
                         boxShadow: isSelected
-                          ? "0 4px 15px rgba(142, 123, 84, 0.3)"
+                          ? "var(--shadow-glow)"
                           : "none",
                         transition: "all 0.2s ease",
                       }}
@@ -493,22 +494,23 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
               <div
                 className="p-4 rounded-xl mb-4"
                 style={{
-                  background: "rgba(142, 123, 84, 0.1)",
-                  border: "1px solid rgba(142, 123, 84, 0.2)",
+                  background: "var(--color-accent-subtle)",
+                  border: "1px solid var(--color-border-accent)",
+                  transition: "all 0.3s ease",
                 }}
               >
-                <p className="text-sm font-medium" style={{ color: "#ABA595" }}>
+                <p className="text-sm font-medium" style={{ color: "var(--color-text-secondary)" }}>
                   {t("home", "yourBooking")}
                 </p>
                 <div className="mt-2 space-y-1">
-                  <p style={{ fontSize: 13, color: "#FAF8F5" }}>
+                  <p style={{ fontSize: 13, color: "var(--color-text-primary)" }}>
                     {stylist?.name} · {selectedDate ? format(selectedDate, "EEEE, MMMM d", { locale }) : ""}
                   </p>
-                  <p style={{ fontSize: 13, color: "#C4A96A" }}>
+                  <p style={{ fontSize: 13, color: "var(--color-accent)" }}>
                     {formatTimeDisplay(state.selectedTimeSlot.startTime)} - {formatTimeDisplay(state.selectedTimeSlot.endTime)}
                   </p>
                   {!state.isGeneralAppointment && (
-                    <p style={{ fontSize: 14, color: "#C4A96A", fontWeight: 700, marginTop: 4 }}>
+                    <p style={{ fontSize: 14, color: "var(--color-accent)", fontWeight: 700, marginTop: 4 }}>
                       {formatPrice(totalPrice)}
                     </p>
                   )}
@@ -521,9 +523,9 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
                 onClick={handleBook}
                 className="w-full py-4 rounded-2xl font-semibold text-base"
                 style={{
-                  background: "linear-gradient(135deg, #8E7B54, #C4A96A)",
-                  color: "#110D09",
-                  boxShadow: "0 8px 30px rgba(142, 123, 84, 0.35)",
+                  background: "var(--gradient-accent)",
+                  color: "var(--color-text-inverse)",
+                  boxShadow: "var(--shadow-glow)",
                   border: "none",
                   cursor: "pointer",
                 }}

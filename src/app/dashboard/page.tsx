@@ -26,13 +26,13 @@ import {
 
 /* ── Shared glass style ─────────────────────────────────────────── */
 const glassCard: React.CSSProperties = {
-  background: "rgba(255, 255, 255, 0.03)",
+  background: "var(--color-bg-glass)",
   backdropFilter: "blur(20px)",
   WebkitBackdropFilter: "blur(20px)",
-  border: "1px solid rgba(255, 255, 255, 0.06)",
+  border: "1px solid var(--color-border-default)",
   borderRadius: 20,
-  boxShadow:
-    "0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.04)",
+  boxShadow: "var(--shadow-card)",
+  transition: "all 0.3s ease",
 };
 
 const glassCardHover: React.CSSProperties = {
@@ -42,12 +42,12 @@ const glassCardHover: React.CSSProperties = {
 
 /* ── Colors ─────────────────────────────────────────────────────── */
 const colors = {
-  primary: "#FAF8F5",
-  secondary: "#ABA595",
-  muted: "#6B6560",
-  gold: "#C4A96A",
-  darkGold: "#8E7B54",
-  bg: "#0A0A0A",
+  primary: "var(--color-text-primary)",
+  secondary: "var(--color-text-secondary)",
+  muted: "var(--color-text-muted)",
+  gold: "var(--color-accent)",
+  darkGold: "var(--color-accent-dark)",
+  bg: "var(--color-bg-page)",
 };
 
 /* ── Animations ─────────────────────────────────────────────────── */
@@ -69,7 +69,7 @@ const itemVariants: Variants = {
 };
 
 const cardSpring = {
-  whileHover: { scale: 1.04, boxShadow: "0 12px 40px rgba(196, 169, 106, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.06)" },
+  whileHover: { scale: 1.04, boxShadow: "var(--shadow-card-hover)" },
   whileTap: { scale: 0.97 },
 };
 
@@ -227,9 +227,8 @@ export default function DashboardPage() {
                     card.accent
                       ? {
                           ...glassCardHover,
-                          background:
-                            "linear-gradient(135deg, rgba(196, 169, 106, 0.12), rgba(142, 123, 84, 0.06))",
-                          border: "1px solid rgba(196, 169, 106, 0.2)",
+                          background: "var(--color-bg-glass-selected)",
+                          border: "1px solid var(--color-border-accent)",
                         }
                       : glassCardHover
                   }
@@ -241,11 +240,11 @@ export default function DashboardPage() {
                       height: 48,
                       borderRadius: "50%",
                       background: card.accent
-                        ? "rgba(196, 169, 106, 0.15)"
-                        : "rgba(255, 255, 255, 0.05)",
+                        ? "var(--color-accent-subtle)"
+                        : "var(--color-bg-glass)",
                       border: card.accent
-                        ? "1px solid rgba(196, 169, 106, 0.25)"
-                        : "1px solid rgba(255, 255, 255, 0.08)",
+                        ? "1px solid var(--color-border-accent)"
+                        : "1px solid var(--color-border-subtle)",
                     }}
                   >
                     <Icon
@@ -330,7 +329,7 @@ export default function DashboardPage() {
                           width: 44,
                           height: 44,
                           borderRadius: "50%",
-                          border: "1px solid rgba(196, 169, 106, 0.2)",
+                          border: "1px solid var(--color-border-accent)",
                         }}
                       >
                         <Image
@@ -408,9 +407,8 @@ function ReservationHeroCard({
       className="relative overflow-hidden p-5 sm:p-6"
       style={{
         ...glassCard,
-        borderLeft: `3px solid ${colors.gold}`,
-        background:
-          "linear-gradient(135deg, rgba(196, 169, 106, 0.06), rgba(255, 255, 255, 0.02))",
+        borderLeft: "3px solid var(--color-accent)",
+        background: "var(--color-bg-glass-selected)",
       }}
     >
       {/* Subtle gold glow */}
@@ -421,7 +419,7 @@ function ReservationHeroCard({
           height: 160,
           borderRadius: "50%",
           background:
-            "radial-gradient(circle, rgba(196, 169, 106, 0.08) 0%, transparent 70%)",
+            "radial-gradient(circle, var(--color-accent-subtle) 0%, transparent 70%)",
         }}
       />
 
@@ -446,8 +444,8 @@ function ReservationHeroCard({
               width: 56,
               height: 56,
               borderRadius: "50%",
-              border: "2px solid rgba(196, 169, 106, 0.3)",
-              boxShadow: "0 4px 16px rgba(0, 0, 0, 0.3)",
+              border: "2px solid var(--color-border-accent)",
+              boxShadow: "var(--shadow-card)",
             }}
           >
             <Image
@@ -504,8 +502,8 @@ function EmptyReservationCard({ language }: { language: "en" | "es" }) {
           width: 56,
           height: 56,
           borderRadius: "50%",
-          background: "rgba(196, 169, 106, 0.1)",
-          border: "1px solid rgba(196, 169, 106, 0.2)",
+          background: "var(--color-accent-subtle)",
+          border: "1px solid var(--color-border-accent)",
         }}
       >
         <CalendarPlus size={24} style={{ color: colors.gold }} />
@@ -524,8 +522,8 @@ function EmptyReservationCard({ language }: { language: "en" | "es" }) {
           whileTap={{ scale: 0.97 }}
           className="px-6 py-2.5 text-sm font-semibold"
           style={{
-            background: `linear-gradient(135deg, ${colors.gold}, ${colors.darkGold})`,
-            color: "#0A0A0A",
+            background: "var(--gradient-accent)",
+            color: "var(--color-text-inverse)",
             borderRadius: 12,
             border: "none",
             cursor: "pointer",

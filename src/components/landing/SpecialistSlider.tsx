@@ -19,7 +19,7 @@ const rotatingRingStyle = (size: number): React.CSSProperties => ({
   width: size + 16,
   height: size + 16,
   borderRadius: "50%",
-  background: "conic-gradient(from 0deg, #8E7B54, #C4A96A, #D4C5A0, #8E7B54)",
+  background: "var(--gradient-ring)",
   filter: "blur(8px)",
   opacity: 0.6,
   zIndex: 0,
@@ -57,9 +57,9 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
     width: isCenter ? 240 : 180,
     height: isCenter ? 240 : 180,
     borderRadius: "50%",
-    border: isSelected ? "3px solid #C4A96A" : "3px solid transparent",
+    border: isSelected ? "3px solid var(--color-accent)" : "3px solid transparent",
     boxShadow: isSelected
-      ? "0 0 30px rgba(142, 123, 84, 0.4), 0 0 60px rgba(142, 123, 84, 0.15)"
+      ? "var(--shadow-card-selected)"
       : "0 8px 30px rgba(0, 0, 0, 0.5)",
     transition: "all 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
     cursor: "pointer",
@@ -83,13 +83,13 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
             className="text-2xl sm:text-4xl font-bold mb-3"
             style={{
               fontFamily: "var(--font-display)",
-              color: "#FAF8F5",
+              color: "var(--color-text-primary)",
               letterSpacing: "0.02em",
             }}
           >
             {t("home", "selectSpecialist")}
           </h2>
-          <div style={{ width: 50, height: 2, background: "linear-gradient(90deg, #8E7B54, #C4A96A)", margin: "0 auto", borderRadius: 2 }} />
+          <div style={{ width: 50, height: 2, background: "var(--gradient-accent-h)", margin: "0 auto", borderRadius: 2 }} />
         </motion.div>
 
         {/* Desktop Slider (3 visible) */}
@@ -105,9 +105,9 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                 width: 48,
                 height: 48,
                 borderRadius: "50%",
-                background: "rgba(255, 255, 255, 0.06)",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
-                color: "#C4A96A",
+                background: "var(--color-bg-glass-hover)",
+                border: "1px solid var(--color-border-default)",
+                color: "var(--color-accent)",
                 cursor: "pointer",
                 transition: "all 0.3s ease",
               }}
@@ -173,7 +173,7 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                         style={{
                           fontFamily: "var(--font-display)",
                           fontSize: isCenter ? 18 : 14,
-                          color: "#FAF8F5",
+                          color: "var(--color-text-primary)",
                         }}
                       >
                         {stylist.name}
@@ -182,7 +182,7 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                         className="mt-0.5"
                         style={{
                           fontSize: isCenter ? 13 : 11,
-                          color: "#ABA595",
+                          color: "var(--color-text-secondary)",
                         }}
                       >
                         {stylist.role[language]}
@@ -193,11 +193,11 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                           animate={{ opacity: 1, y: 0 }}
                           className="flex items-center justify-center gap-1 mt-2"
                         >
-                          <Star size={14} fill="#C4A96A" color="#C4A96A" />
-                          <span style={{ fontSize: 13, color: "#C4A96A", fontWeight: 600 }}>
+                          <Star size={14} fill="var(--color-accent)" color="var(--color-accent)" />
+                          <span style={{ fontSize: 13, color: "var(--color-accent)", fontWeight: 600 }}>
                             {stylist.rating}
                           </span>
-                          <span style={{ fontSize: 12, color: "#6B6560" }}>
+                          <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
                             ({stylist.reviewCount})
                           </span>
                         </motion.div>
@@ -218,9 +218,9 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                 width: 48,
                 height: 48,
                 borderRadius: "50%",
-                background: "rgba(255, 255, 255, 0.06)",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
-                color: "#C4A96A",
+                background: "var(--color-bg-glass-hover)",
+                border: "1px solid var(--color-border-default)",
+                color: "var(--color-accent)",
                 cursor: "pointer",
               }}
             >
@@ -255,10 +255,10 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                     height: 240,
                     borderRadius: "50%",
                     border: currentStylist.id === selectedId
-                      ? "3px solid #C4A96A"
-                      : "3px solid rgba(255, 255, 255, 0.1)",
+                      ? "3px solid var(--color-accent)"
+                      : "3px solid var(--color-border-default)",
                     boxShadow: currentStylist.id === selectedId
-                      ? "0 0 40px rgba(142, 123, 84, 0.4), 0 0 80px rgba(142, 123, 84, 0.15)"
+                      ? "var(--shadow-card-selected)"
                       : "0 10px 40px rgba(0, 0, 0, 0.5)",
                     overflow: "hidden",
                     position: "relative",
@@ -280,30 +280,31 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                 className="relative mx-4 px-5 pb-5 pt-14 text-center"
                 style={{
                   marginTop: -48,
-                  background: "rgba(255, 255, 255, 0.04)",
+                  background: "var(--color-bg-glass)",
                   backdropFilter: "blur(20px)",
                   WebkitBackdropFilter: "blur(20px)",
-                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  border: "1px solid var(--color-border-default)",
                   borderRadius: 20,
-                  boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)",
+                  boxShadow: "var(--shadow-card)",
                   zIndex: 2,
+                  transition: "all 0.3s ease",
                 }}
               >
                 <p
                   className="font-bold text-xl"
-                  style={{ fontFamily: "var(--font-display)", color: "#FAF8F5" }}
+                  style={{ fontFamily: "var(--font-display)", color: "var(--color-text-primary)" }}
                 >
                   {currentStylist.name}
                 </p>
-                <p style={{ fontSize: 13, color: "#ABA595", marginTop: 4 }}>
+                <p style={{ fontSize: 13, color: "var(--color-text-secondary)", marginTop: 4 }}>
                   {currentStylist.role[language]}
                 </p>
                 <div className="flex items-center justify-center gap-1.5 mt-3">
-                  <Star size={15} fill="#C4A96A" color="#C4A96A" />
-                  <span style={{ fontSize: 14, color: "#C4A96A", fontWeight: 700 }}>
+                  <Star size={15} fill="var(--color-accent)" color="var(--color-accent)" />
+                  <span style={{ fontSize: 14, color: "var(--color-accent)", fontWeight: 700 }}>
                     {currentStylist.rating}
                   </span>
-                  <span style={{ fontSize: 12, color: "#6B6560" }}>
+                  <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
                     ({currentStylist.reviewCount})
                   </span>
                 </div>
@@ -321,9 +322,9 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                 width: 44,
                 height: 44,
                 borderRadius: "50%",
-                background: "rgba(255, 255, 255, 0.06)",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
-                color: "#C4A96A",
+                background: "var(--color-bg-glass-hover)",
+                border: "1px solid var(--color-border-default)",
+                color: "var(--color-accent)",
                 cursor: "pointer",
               }}
             >
@@ -337,9 +338,9 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                 width: 44,
                 height: 44,
                 borderRadius: "50%",
-                background: "rgba(255, 255, 255, 0.06)",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
-                color: "#C4A96A",
+                background: "var(--color-bg-glass-hover)",
+                border: "1px solid var(--color-border-default)",
+                color: "var(--color-accent)",
                 cursor: "pointer",
               }}
             >
@@ -361,8 +362,8 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                 height: 8,
                 borderRadius: 4,
                 background: i === currentIndex
-                  ? "linear-gradient(90deg, #8E7B54, #C4A96A)"
-                  : "rgba(255, 255, 255, 0.15)",
+                  ? "var(--gradient-accent-h)"
+                  : "var(--color-border-default)",
                 transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
                 cursor: "pointer",
                 border: "none",
@@ -383,11 +384,12 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
               <span
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-full"
                 style={{
-                  background: "rgba(142, 123, 84, 0.15)",
-                  border: "1px solid rgba(142, 123, 84, 0.3)",
-                  color: "#C4A96A",
+                  background: "var(--color-accent-subtle)",
+                  border: "1px solid var(--color-border-accent)",
+                  color: "var(--color-accent)",
                   fontSize: 14,
                   fontWeight: 500,
+                  transition: "all 0.3s ease",
                 }}
               >
                 {stylists.find(s => s.id === selectedId)?.name}

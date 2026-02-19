@@ -19,7 +19,7 @@ interface BookingSuccessProps {
 // Confetti particle component
 function Particle({ delay, x }: { delay: number; x: number }) {
   const size = 4 + Math.random() * 6;
-  const colors = ["#C4A96A", "#8E7B54", "#ABA595", "#D4C5A0"];
+  const colors = ["var(--color-accent)", "var(--color-accent-dark)", "var(--color-text-secondary)", "var(--color-accent)"];
   const color = colors[Math.floor(Math.random() * colors.length)];
 
   return (
@@ -88,9 +88,10 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
     <div
       className="min-h-screen flex items-center justify-center px-4 py-12"
       style={{
-        background: "#0A0A0A",
+        background: "var(--color-bg-page)",
         position: "relative",
         overflow: "hidden",
+        transition: "background 0.3s ease",
       }}
     >
       {/* Floating Particles */}
@@ -115,8 +116,8 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
               width: 88,
               height: 88,
               borderRadius: "50%",
-              background: "linear-gradient(135deg, #8E7B54, #C4A96A)",
-              boxShadow: "0 10px 40px rgba(142, 123, 84, 0.35), 0 0 0 8px rgba(142, 123, 84, 0.15)",
+              background: "var(--gradient-accent)",
+              boxShadow: "var(--shadow-glow)",
             }}
           >
             <motion.div
@@ -124,7 +125,7 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
               animate={{ pathLength: 1, opacity: 1 }}
               transition={{ delay: 0.6, duration: 0.4 }}
             >
-              <Check size={40} color="#FAF8F5" strokeWidth={3} />
+              <Check size={40} color="var(--color-text-inverse)" strokeWidth={3} />
             </motion.div>
           </motion.div>
         </div>
@@ -138,11 +139,11 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
         >
           <h2
             className="text-2xl sm:text-3xl font-bold mb-2"
-            style={{ fontFamily: "var(--font-display)", color: "#FAF8F5" }}
+            style={{ fontFamily: "var(--font-display)", color: "var(--color-text-primary)" }}
           >
             {t("home", "bookingConfirmed")}
           </h2>
-          <p style={{ color: "#6B6560", fontSize: 15 }}>
+          <p style={{ color: "var(--color-text-muted)", fontSize: 15 }}>
             {t("home", "bookingConfirmedDesc")}
           </p>
         </motion.div>
@@ -153,38 +154,39 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.7 }}
           style={{
-            background: "#141414",
+            background: "var(--color-bg-card)",
             borderRadius: 20,
-            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.4)",
-            border: "1px solid rgba(255, 255, 255, 0.06)",
+            boxShadow: "var(--shadow-card)",
+            border: "1px solid var(--color-border-default)",
             padding: "24px",
+            transition: "all 0.3s ease",
           }}
         >
           {/* Specialist */}
-          <div className="flex items-center gap-3 pb-4" style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.06)" }}>
+          <div className="flex items-center gap-3 pb-4" style={{ borderBottom: "1px solid var(--color-border-default)" }}>
             <div
               className="flex items-center justify-center flex-shrink-0"
               style={{
                 width: 40,
                 height: 40,
                 borderRadius: 12,
-                background: "rgba(142, 123, 84, 0.12)",
+                background: "var(--color-bg-glass-selected)",
               }}
             >
-              <UserIcon size={18} style={{ color: "#C4A96A" }} />
+              <UserIcon size={18} style={{ color: "var(--color-accent)" }} />
             </div>
             <div>
-              <p style={{ fontSize: 13, color: "#6B6560" }}>
+              <p style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
                 {language === "es" ? "Especialista" : "Specialist"}
               </p>
-              <p style={{ fontSize: 15, color: "#FAF8F5", fontWeight: 600 }}>
+              <p style={{ fontSize: 15, color: "var(--color-text-primary)", fontWeight: 600 }}>
                 {stylist?.name}
               </p>
             </div>
           </div>
 
           {/* Services */}
-          <div className="py-4" style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.06)" }}>
+          <div className="py-4" style={{ borderBottom: "1px solid var(--color-border-default)" }}>
             <div className="flex items-center gap-3">
               <div
                 className="flex items-center justify-center flex-shrink-0"
@@ -192,23 +194,23 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
                   width: 40,
                   height: 40,
                   borderRadius: 12,
-                  background: "rgba(142, 123, 84, 0.12)",
+                  background: "var(--color-bg-glass-selected)",
                 }}
               >
-                <Sparkles size={18} style={{ color: "#C4A96A" }} />
+                <Sparkles size={18} style={{ color: "var(--color-accent)" }} />
               </div>
               <div>
-                <p style={{ fontSize: 13, color: "#6B6560" }}>
+                <p style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
                   {language === "es" ? "Servicios" : "Services"}
                 </p>
                 {state.isGeneralAppointment ? (
-                  <p style={{ fontSize: 15, color: "#FAF8F5", fontWeight: 600 }}>
+                  <p style={{ fontSize: 15, color: "var(--color-text-primary)", fontWeight: 600 }}>
                     {t("home", "generalAppointment")}
                   </p>
                 ) : (
                   <div>
                     {selectedServices.map((s) => (
-                      <p key={s.id} style={{ fontSize: 14, color: "#FAF8F5" }}>
+                      <p key={s.id} style={{ fontSize: 14, color: "var(--color-text-primary)" }}>
                         {s.name[language]}
                       </p>
                     ))}
@@ -219,7 +221,7 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
           </div>
 
           {/* Date & Time */}
-          <div className="py-4" style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.06)" }}>
+          <div className="py-4" style={{ borderBottom: "1px solid var(--color-border-default)" }}>
             <div className="flex items-center gap-3">
               <div
                 className="flex items-center justify-center flex-shrink-0"
@@ -227,20 +229,20 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
                   width: 40,
                   height: 40,
                   borderRadius: 12,
-                  background: "rgba(142, 123, 84, 0.12)",
+                  background: "var(--color-bg-glass-selected)",
                 }}
               >
-                <Calendar size={18} style={{ color: "#C4A96A" }} />
+                <Calendar size={18} style={{ color: "var(--color-accent)" }} />
               </div>
               <div>
-                <p style={{ fontSize: 13, color: "#6B6560" }}>
+                <p style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
                   {language === "es" ? "Fecha y hora" : "Date & Time"}
                 </p>
-                <p style={{ fontSize: 15, color: "#FAF8F5", fontWeight: 600 }} className="capitalize">
+                <p style={{ fontSize: 15, color: "var(--color-text-primary)", fontWeight: 600 }} className="capitalize">
                   {dateStr}
                 </p>
                 {state.selectedTimeSlot && (
-                  <p style={{ fontSize: 14, color: "#C4A96A" }}>
+                  <p style={{ fontSize: 14, color: "var(--color-accent)" }}>
                     {formatTimeDisplay(state.selectedTimeSlot.startTime)} - {formatTimeDisplay(state.selectedTimeSlot.endTime)}
                   </p>
                 )}
@@ -251,8 +253,8 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
           {/* Total */}
           {!state.isGeneralAppointment && totalPrice > 0 && (
             <div className="pt-4 flex items-center justify-between">
-              <span style={{ fontSize: 14, color: "#6B6560" }}>Total</span>
-              <span style={{ fontSize: 20, color: "#C4A96A", fontWeight: 700 }}>
+              <span style={{ fontSize: 14, color: "var(--color-text-muted)" }}>Total</span>
+              <span style={{ fontSize: 20, color: "var(--color-accent)", fontWeight: 700 }}>
                 {formatPrice(totalPrice)}
               </span>
             </div>
@@ -272,9 +274,9 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
             onClick={onGoToDashboard}
             className="w-full py-4 rounded-2xl font-semibold text-base"
             style={{
-              background: "linear-gradient(135deg, #8E7B54, #C4A96A)",
-              color: "#110D09",
-              boxShadow: "0 8px 30px rgba(142, 123, 84, 0.35)",
+              background: "var(--gradient-accent)",
+              color: "var(--color-text-inverse)",
+              boxShadow: "var(--shadow-glow)",
               border: "none",
               cursor: "pointer",
             }}
@@ -289,8 +291,8 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
             className="w-full py-4 rounded-2xl font-medium text-base"
             style={{
               background: "transparent",
-              color: "#C4A96A",
-              border: "2px solid rgba(142, 123, 84, 0.3)",
+              color: "var(--color-accent)",
+              border: "2px solid var(--color-border-accent)",
               borderRadius: 16,
               cursor: "pointer",
               transition: "all 0.3s ease",

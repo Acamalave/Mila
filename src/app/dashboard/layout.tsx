@@ -26,15 +26,15 @@ export default function DashboardLayout({
   return (
     <div
       className="min-h-screen relative"
-      style={{ backgroundColor: "#060608" }}
+      style={{ backgroundColor: "var(--color-bg-page)" }}
     >
       {/* Gradient blobs for liquid glass effect */}
       <div
         className="fixed inset-0 pointer-events-none"
         style={{
           background: [
-            "radial-gradient(ellipse at 20% 20%, rgba(142, 123, 84, 0.08) 0%, transparent 60%)",
-            "radial-gradient(ellipse at 80% 80%, rgba(107, 123, 141, 0.05) 0%, transparent 60%)",
+            "radial-gradient(ellipse at 20% 20%, var(--blob-color-1) 0%, transparent 60%)",
+            "radial-gradient(ellipse at 80% 80%, var(--blob-color-2) 0%, transparent 60%)",
           ].join(", "),
         }}
       />

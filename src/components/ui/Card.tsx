@@ -27,16 +27,23 @@ export default function Card({
 }: CardProps) {
   return (
     <motion.div
-      whileHover={hover ? { y: -4, boxShadow: "0 20px 50px rgba(93, 86, 69, 0.16)" } : {}}
+      whileHover={hover ? { y: -4, boxShadow: "var(--shadow-card-hover)" } : {}}
       onClick={onClick}
       className={cn(
-        "bg-surface-card rounded-xl border border-border-default",
-        "shadow-[0_1px_2px_rgba(93,86,69,0.06)]",
+        "rounded-xl",
         "transition-all duration-300",
         hover && "cursor-pointer",
         paddings[padding],
         className
       )}
+      style={{
+        background: "var(--color-bg-glass)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        border: "1px solid var(--color-border-default)",
+        boxShadow: "var(--shadow-card)",
+        transition: "all 0.3s ease",
+      }}
     >
       {children}
     </motion.div>

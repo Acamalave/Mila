@@ -6,13 +6,15 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useAuth } from "@/providers/AuthProvider";
-import { Globe, User, LogOut, ChevronDown } from "lucide-react";
+import { useTheme } from "@/providers/ThemeProvider";
+import { Globe, User, LogOut, ChevronDown, Sun, Moon } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 export default function Header() {
   const router = useRouter();
   const { language, setLanguage, t } = useLanguage();
   const { user, isAuthenticated, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [profileOpen, setProfileOpen] = useState(false);
   const [scrollY, setScrollY] = useState(0);
 
@@ -24,6 +26,17 @@ export default function Header() {
 
   const headerOpacity = Math.min(0.95, 0.6 + scrollY / 500);
   const headerBlur = Math.min(20, 8 + scrollY / 50);
+  const borderOpacity = 0.03 + scrollY / 3000;
+
+  const headerBg =
+    theme === "dark"
+      ? `rgba(10, 10, 10, ${headerOpacity})`
+      : `rgba(245, 245, 247, ${headerOpacity})`;
+
+  const headerBorder =
+    theme === "dark"
+      ? `1px solid rgba(255, 255, 255, ${borderOpacity})`
+      : `1px solid rgba(0, 0, 0, ${borderOpacity})`;
 
   const headerStyle: React.CSSProperties = {
     position: "fixed" as const,
@@ -31,11 +44,11 @@ export default function Header() {
     left: 0,
     right: 0,
     zIndex: 50,
-    background: `rgba(10, 10, 10, ${headerOpacity})`,
+    background: headerBg,
     backdropFilter: `blur(${headerBlur}px)`,
     WebkitBackdropFilter: `blur(${headerBlur}px)`,
-    borderBottom: `1px solid rgba(255, 255, 255, ${0.03 + scrollY / 3000})`,
-    transition: "background 0.3s ease, backdrop-filter 0.3s ease",
+    borderBottom: headerBorder,
+    transition: "background 0.3s ease, backdrop-filter 0.3s ease, border-color 0.3s ease",
   };
 
   return (
@@ -56,6 +69,49 @@ export default function Header() {
 
           {/* Right side actions */}
           <div className="flex items-center gap-3 sm:gap-4">
+            {/* Theme Toggle */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={toggleTheme}
+              className="flex items-center justify-center rounded-full"
+              style={{
+                width: 36,
+                height: 36,
+                background: "var(--color-bg-glass)",
+                border: "1px solid var(--color-border-default)",
+                color: "var(--color-accent)",
+                transition: "all 0.3s ease",
+              }}
+              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                {theme === "dark" ? (
+                  <motion.div
+                    key="sun"
+                    initial={{ rotate: -90, opacity: 0, scale: 0.5 }}
+                    animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                    exit={{ rotate: 90, opacity: 0, scale: 0.5 }}
+                    transition={{ duration: 0.25, ease: "easeInOut" }}
+                    className="flex items-center justify-center"
+                  >
+                    <Sun size={16} />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="moon"
+                    initial={{ rotate: 90, opacity: 0, scale: 0.5 }}
+                    animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                    exit={{ rotate: -90, opacity: 0, scale: 0.5 }}
+                    transition={{ duration: 0.25, ease: "easeInOut" }}
+                    className="flex items-center justify-center"
+                  >
+                    <Moon size={16} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.button>
+
             {/* Language Toggle */}
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -63,9 +119,9 @@ export default function Header() {
               onClick={() => setLanguage(language === "en" ? "es" : "en")}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
               style={{
-                background: "rgba(255, 255, 255, 0.08)",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
-                color: "#B1B2A6",
+                background: "var(--color-bg-glass-hover)",
+                border: "1px solid var(--color-border-default)",
+                color: "var(--color-text-secondary)",
                 fontSize: "13px",
                 fontWeight: 500,
                 letterSpacing: "0.05em",
@@ -84,11 +140,12 @@ export default function Header() {
                   onClick={() => setProfileOpen(!profileOpen)}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-full"
                   style={{
-                    background: "rgba(142, 123, 84, 0.15)",
-                    border: "1px solid rgba(142, 123, 84, 0.3)",
-                    color: "#C4A96A",
+                    background: "var(--color-accent-subtle)",
+                    border: "1px solid var(--color-border-accent)",
+                    color: "var(--color-accent)",
                     fontSize: "13px",
                     fontWeight: 500,
+                    transition: "all 0.3s ease",
                   }}
                 >
                   <User size={14} />
@@ -107,16 +164,20 @@ export default function Header() {
                       transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                       className="absolute right-0 top-full mt-2 w-48 rounded-xl overflow-hidden"
                       style={{
-                        background: "rgba(255, 255, 255, 0.98)",
-                        boxShadow: "0 20px 50px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05)",
+                        background: "var(--color-bg-glass-hover)",
+                        backdropFilter: "blur(20px)",
+                        WebkitBackdropFilter: "blur(20px)",
+                        boxShadow: "var(--shadow-float)",
+                        border: "1px solid var(--color-border-default)",
+                        transition: "background 0.3s ease, border-color 0.3s ease",
                       }}
                     >
                       <Link
                         href={user.role === "admin" ? "/admin" : "/dashboard"}
                         className="block px-4 py-3 text-sm transition-colors"
-                        style={{ color: "#110D09" }}
+                        style={{ color: "var(--color-text-primary)", transition: "background 0.2s ease, color 0.3s ease" }}
                         onClick={() => setProfileOpen(false)}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = "#F5F0EB")}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-bg-glass-hover)")}
                         onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                       >
                         {user.role === "admin" ? t("nav", "admin") : t("nav", "dashboard")}
@@ -128,7 +189,7 @@ export default function Header() {
                           router.push("/");
                         }}
                         className="w-full text-left px-4 py-3 text-sm flex items-center gap-2 transition-colors"
-                        style={{ color: "#9B4D4D" }}
+                        style={{ color: "#9B4D4D", transition: "background 0.2s ease" }}
                         onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(155, 77, 77, 0.05)")}
                         onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                       >
@@ -146,9 +207,10 @@ export default function Header() {
                   whileTap={{ scale: 0.97 }}
                   className="inline-block px-5 py-2 rounded-full text-sm font-medium"
                   style={{
-                    background: "linear-gradient(135deg, #8E7B54, #C4A96A)",
-                    color: "#110D09",
-                    boxShadow: "0 2px 10px rgba(142, 123, 84, 0.3)",
+                    background: "var(--gradient-accent)",
+                    color: "var(--color-text-inverse)",
+                    boxShadow: "var(--shadow-glow)",
+                    transition: "all 0.3s ease",
                   }}
                 >
                   {t("nav", "login")}

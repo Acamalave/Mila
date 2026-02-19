@@ -50,11 +50,11 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
 
   const cardStyle = (isSelected: boolean): React.CSSProperties => ({
     background: isSelected
-      ? "rgba(142, 123, 84, 0.12)"
-      : "rgba(255, 255, 255, 0.03)",
+      ? "var(--color-bg-glass-selected)"
+      : "var(--color-bg-glass)",
     backdropFilter: "blur(16px)",
     WebkitBackdropFilter: "blur(16px)",
-    border: isSelected ? "1px solid rgba(196, 169, 106, 0.5)" : "1px solid rgba(255, 255, 255, 0.06)",
+    border: isSelected ? "1px solid var(--color-border-accent)" : "1px solid var(--color-border-default)",
     borderRadius: 16,
     padding: "14px 16px",
     cursor: "pointer",
@@ -62,24 +62,24 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
     transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
     overflow: "hidden" as const,
     boxShadow: isSelected
-      ? "0 4px 20px rgba(142, 123, 84, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05)"
-      : "0 2px 10px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.03)",
+      ? "var(--shadow-card-selected)"
+      : "var(--shadow-card)",
   });
 
   const generalCardStyle: React.CSSProperties = {
     background: isGeneral
-      ? "linear-gradient(135deg, rgba(142, 123, 84, 0.12), rgba(196, 169, 106, 0.08))"
-      : "rgba(255, 255, 255, 0.03)",
+      ? "var(--color-bg-glass-selected)"
+      : "var(--color-bg-glass)",
     backdropFilter: "blur(16px)",
     WebkitBackdropFilter: "blur(16px)",
-    border: isGeneral ? "1px solid rgba(196, 169, 106, 0.5)" : "1px solid rgba(255, 255, 255, 0.06)",
+    border: isGeneral ? "1px solid var(--color-border-accent)" : "1px solid var(--color-border-default)",
     borderRadius: 16,
     padding: "20px 24px",
     cursor: "pointer",
     transition: "all 0.3s ease",
     boxShadow: isGeneral
-      ? "0 4px 20px rgba(142, 123, 84, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05)"
-      : "0 2px 10px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.03)",
+      ? "var(--shadow-card-selected)"
+      : "var(--shadow-card)",
   };
 
   return (
@@ -97,13 +97,13 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
             className="text-2xl sm:text-3xl font-bold mb-3"
             style={{
               fontFamily: "var(--font-display)",
-              color: "#FAF8F5",
+              color: "var(--color-text-primary)",
             }}
           >
             {t("home", "selectServices")}
           </h2>
-          <div style={{ width: 50, height: 2, background: "linear-gradient(90deg, #8E7B54, #C4A96A)", margin: "0 auto", borderRadius: 2 }} />
-          <p className="mt-3" style={{ color: "#6B6560", fontSize: 14 }}>
+          <div style={{ width: 50, height: 2, background: "var(--gradient-accent-h)", margin: "0 auto", borderRadius: 2 }} />
+          <p className="mt-3" style={{ color: "var(--color-text-muted)", fontSize: 14 }}>
             {stylist?.name}
           </p>
         </motion.div>
@@ -116,7 +116,7 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
           className="mb-6"
         >
           <motion.div
-            whileHover={{ y: -2, boxShadow: "0 8px 25px rgba(142, 123, 84, 0.15)" }}
+            whileHover={{ y: -2, boxShadow: "var(--shadow-card-hover)" }}
             whileTap={{ scale: 0.99 }}
             style={generalCardStyle}
             onClick={toggleGeneral}
@@ -128,17 +128,17 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                 width: 44,
                 height: 44,
                 borderRadius: 12,
-                background: isGeneral ? "linear-gradient(135deg, #8E7B54, #C4A96A)" : "rgba(142, 123, 84, 0.12)",
+                background: isGeneral ? "var(--gradient-accent)" : "var(--color-bg-glass-selected)",
                 transition: "all 0.3s ease",
               }}
             >
-              <Calendar size={20} style={{ color: isGeneral ? "#FAF8F5" : "#C4A96A" }} />
+              <Calendar size={20} style={{ color: isGeneral ? "var(--color-text-inverse)" : "var(--color-accent)" }} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold" style={{ color: "#FAF8F5", fontSize: 15 }}>
+              <p className="font-semibold" style={{ color: "var(--color-text-primary)", fontSize: 15 }}>
                 {t("home", "generalAppointment")}
               </p>
-              <p style={{ color: "#6B6560", fontSize: 13, marginTop: 2 }}>
+              <p style={{ color: "var(--color-text-muted)", fontSize: 13, marginTop: 2 }}>
                 {t("home", "generalAppointmentDesc")}
               </p>
             </div>
@@ -154,10 +154,10 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                     width: 28,
                     height: 28,
                     borderRadius: "50%",
-                    background: "linear-gradient(135deg, #8E7B54, #C4A96A)",
+                    background: "var(--gradient-accent)",
                   }}
                 >
-                  <Check size={16} color="#FAF8F5" strokeWidth={3} />
+                  <Check size={16} color="var(--color-text-inverse)" strokeWidth={3} />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -166,11 +166,11 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
 
         {/* Divider */}
         <div className="flex items-center gap-3 mb-6">
-          <div className="flex-1 h-px" style={{ background: "rgba(255, 255, 255, 0.06)" }} />
-          <span style={{ fontSize: 12, color: "#6B6560", textTransform: "uppercase" as const, letterSpacing: "0.1em" }}>
+          <div className="flex-1 h-px" style={{ background: "var(--color-border-default)" }} />
+          <span style={{ fontSize: 12, color: "var(--color-text-muted)", textTransform: "uppercase" as const, letterSpacing: "0.1em" }}>
             {language === "es" ? "o elige servicios" : "or choose services"}
           </span>
-          <div className="flex-1 h-px" style={{ background: "rgba(255, 255, 255, 0.06)" }} />
+          <div className="flex-1 h-px" style={{ background: "var(--color-border-default)" }} />
         </div>
 
         {/* Services List */}
@@ -211,12 +211,12 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                     height: 44,
                     borderRadius: 12,
                     background: isSelected
-                      ? "linear-gradient(135deg, #8E7B54, #C4A96A)"
-                      : "rgba(142, 123, 84, 0.12)",
+                      ? "var(--gradient-accent)"
+                      : "var(--color-bg-glass-selected)",
                     transition: "all 0.3s ease",
                   }}
                 >
-                  <IconComp size={20} style={{ color: isSelected ? "#FAF8F5" : "#C4A96A" }} />
+                  <IconComp size={20} style={{ color: isSelected ? "var(--color-text-inverse)" : "var(--color-accent)" }} />
                 </div>
 
                 {/* Service Name + Duration */}
@@ -225,7 +225,7 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                     className="font-medium"
                     style={{
                       fontSize: 14,
-                      color: "#FAF8F5",
+                      color: "var(--color-text-primary)",
                       lineHeight: 1.3,
                     }}
                   >
@@ -239,7 +239,7 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                   style={{
                     fontSize: 15,
                     fontWeight: 700,
-                    color: "#C4A96A",
+                    color: "var(--color-accent)",
                   }}
                 >
                   {formatPrice(service.price)}
@@ -258,10 +258,10 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                         width: 28,
                         height: 28,
                         borderRadius: "50%",
-                        background: "linear-gradient(135deg, #8E7B54, #C4A96A)",
+                        background: "var(--gradient-accent)",
                       }}
                     >
-                      <Check size={14} color="#FAF8F5" strokeWidth={3} />
+                      <Check size={14} color="var(--color-text-inverse)" strokeWidth={3} />
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -283,25 +283,26 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
               <div
                 className="max-w-4xl mx-auto flex items-center justify-between px-5 py-4 sm:px-6 sm:py-5"
                 style={{
-                  background: "rgba(20, 20, 20, 0.95)",
+                  background: "var(--color-bg-overlay)",
                   backdropFilter: "blur(20px)",
                   borderRadius: 16,
-                  boxShadow: "0 -4px 30px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05)",
+                  boxShadow: "var(--shadow-float)",
+                  transition: "all 0.3s ease",
                 }}
               >
                 <div>
                   {!isGeneral && (
                     <>
-                      <p style={{ color: "#C4A96A", fontSize: 20, fontWeight: 700 }}>
+                      <p style={{ color: "var(--color-accent)", fontSize: 20, fontWeight: 700 }}>
                         {formatPrice(totalPrice)}
                       </p>
-                      <p style={{ color: "#6B6560", fontSize: 12 }}>
+                      <p style={{ color: "var(--color-text-muted)", fontSize: 12 }}>
                         {selectedIds.length} {t("home", "totalSelected")}
                       </p>
                     </>
                   )}
                   {isGeneral && (
-                    <p style={{ color: "#C4A96A", fontSize: 14, fontWeight: 500 }}>
+                    <p style={{ color: "var(--color-accent)", fontSize: 14, fontWeight: 500 }}>
                       {t("home", "generalAppointment")}
                     </p>
                   )}
@@ -312,9 +313,9 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                   onClick={onContinue}
                   className="px-6 py-3 rounded-full font-medium text-sm"
                   style={{
-                    background: "linear-gradient(135deg, #8E7B54, #C4A96A)",
-                    color: "#110D09",
-                    boxShadow: "0 4px 15px rgba(142, 123, 84, 0.4)",
+                    background: "var(--gradient-accent)",
+                    color: "var(--color-text-inverse)",
+                    boxShadow: "var(--shadow-glow)",
                     fontWeight: 600,
                   }}
                 >
