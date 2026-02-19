@@ -46,8 +46,7 @@ export const stylists: Stylist[] = [
       en: "With over 12 years of experience in cutting-edge hair techniques, Camila specializes in balayage, precision cuts, and transformative color work. She has trained in Milan and New York and brings an editorial eye to every appointment.",
       es: "Con más de 12 años de experiencia en técnicas capilares de vanguardia, Camila se especializa en balayage, cortes de precisión y trabajo de color transformador. Se ha formado en Milán y Nueva York, aportando una visión editorial a cada cita.",
     },
-    avatar:
-      "https://images.unsplash.com/photo-1594744803329-e58b31de8bf5?w=800&q=80",
+    avatar: "/specialist-camila.jpg",
     specialties: ["Balayage", "Precision Cuts", "Color Correction", "Keratin"],
     serviceIds: [
       "svc-hair-cut",
@@ -79,8 +78,7 @@ export const stylists: Stylist[] = [
       en: "Valentina is a certified nail technician and spa specialist known for her intricate nail art designs and relaxing spa pedicures. Her creative approach and attention to detail have earned her a loyal following.",
       es: "Valentina es técnica de uñas certificada y especialista en spa, conocida por sus intrincados diseños de nail art y pedicuras de spa relajantes. Su enfoque creativo y atención al detalle le han ganado una clientela fiel.",
     },
-    avatar:
-      "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=800&q=80",
+    avatar: "/specialist-valentina.jpg",
     specialties: ["Gel Nails", "Nail Art", "Spa Pedicure", "Acrylic Extensions"],
     serviceIds: [
       "svc-nails-classic-mani",
@@ -112,8 +110,7 @@ export const stylists: Stylist[] = [
       en: "Lucia is a licensed esthetician with advanced certifications in chemical peels, microdermabrasion, and LED therapy. She takes a holistic approach to skincare, customizing every treatment to each client's unique needs.",
       es: "Lucia es esteticista licenciada con certificaciones avanzadas en peelings químicos, microdermoabrasión y terapia LED. Tiene un enfoque holístico del cuidado de la piel, personalizando cada tratamiento según las necesidades únicas de cada cliente.",
     },
-    avatar:
-      "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=800&q=80",
+    avatar: "/specialist-lucia.jpg",
     specialties: ["Facials", "Chemical Peels", "Microdermabrasion", "LED Therapy"],
     serviceIds: [
       "svc-skin-facial",
@@ -145,8 +142,7 @@ export const stylists: Stylist[] = [
       en: "Mariana is a professional makeup artist with experience in bridal, editorial, and event makeup. She has worked with top beauty brands and brings a keen eye for color theory and face architecture to every look she creates.",
       es: "Mariana es maquilladora profesional con experiencia en maquillaje de novias, editorial y eventos. Ha trabajado con las mejores marcas de belleza y aporta un ojo experto en teoría del color y arquitectura facial a cada look que crea.",
     },
-    avatar:
-      "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=800&q=80",
+    avatar: "/specialist-mariana.jpg",
     specialties: ["Bridal Makeup", "Airbrush", "Color Theory", "Contouring"],
     serviceIds: [
       "svc-makeup-everyday",
