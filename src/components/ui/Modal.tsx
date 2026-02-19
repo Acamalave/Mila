@@ -43,7 +43,8 @@ export default function Modal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-mila-espresso/60 backdrop-blur-sm"
+            className="absolute inset-0"
+            style={{ background: "rgba(0, 0, 0, 0.7)", backdropFilter: "blur(4px)" }}
             onClick={onClose}
           />
           <motion.div
@@ -52,21 +53,34 @@ export default function Modal({
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
             className={cn(
-              "relative w-full bg-white rounded-2xl shadow-[0_20px_50px_rgba(93,86,69,0.16)]",
+              "relative w-full rounded-2xl",
               "max-h-[85vh] overflow-y-auto",
               modalSizes[size]
             )}
+            style={{
+              background: "#141414",
+              boxShadow: "0 20px 50px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06)",
+            }}
           >
             {title && (
-              <div className="flex items-center justify-between p-6 border-b border-border-default">
-                <h3 className="text-xl font-semibold font-[family-name:var(--font-display)]">
+              <div
+                className="flex items-center justify-between p-6"
+                style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.06)" }}
+              >
+                <h3
+                  className="text-xl font-semibold"
+                  style={{ fontFamily: "var(--font-display)", color: "#FAF8F5" }}
+                >
                   {title}
                 </h3>
                 <button
                   onClick={onClose}
-                  className="p-2 rounded-lg hover:bg-mila-cream transition-colors"
+                  className="p-2 rounded-lg transition-colors"
+                  style={{ color: "#6B6560" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
-                  <X size={20} className="text-text-secondary" />
+                  <X size={20} />
                 </button>
               </div>
             )}

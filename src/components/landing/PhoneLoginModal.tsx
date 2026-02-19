@@ -66,18 +66,18 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
             width: 56,
             height: 56,
             borderRadius: "50%",
-            background: "linear-gradient(135deg, rgba(142, 123, 84, 0.1), rgba(196, 169, 106, 0.1))",
+            background: "linear-gradient(135deg, rgba(142, 123, 84, 0.2), rgba(196, 169, 106, 0.15))",
           }}
         >
-          <Phone size={24} style={{ color: "#8E7B54" }} />
+          <Phone size={24} style={{ color: "#C4A96A" }} />
         </div>
         <h3
           className="text-xl font-bold"
-          style={{ fontFamily: "var(--font-display)", color: "#110D09" }}
+          style={{ fontFamily: "var(--font-display)", color: "#FAF8F5" }}
         >
           {t("auth", "loginTitle")}
         </h3>
-        <p className="mt-1" style={{ fontSize: 14, color: "#ABA595" }}>
+        <p className="mt-1" style={{ fontSize: 14, color: "#6B6560" }}>
           {t("auth", "enterPhone")}
         </p>
       </div>
@@ -87,7 +87,7 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
         <div>
           <label
             className="block text-sm font-medium mb-1.5"
-            style={{ color: "#5D5645" }}
+            style={{ color: "#ABA595" }}
           >
             {t("auth", "phone")}
           </label>
@@ -100,9 +100,9 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
                 onClick={() => setShowCountries(!showCountries)}
                 className="flex items-center gap-1 px-3 py-3 rounded-lg"
                 style={{
-                  background: "#FFFFFF",
-                  border: "1px solid rgba(229, 224, 218, 0.8)",
-                  color: "#110D09",
+                  background: "#1A1A1A",
+                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  color: "#FAF8F5",
                   fontSize: 14,
                   cursor: "pointer",
                   minWidth: 90,
@@ -111,7 +111,7 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
               >
                 <span className="text-lg">{selectedCountry.flag}</span>
                 <span style={{ fontSize: 13 }}>{selectedCountry.code}</span>
-                <ChevronDown size={14} style={{ color: "#ABA595" }} />
+                <ChevronDown size={14} style={{ color: "#6B6560" }} />
               </motion.button>
 
               {showCountries && (
@@ -120,9 +120,9 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
                   animate={{ opacity: 1, y: 0 }}
                   className="absolute top-full left-0 mt-1 w-48 rounded-xl overflow-hidden z-50"
                   style={{
-                    background: "#FFFFFF",
-                    boxShadow: "0 10px 40px rgba(0, 0, 0, 0.15)",
-                    border: "1px solid rgba(229, 224, 218, 0.5)",
+                    background: "#1A1A1A",
+                    boxShadow: "0 10px 40px rgba(0, 0, 0, 0.5)",
+                    border: "1px solid rgba(255, 255, 255, 0.08)",
                     maxHeight: 240,
                     overflowY: "auto" as const,
                   }}
@@ -137,18 +137,18 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
                       }}
                       className="w-full flex items-center gap-2 px-3 py-2.5 text-sm"
                       style={{
-                        background: selectedCountry.name === country.name ? "rgba(142, 123, 84, 0.06)" : "transparent",
-                        color: "#110D09",
+                        background: selectedCountry.name === country.name ? "rgba(142, 123, 84, 0.15)" : "transparent",
+                        color: "#FAF8F5",
                         cursor: "pointer",
                         transition: "background 0.15s ease",
-                        borderBottom: i < countryCodes.length - 1 ? "1px solid rgba(229, 224, 218, 0.3)" : "none",
+                        borderBottom: i < countryCodes.length - 1 ? "1px solid rgba(255, 255, 255, 0.05)" : "none",
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(142, 123, 84, 0.06)")}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = selectedCountry.name === country.name ? "rgba(142, 123, 84, 0.06)" : "transparent")}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(142, 123, 84, 0.1)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = selectedCountry.name === country.name ? "rgba(142, 123, 84, 0.15)" : "transparent")}
                     >
                       <span className="text-lg">{country.flag}</span>
                       <span>{country.name}</span>
-                      <span style={{ color: "#ABA595", marginLeft: "auto" }}>{country.code}</span>
+                      <span style={{ color: "#6B6560", marginLeft: "auto" }}>{country.code}</span>
                     </button>
                   ))}
                 </motion.div>
@@ -163,9 +163,9 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
               placeholder="555 100 2000"
               className="flex-1 px-4 py-3 rounded-lg"
               style={{
-                background: "#FFFFFF",
-                border: error ? "1px solid #9B4D4D" : "1px solid rgba(229, 224, 218, 0.8)",
-                color: "#110D09",
+                background: "#1A1A1A",
+                border: error ? "1px solid #9B4D4D" : "1px solid rgba(255, 255, 255, 0.1)",
+                color: "#FAF8F5",
                 fontSize: 15,
                 outline: "none",
                 transition: "border-color 0.2s ease",
@@ -175,7 +175,7 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
                 if (!error) e.currentTarget.style.borderColor = "#C4A96A";
               }}
               onBlur={(e) => {
-                if (!error) e.currentTarget.style.borderColor = "rgba(229, 224, 218, 0.8)";
+                if (!error) e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.1)";
               }}
             />
           </div>
@@ -208,9 +208,9 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
         animate={{ opacity: 1 }}
         transition={{ delay: 0.3 }}
         className="mt-5 p-3 rounded-lg"
-        style={{ background: "rgba(142, 123, 84, 0.05)" }}
+        style={{ background: "rgba(142, 123, 84, 0.08)" }}
       >
-        <p className="text-xs text-center" style={{ color: "#ABA595", lineHeight: 1.5 }}>
+        <p className="text-xs text-center" style={{ color: "#6B6560", lineHeight: 1.5 }}>
           {t("auth", "demoHint")}
         </p>
       </motion.div>

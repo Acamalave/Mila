@@ -92,7 +92,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
   // Generate time slots for selected date
   const timeSlots = useMemo((): TimeSlot[] => {
     if (!state.selectedDate || !stylist) return [];
-    const date = new Date(state.selectedDate);
+    const date = new Date(state.selectedDate + "T12:00:00");
     const dayOfWeek = getDay(date);
     const schedule = stylist.schedule.find(
       (s) => s.dayOfWeek === dayOfWeek && s.isAvailable
@@ -148,11 +148,11 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
 
   const selectedDate = state.selectedDate ? new Date(state.selectedDate + "T12:00:00") : null;
   const dayNames = language === "es"
-    ? ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sá"]
+    ? ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "S\u00e1"]
     : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
   return (
-    <section className="py-12 sm:py-16 px-4" style={{ background: "#FAF8F5" }}>
+    <section className="py-12 sm:py-16 px-4" style={{ background: "#0A0A0A" }}>
       <div className="max-w-2xl mx-auto">
         {/* Section Title */}
         <motion.div
@@ -164,7 +164,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
         >
           <h2
             className="text-2xl sm:text-3xl font-bold mb-3"
-            style={{ fontFamily: "var(--font-display)", color: "#110D09" }}
+            style={{ fontFamily: "var(--font-display)", color: "#FAF8F5" }}
           >
             {t("home", "chooseDate")}
           </h2>
@@ -177,28 +177,28 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
           style={{
-            background: "#FFFFFF",
+            background: "#141414",
             borderRadius: 20,
-            boxShadow: "0 4px 20px rgba(93, 86, 69, 0.08)",
-            border: "1px solid rgba(229, 224, 218, 0.5)",
+            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.4)",
+            border: "1px solid rgba(255, 255, 255, 0.06)",
             overflow: "hidden",
           }}
         >
           {/* Month Navigation */}
           <div className="flex items-center justify-between px-6 py-4"
-            style={{ borderBottom: "1px solid rgba(229, 224, 218, 0.5)" }}
+            style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.06)" }}
           >
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-              style={{ color: "#8E7B54", cursor: "pointer", background: "none", border: "none" }}
+              style={{ color: "#C4A96A", cursor: "pointer", background: "none", border: "none" }}
             >
               <ChevronLeft size={20} />
             </motion.button>
             <h3
               className="text-base font-semibold capitalize"
-              style={{ color: "#110D09", fontFamily: "var(--font-display)" }}
+              style={{ color: "#FAF8F5", fontFamily: "var(--font-display)" }}
             >
               {format(currentMonth, "MMMM yyyy", { locale })}
             </h3>
@@ -206,7 +206,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-              style={{ color: "#8E7B54", cursor: "pointer", background: "none", border: "none" }}
+              style={{ color: "#C4A96A", cursor: "pointer", background: "none", border: "none" }}
             >
               <ChevronRight size={20} />
             </motion.button>
@@ -218,7 +218,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
               <div
                 key={d}
                 className="text-center py-2"
-                style={{ fontSize: 11, color: "#ABA595", fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}
+                style={{ fontSize: 11, color: "#6B6560", fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}
               >
                 {d}
               </div>
@@ -258,14 +258,14 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
                       color: isSelected
                         ? "#FAF8F5"
                         : isAvailable
-                        ? "#110D09"
+                        ? "#FAF8F5"
                         : isCurrentMonth
-                        ? "rgba(171, 165, 149, 0.4)"
-                        : "rgba(171, 165, 149, 0.2)",
+                        ? "rgba(107, 101, 96, 0.4)"
+                        : "rgba(107, 101, 96, 0.2)",
                       background: isSelected
                         ? "linear-gradient(135deg, #8E7B54, #C4A96A)"
                         : isAvailable
-                        ? "rgba(142, 123, 84, 0.04)"
+                        ? "rgba(255, 255, 255, 0.04)"
                         : "transparent",
                       boxShadow: isSelected
                         ? "0 4px 15px rgba(142, 123, 84, 0.4)"
@@ -291,7 +291,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
               transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
               className="mt-6"
             >
-              <p className="text-sm font-medium mb-3" style={{ color: "#5D5645" }}>
+              <p className="text-sm font-medium mb-3" style={{ color: "#ABA595" }}>
                 {language === "es" ? "Horarios disponibles" : "Available times"}
               </p>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -311,11 +311,11 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
                       style={{
                         background: isSelected
                           ? "linear-gradient(135deg, #8E7B54, #C4A96A)"
-                          : "#FFFFFF",
+                          : "#141414",
                         border: isSelected
                           ? "2px solid #C4A96A"
-                          : "2px solid rgba(229, 224, 218, 0.5)",
-                        color: isSelected ? "#FAF8F5" : "#110D09",
+                          : "2px solid rgba(255, 255, 255, 0.08)",
+                        color: isSelected ? "#FAF8F5" : "#ABA595",
                         fontSize: 13,
                         fontWeight: isSelected ? 600 : 400,
                         cursor: "pointer",
@@ -348,22 +348,22 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
               <div
                 className="p-4 rounded-xl mb-4"
                 style={{
-                  background: "rgba(142, 123, 84, 0.06)",
-                  border: "1px solid rgba(142, 123, 84, 0.15)",
+                  background: "rgba(142, 123, 84, 0.1)",
+                  border: "1px solid rgba(142, 123, 84, 0.2)",
                 }}
               >
-                <p className="text-sm font-medium" style={{ color: "#5D5645" }}>
+                <p className="text-sm font-medium" style={{ color: "#ABA595" }}>
                   {t("home", "yourBooking")}
                 </p>
                 <div className="mt-2 space-y-1">
-                  <p style={{ fontSize: 13, color: "#110D09" }}>
+                  <p style={{ fontSize: 13, color: "#FAF8F5" }}>
                     {stylist?.name} · {selectedDate ? format(selectedDate, "EEEE, MMMM d", { locale }) : ""}
                   </p>
-                  <p style={{ fontSize: 13, color: "#8E7B54" }}>
+                  <p style={{ fontSize: 13, color: "#C4A96A" }}>
                     {formatTimeDisplay(state.selectedTimeSlot.startTime)} - {formatTimeDisplay(state.selectedTimeSlot.endTime)}
                   </p>
                   {!state.isGeneralAppointment && (
-                    <p style={{ fontSize: 14, color: "#8E7B54", fontWeight: 700, marginTop: 4 }}>
+                    <p style={{ fontSize: 14, color: "#C4A96A", fontWeight: 700, marginTop: 4 }}>
                       {formatPrice(totalPrice)}
                     </p>
                   )}

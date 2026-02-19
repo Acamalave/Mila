@@ -88,7 +88,7 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
     <div
       className="min-h-screen flex items-center justify-center px-4 py-12"
       style={{
-        background: "linear-gradient(180deg, #FAF8F5 0%, #F5F0EB 50%, #FAF8F5 100%)",
+        background: "#0A0A0A",
         position: "relative",
         overflow: "hidden",
       }}
@@ -116,7 +116,7 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
               height: 88,
               borderRadius: "50%",
               background: "linear-gradient(135deg, #8E7B54, #C4A96A)",
-              boxShadow: "0 10px 40px rgba(142, 123, 84, 0.35), 0 0 0 8px rgba(142, 123, 84, 0.1)",
+              boxShadow: "0 10px 40px rgba(142, 123, 84, 0.35), 0 0 0 8px rgba(142, 123, 84, 0.15)",
             }}
           >
             <motion.div
@@ -138,11 +138,11 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
         >
           <h2
             className="text-2xl sm:text-3xl font-bold mb-2"
-            style={{ fontFamily: "var(--font-display)", color: "#110D09" }}
+            style={{ fontFamily: "var(--font-display)", color: "#FAF8F5" }}
           >
             {t("home", "bookingConfirmed")}
           </h2>
-          <p style={{ color: "#ABA595", fontSize: 15 }}>
+          <p style={{ color: "#6B6560", fontSize: 15 }}>
             {t("home", "bookingConfirmedDesc")}
           </p>
         </motion.div>
@@ -153,38 +153,38 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.7 }}
           style={{
-            background: "#FFFFFF",
+            background: "#141414",
             borderRadius: 20,
-            boxShadow: "0 4px 20px rgba(93, 86, 69, 0.08)",
-            border: "1px solid rgba(229, 224, 218, 0.5)",
+            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.4)",
+            border: "1px solid rgba(255, 255, 255, 0.06)",
             padding: "24px",
           }}
         >
           {/* Specialist */}
-          <div className="flex items-center gap-3 pb-4" style={{ borderBottom: "1px solid rgba(229, 224, 218, 0.5)" }}>
+          <div className="flex items-center gap-3 pb-4" style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.06)" }}>
             <div
               className="flex items-center justify-center flex-shrink-0"
               style={{
                 width: 40,
                 height: 40,
                 borderRadius: 12,
-                background: "rgba(142, 123, 84, 0.08)",
+                background: "rgba(142, 123, 84, 0.12)",
               }}
             >
-              <UserIcon size={18} style={{ color: "#8E7B54" }} />
+              <UserIcon size={18} style={{ color: "#C4A96A" }} />
             </div>
             <div>
-              <p style={{ fontSize: 13, color: "#ABA595" }}>
+              <p style={{ fontSize: 13, color: "#6B6560" }}>
                 {language === "es" ? "Especialista" : "Specialist"}
               </p>
-              <p style={{ fontSize: 15, color: "#110D09", fontWeight: 600 }}>
+              <p style={{ fontSize: 15, color: "#FAF8F5", fontWeight: 600 }}>
                 {stylist?.name}
               </p>
             </div>
           </div>
 
           {/* Services */}
-          <div className="py-4" style={{ borderBottom: "1px solid rgba(229, 224, 218, 0.5)" }}>
+          <div className="py-4" style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.06)" }}>
             <div className="flex items-center gap-3">
               <div
                 className="flex items-center justify-center flex-shrink-0"
@@ -192,23 +192,23 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
                   width: 40,
                   height: 40,
                   borderRadius: 12,
-                  background: "rgba(142, 123, 84, 0.08)",
+                  background: "rgba(142, 123, 84, 0.12)",
                 }}
               >
-                <Sparkles size={18} style={{ color: "#8E7B54" }} />
+                <Sparkles size={18} style={{ color: "#C4A96A" }} />
               </div>
               <div>
-                <p style={{ fontSize: 13, color: "#ABA595" }}>
+                <p style={{ fontSize: 13, color: "#6B6560" }}>
                   {language === "es" ? "Servicios" : "Services"}
                 </p>
                 {state.isGeneralAppointment ? (
-                  <p style={{ fontSize: 15, color: "#110D09", fontWeight: 600 }}>
+                  <p style={{ fontSize: 15, color: "#FAF8F5", fontWeight: 600 }}>
                     {t("home", "generalAppointment")}
                   </p>
                 ) : (
                   <div>
                     {selectedServices.map((s) => (
-                      <p key={s.id} style={{ fontSize: 14, color: "#110D09" }}>
+                      <p key={s.id} style={{ fontSize: 14, color: "#FAF8F5" }}>
                         {s.name[language]}
                       </p>
                     ))}
@@ -219,7 +219,7 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
           </div>
 
           {/* Date & Time */}
-          <div className="py-4" style={{ borderBottom: "1px solid rgba(229, 224, 218, 0.5)" }}>
+          <div className="py-4" style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.06)" }}>
             <div className="flex items-center gap-3">
               <div
                 className="flex items-center justify-center flex-shrink-0"
@@ -227,20 +227,20 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
                   width: 40,
                   height: 40,
                   borderRadius: 12,
-                  background: "rgba(142, 123, 84, 0.08)",
+                  background: "rgba(142, 123, 84, 0.12)",
                 }}
               >
-                <Calendar size={18} style={{ color: "#8E7B54" }} />
+                <Calendar size={18} style={{ color: "#C4A96A" }} />
               </div>
               <div>
-                <p style={{ fontSize: 13, color: "#ABA595" }}>
+                <p style={{ fontSize: 13, color: "#6B6560" }}>
                   {language === "es" ? "Fecha y hora" : "Date & Time"}
                 </p>
-                <p style={{ fontSize: 15, color: "#110D09", fontWeight: 600 }} className="capitalize">
+                <p style={{ fontSize: 15, color: "#FAF8F5", fontWeight: 600 }} className="capitalize">
                   {dateStr}
                 </p>
                 {state.selectedTimeSlot && (
-                  <p style={{ fontSize: 14, color: "#8E7B54" }}>
+                  <p style={{ fontSize: 14, color: "#C4A96A" }}>
                     {formatTimeDisplay(state.selectedTimeSlot.startTime)} - {formatTimeDisplay(state.selectedTimeSlot.endTime)}
                   </p>
                 )}
@@ -251,8 +251,8 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
           {/* Total */}
           {!state.isGeneralAppointment && totalPrice > 0 && (
             <div className="pt-4 flex items-center justify-between">
-              <span style={{ fontSize: 14, color: "#ABA595" }}>Total</span>
-              <span style={{ fontSize: 20, color: "#8E7B54", fontWeight: 700 }}>
+              <span style={{ fontSize: 14, color: "#6B6560" }}>Total</span>
+              <span style={{ fontSize: 20, color: "#C4A96A", fontWeight: 700 }}>
                 {formatPrice(totalPrice)}
               </span>
             </div>
@@ -289,7 +289,7 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
             className="w-full py-4 rounded-2xl font-medium text-base"
             style={{
               background: "transparent",
-              color: "#8E7B54",
+              color: "#C4A96A",
               border: "2px solid rgba(142, 123, 84, 0.3)",
               borderRadius: 16,
               cursor: "pointer",

@@ -29,10 +29,10 @@ export default function Header() {
     left: 0,
     right: 0,
     zIndex: 50,
-    background: `rgba(17, 13, 9, ${headerOpacity})`,
+    background: `rgba(10, 10, 10, ${headerOpacity})`,
     backdropFilter: `blur(${headerBlur}px)`,
     WebkitBackdropFilter: `blur(${headerBlur}px)`,
-    borderBottom: `1px solid rgba(255, 255, 255, ${0.05 + scrollY / 2000})`,
+    borderBottom: `1px solid rgba(255, 255, 255, ${0.03 + scrollY / 3000})`,
     transition: "background 0.3s ease, backdrop-filter 0.3s ease",
   };
 
@@ -45,9 +45,9 @@ export default function Header() {
             <Image
               src="/logo-mila.png"
               alt="Mila Concept"
-              width={120}
-              height={48}
-              className="h-8 sm:h-10 w-auto object-contain"
+              width={160}
+              height={64}
+              className="h-10 sm:h-14 w-auto object-contain"
               priority
             />
           </Link>

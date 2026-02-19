@@ -47,7 +47,7 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
     border: isSelected ? "3px solid #C4A96A" : "3px solid transparent",
     boxShadow: isSelected
       ? "0 0 30px rgba(142, 123, 84, 0.4), 0 0 60px rgba(142, 123, 84, 0.15)"
-      : "0 8px 30px rgba(0, 0, 0, 0.1)",
+      : "0 8px 30px rgba(0, 0, 0, 0.5)",
     transition: "all 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
     cursor: "pointer",
     overflow: "hidden",
@@ -59,17 +59,17 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
     width: 200,
     height: 200,
     borderRadius: "50%",
-    border: isSelected ? "3px solid #C4A96A" : "3px solid rgba(171, 165, 149, 0.3)",
+    border: isSelected ? "3px solid #C4A96A" : "3px solid rgba(255, 255, 255, 0.1)",
     boxShadow: isSelected
       ? "0 0 40px rgba(142, 123, 84, 0.4), 0 0 80px rgba(142, 123, 84, 0.15)"
-      : "0 10px 40px rgba(0, 0, 0, 0.15)",
+      : "0 10px 40px rgba(0, 0, 0, 0.5)",
     overflow: "hidden",
     position: "relative" as const,
     cursor: "pointer",
   });
 
   return (
-    <section className="py-12 sm:py-20 px-4" style={{ background: "linear-gradient(180deg, #FAF8F5 0%, #F5F0EB 100%)" }}>
+    <section className="py-12 sm:py-20 px-4" style={{ background: "#0A0A0A" }}>
       <div className="max-w-5xl mx-auto">
         {/* Section Title */}
         <motion.div
@@ -83,7 +83,7 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
             className="text-2xl sm:text-4xl font-bold mb-3"
             style={{
               fontFamily: "var(--font-display)",
-              color: "#110D09",
+              color: "#FAF8F5",
               letterSpacing: "0.02em",
             }}
           >
@@ -105,9 +105,9 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                 width: 48,
                 height: 48,
                 borderRadius: "50%",
-                background: "rgba(142, 123, 84, 0.08)",
-                border: "1px solid rgba(142, 123, 84, 0.2)",
-                color: "#8E7B54",
+                background: "rgba(255, 255, 255, 0.06)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                color: "#C4A96A",
                 cursor: "pointer",
                 transition: "all 0.3s ease",
               }}
@@ -162,7 +162,7 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                         style={{
                           fontFamily: "var(--font-display)",
                           fontSize: isCenter ? 18 : 14,
-                          color: "#110D09",
+                          color: "#FAF8F5",
                         }}
                       >
                         {stylist.name}
@@ -183,10 +183,10 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                           className="flex items-center justify-center gap-1 mt-2"
                         >
                           <Star size={14} fill="#C4A96A" color="#C4A96A" />
-                          <span style={{ fontSize: 13, color: "#8E7B54", fontWeight: 600 }}>
+                          <span style={{ fontSize: 13, color: "#C4A96A", fontWeight: 600 }}>
                             {stylist.rating}
                           </span>
-                          <span style={{ fontSize: 12, color: "#ABA595" }}>
+                          <span style={{ fontSize: 12, color: "#6B6560" }}>
                             ({stylist.reviewCount})
                           </span>
                         </motion.div>
@@ -207,9 +207,9 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                 width: 48,
                 height: 48,
                 borderRadius: "50%",
-                background: "rgba(142, 123, 84, 0.08)",
-                border: "1px solid rgba(142, 123, 84, 0.2)",
-                color: "#8E7B54",
+                background: "rgba(255, 255, 255, 0.06)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                color: "#C4A96A",
                 cursor: "pointer",
               }}
             >
@@ -229,9 +229,9 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                 width: 40,
                 height: 40,
                 borderRadius: "50%",
-                background: "rgba(142, 123, 84, 0.08)",
-                border: "1px solid rgba(142, 123, 84, 0.2)",
-                color: "#8E7B54",
+                background: "rgba(255, 255, 255, 0.06)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                color: "#C4A96A",
               }}
             >
               <ChevronLeft size={20} />
@@ -259,7 +259,7 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                 <div className="mt-4 text-center">
                   <p
                     className="font-semibold text-lg"
-                    style={{ fontFamily: "var(--font-display)", color: "#110D09" }}
+                    style={{ fontFamily: "var(--font-display)", color: "#FAF8F5" }}
                   >
                     {currentStylist.name}
                   </p>
@@ -268,10 +268,10 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                   </p>
                   <div className="flex items-center justify-center gap-1 mt-2">
                     <Star size={14} fill="#C4A96A" color="#C4A96A" />
-                    <span style={{ fontSize: 13, color: "#8E7B54", fontWeight: 600 }}>
+                    <span style={{ fontSize: 13, color: "#C4A96A", fontWeight: 600 }}>
                       {currentStylist.rating}
                     </span>
-                    <span style={{ fontSize: 12, color: "#ABA595" }}>
+                    <span style={{ fontSize: 12, color: "#6B6560" }}>
                       ({currentStylist.reviewCount})
                     </span>
                   </div>
@@ -287,9 +287,9 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                 width: 40,
                 height: 40,
                 borderRadius: "50%",
-                background: "rgba(142, 123, 84, 0.08)",
-                border: "1px solid rgba(142, 123, 84, 0.2)",
-                color: "#8E7B54",
+                background: "rgba(255, 255, 255, 0.06)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                color: "#C4A96A",
               }}
             >
               <ChevronRight size={20} />
@@ -311,7 +311,7 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                 borderRadius: 4,
                 background: i === currentIndex
                   ? "linear-gradient(90deg, #8E7B54, #C4A96A)"
-                  : "rgba(171, 165, 149, 0.3)",
+                  : "rgba(255, 255, 255, 0.15)",
                 transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
                 cursor: "pointer",
                 border: "none",
@@ -332,9 +332,9 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
               <span
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-full"
                 style={{
-                  background: "rgba(142, 123, 84, 0.1)",
-                  border: "1px solid rgba(142, 123, 84, 0.2)",
-                  color: "#8E7B54",
+                  background: "rgba(142, 123, 84, 0.15)",
+                  border: "1px solid rgba(142, 123, 84, 0.3)",
+                  color: "#C4A96A",
                   fontSize: 14,
                   fontWeight: 500,
                 }}

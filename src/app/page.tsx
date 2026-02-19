@@ -29,8 +29,6 @@ export default function HomePage() {
   // Redirect authenticated users to dashboard
   useEffect(() => {
     if (hydrated && isAuthenticated) {
-      // Check if user has come here intentionally (e.g., to book another)
-      // Only redirect on initial load, not after booking
       const hasBookingInProgress = state.selectedStylistId !== null;
       if (!hasBookingInProgress && !showSuccess) {
         router.push("/dashboard");
@@ -59,7 +57,6 @@ export default function HomePage() {
 
   // Handle booking confirmation
   const handleBook = useCallback(() => {
-    // Create the booking
     const booking: Booking = {
       id: generateId(),
       serviceIds: state.isGeneralAppointment ? [] : state.selectedServiceIds,
@@ -69,16 +66,14 @@ export default function HomePage() {
       startTime: state.selectedTimeSlot!.startTime,
       endTime: state.selectedTimeSlot!.endTime,
       status: "confirmed",
-      totalPrice: 0, // Will be calculated
+      totalPrice: 0,
       notes: state.notes,
       createdAt: new Date().toISOString(),
     };
 
-    // Save to localStorage
     const existing = getStoredData<Booking[]>("mila-bookings", []);
     setStoredData("mila-bookings", [...existing, booking]);
 
-    // Show success
     dispatch({ type: "GO_TO_STEP", payload: 4 });
     setShowSuccess(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -95,7 +90,6 @@ export default function HomePage() {
     setShowLoginModal(false);
     if (pendingBook) {
       setPendingBook(false);
-      // Short delay to let auth state update
       setTimeout(() => handleBook(), 100);
     }
   }, [pendingBook, handleBook]);
@@ -135,60 +129,8 @@ export default function HomePage() {
     <>
       <Header />
 
-      <main style={{ paddingTop: 64 }}>
-        {/* Hero Mini - Logo + Tagline */}
-        <motion.section
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.8 }}
-          className="text-center py-10 sm:py-16 px-4"
-          style={{
-            background: "linear-gradient(180deg, #110D09 0%, #1A1614 60%, #FAF8F5 100%)",
-          }}
-        >
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
-            className="text-3xl sm:text-5xl font-bold tracking-wider"
-            style={{
-              fontFamily: "var(--font-display)",
-              color: "#FAF8F5",
-              letterSpacing: "0.15em",
-            }}
-          >
-            MILA CONCEPT
-          </motion.h1>
-          <motion.div
-            initial={{ scaleX: 0 }}
-            animate={{ scaleX: 1 }}
-            transition={{ delay: 0.5, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            style={{
-              width: 60,
-              height: 2,
-              background: "linear-gradient(90deg, #8E7B54, #C4A96A)",
-              margin: "12px auto",
-              borderRadius: 2,
-            }}
-          />
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.7 }}
-            className="text-sm sm:text-base"
-            style={{
-              color: "#ABA595",
-              letterSpacing: "0.3em",
-              textTransform: "uppercase" as const,
-              fontFamily: "var(--font-accent)",
-              fontWeight: 300,
-            }}
-          >
-            Where Art Meets Beauty
-          </motion.p>
-        </motion.section>
-
-        {/* Step 1: Specialist Selection */}
+      <main style={{ paddingTop: 56, background: "#0A0A0A", minHeight: "100vh" }}>
+        {/* Step 1: Specialist Selection - directly, no hero */}
         <SpecialistSlider onSelect={handleSpecialistSelect} />
 
         {/* Step 2: Service Selection */}

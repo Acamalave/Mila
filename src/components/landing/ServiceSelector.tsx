@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Scissors, Paintbrush, Sun, Sparkles, Hand, Gem, Flower2, Palette, Droplets, Layers, CircleDot, Zap, Heart, Star, Crown, GraduationCap, Calendar, Check, Clock } from "lucide-react";
+import { Scissors, Paintbrush, Sun, Sparkles, Hand, Gem, Flower2, Palette, Droplets, Layers, CircleDot, Zap, Heart, Star, Crown, GraduationCap, Calendar, Check, Clock, Wind } from "lucide-react";
 import { stylists } from "@/data/stylists";
 import { services } from "@/data/services";
 import { useLanguage } from "@/providers/LanguageProvider";
@@ -10,7 +10,7 @@ import { useBooking } from "@/providers/BookingProvider";
 import { formatPrice } from "@/lib/utils";
 
 const iconMap: Record<string, React.ComponentType<{ size?: number; style?: React.CSSProperties; className?: string }>> = {
-  Scissors, Paintbrush, Sun, Sparkles, Hand, Gem, Flower2, Palette, Droplets, Layers, CircleDot, Zap, Heart, Star, Crown, GraduationCap, Calendar,
+  Scissors, Paintbrush, Sun, Sparkles, Hand, Gem, Flower2, Palette, Droplets, Layers, CircleDot, Zap, Heart, Star, Crown, GraduationCap, Calendar, Wind,
 };
 
 interface ServiceSelectorProps {
@@ -55,8 +55,8 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
   const canContinue = selectedIds.length > 0 || isGeneral;
 
   const cardStyle = (isSelected: boolean): React.CSSProperties => ({
-    background: isSelected ? "rgba(142, 123, 84, 0.06)" : "#FFFFFF",
-    border: isSelected ? "2px solid #C4A96A" : "2px solid rgba(229, 224, 218, 0.6)",
+    background: isSelected ? "rgba(142, 123, 84, 0.15)" : "#141414",
+    border: isSelected ? "2px solid #C4A96A" : "2px solid rgba(255, 255, 255, 0.08)",
     borderRadius: 16,
     padding: "20px 16px",
     cursor: "pointer",
@@ -67,9 +67,9 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
 
   const generalCardStyle: React.CSSProperties = {
     background: isGeneral
-      ? "linear-gradient(135deg, rgba(142, 123, 84, 0.1), rgba(196, 169, 106, 0.08))"
-      : "rgba(250, 248, 245, 0.8)",
-    border: isGeneral ? "2px solid #C4A96A" : "2px solid rgba(229, 224, 218, 0.6)",
+      ? "linear-gradient(135deg, rgba(142, 123, 84, 0.15), rgba(196, 169, 106, 0.1))"
+      : "rgba(20, 20, 20, 0.8)",
+    border: isGeneral ? "2px solid #C4A96A" : "2px solid rgba(255, 255, 255, 0.08)",
     borderRadius: 16,
     padding: "20px 24px",
     cursor: "pointer",
@@ -77,7 +77,7 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
   };
 
   return (
-    <section className="py-12 sm:py-16 px-4">
+    <section className="py-12 sm:py-16 px-4" style={{ background: "#0A0A0A" }}>
       <div className="max-w-4xl mx-auto">
         {/* Section Title */}
         <motion.div
@@ -91,13 +91,13 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
             className="text-2xl sm:text-3xl font-bold mb-3"
             style={{
               fontFamily: "var(--font-display)",
-              color: "#110D09",
+              color: "#FAF8F5",
             }}
           >
             {t("home", "selectServices")}
           </h2>
           <div style={{ width: 50, height: 2, background: "linear-gradient(90deg, #8E7B54, #C4A96A)", margin: "0 auto", borderRadius: 2 }} />
-          <p className="mt-3" style={{ color: "#ABA595", fontSize: 14 }}>
+          <p className="mt-3" style={{ color: "#6B6560", fontSize: 14 }}>
             {stylist?.name}
           </p>
         </motion.div>
@@ -110,7 +110,7 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
           className="mb-6"
         >
           <motion.div
-            whileHover={{ y: -2, boxShadow: "0 8px 25px rgba(142, 123, 84, 0.12)" }}
+            whileHover={{ y: -2, boxShadow: "0 8px 25px rgba(142, 123, 84, 0.15)" }}
             whileTap={{ scale: 0.99 }}
             style={generalCardStyle}
             onClick={toggleGeneral}
@@ -122,17 +122,17 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                 width: 44,
                 height: 44,
                 borderRadius: 12,
-                background: isGeneral ? "linear-gradient(135deg, #8E7B54, #C4A96A)" : "rgba(142, 123, 84, 0.08)",
+                background: isGeneral ? "linear-gradient(135deg, #8E7B54, #C4A96A)" : "rgba(142, 123, 84, 0.12)",
                 transition: "all 0.3s ease",
               }}
             >
-              <Calendar size={20} style={{ color: isGeneral ? "#FAF8F5" : "#8E7B54" }} />
+              <Calendar size={20} style={{ color: isGeneral ? "#FAF8F5" : "#C4A96A" }} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold" style={{ color: "#110D09", fontSize: 15 }}>
+              <p className="font-semibold" style={{ color: "#FAF8F5", fontSize: 15 }}>
                 {t("home", "generalAppointment")}
               </p>
-              <p style={{ color: "#ABA595", fontSize: 13, marginTop: 2 }}>
+              <p style={{ color: "#6B6560", fontSize: 13, marginTop: 2 }}>
                 {t("home", "generalAppointmentDesc")}
               </p>
             </div>
@@ -160,11 +160,11 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
 
         {/* Divider */}
         <div className="flex items-center gap-3 mb-6">
-          <div className="flex-1 h-px" style={{ background: "rgba(229, 224, 218, 0.5)" }} />
-          <span style={{ fontSize: 12, color: "#ABA595", textTransform: "uppercase" as const, letterSpacing: "0.1em" }}>
+          <div className="flex-1 h-px" style={{ background: "rgba(255, 255, 255, 0.06)" }} />
+          <span style={{ fontSize: 12, color: "#6B6560", textTransform: "uppercase" as const, letterSpacing: "0.1em" }}>
             {language === "es" ? "o elige servicios" : "or choose services"}
           </span>
-          <div className="flex-1 h-px" style={{ background: "rgba(229, 224, 218, 0.5)" }} />
+          <div className="flex-1 h-px" style={{ background: "rgba(255, 255, 255, 0.06)" }} />
         </div>
 
         {/* Services Grid */}
@@ -191,7 +191,7 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                   hidden: { opacity: 0, y: 20, scale: 0.95 },
                   visible: { opacity: 1, y: 0, scale: 1 },
                 }}
-                whileHover={{ y: -4, boxShadow: "0 12px 30px rgba(93, 86, 69, 0.12)" }}
+                whileHover={{ y: -4, boxShadow: "0 12px 30px rgba(0, 0, 0, 0.4)" }}
                 whileTap={{ scale: 0.97 }}
                 style={cardStyle(isSelected)}
                 onClick={() => toggleService(service.id)}
@@ -231,12 +231,12 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                     borderRadius: 12,
                     background: isSelected
                       ? "linear-gradient(135deg, #8E7B54, #C4A96A)"
-                      : "rgba(142, 123, 84, 0.06)",
+                      : "rgba(142, 123, 84, 0.12)",
                     transition: "all 0.3s ease",
                     margin: "0 auto",
                   }}
                 >
-                  <IconComp size={20} style={{ color: isSelected ? "#FAF8F5" : "#8E7B54" }} />
+                  <IconComp size={20} style={{ color: isSelected ? "#FAF8F5" : "#C4A96A" }} />
                 </div>
 
                 {/* Service Info */}
@@ -245,7 +245,7 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                     className="font-medium leading-tight"
                     style={{
                       fontSize: 13,
-                      color: "#110D09",
+                      color: "#FAF8F5",
                       minHeight: 36,
                       display: "flex",
                       alignItems: "center",
@@ -255,13 +255,13 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                     {service.name[language]}
                   </p>
                   <div className="flex items-center justify-center gap-2 mt-2">
-                    <span style={{ fontSize: 15, fontWeight: 700, color: "#8E7B54" }}>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: "#C4A96A" }}>
                       {formatPrice(service.price)}
                     </span>
                   </div>
                   <div className="flex items-center justify-center gap-1 mt-1">
-                    <Clock size={11} style={{ color: "#ABA595" }} />
-                    <span style={{ fontSize: 11, color: "#ABA595" }}>
+                    <Clock size={11} style={{ color: "#6B6560" }} />
+                    <span style={{ fontSize: 11, color: "#6B6560" }}>
                       {service.durationMinutes} min
                     </span>
                   </div>
@@ -284,10 +284,10 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
               <div
                 className="max-w-4xl mx-auto flex items-center justify-between px-5 py-4 sm:px-6 sm:py-5"
                 style={{
-                  background: "rgba(17, 13, 9, 0.95)",
+                  background: "rgba(20, 20, 20, 0.95)",
                   backdropFilter: "blur(20px)",
                   borderRadius: 16,
-                  boxShadow: "0 -4px 30px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.05)",
+                  boxShadow: "0 -4px 30px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05)",
                 }}
               >
                 <div>
@@ -296,7 +296,7 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                       <p style={{ color: "#C4A96A", fontSize: 20, fontWeight: 700 }}>
                         {formatPrice(totalPrice)}
                       </p>
-                      <p style={{ color: "#ABA595", fontSize: 12 }}>
+                      <p style={{ color: "#6B6560", fontSize: 12 }}>
                         {selectedIds.length} {t("home", "totalSelected")} · {totalDuration} min
                       </p>
                     </>
