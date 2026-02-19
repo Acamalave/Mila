@@ -47,7 +47,7 @@ export default function Header() {
               alt="Mila Concept"
               width={120}
               height={48}
-              className="h-8 sm:h-10 w-auto object-contain brightness-0 invert"
+              className="h-8 sm:h-10 w-auto object-contain"
               priority
             />
           </Link>

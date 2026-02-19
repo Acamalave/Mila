@@ -15,11 +15,11 @@ export default function Footer() {
           {/* Brand */}
           <div className="md:col-span-1">
             <Image
-              src="/logo-mila.svg"
+              src="/logo-mila.png"
               alt="Mila Concept"
               width={130}
               height={52}
-              className="h-10 w-auto object-contain brightness-0 invert opacity-90"
+              className="h-10 w-auto object-contain opacity-90"
             />
             <p className="text-sm leading-relaxed text-mila-taupe mt-4">
               {t("footer", "description")}

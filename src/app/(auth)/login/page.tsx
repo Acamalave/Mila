@@ -86,7 +86,7 @@ export default function LoginPage() {
                 alt="Mila Concept"
                 width={140}
                 height={56}
-                className="h-12 w-auto object-contain"
+                className="h-12 w-auto object-contain brightness-0"
                 priority
               />
             </div>
