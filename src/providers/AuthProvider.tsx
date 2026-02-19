@@ -15,7 +15,7 @@ interface AuthContextValue {
   user: User | null;
   isAuthenticated: boolean;
   hydrated: boolean;
-  loginByPhone: (phone: string, countryCode: string) => void;
+  loginByPhone: (phone: string, countryCode: string, name?: string) => void;
   register: (name: string, phone: string, countryCode: string) => void;
   logout: () => void;
 }
@@ -27,11 +27,11 @@ const MOCK_USERS: Record<string, { name: string; role: "admin" | "client"; id: s
   "5553004000": { name: "Sofia Chen", role: "client", id: "user-sofia" },
 };
 
-function createUserFromPhone(phone: string, countryCode: string): User {
+function createUserFromPhone(phone: string, countryCode: string, providedName?: string): User {
   const mock = MOCK_USERS[phone];
   return {
     id: mock?.id ?? generateId(),
-    name: mock?.name ?? `User ${phone.slice(-4)}`,
+    name: mock?.name ?? providedName ?? `User ${phone.slice(-4)}`,
     phone,
     countryCode,
     role: mock?.role ?? "client",
@@ -49,8 +49,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setHydrated(true);
   }, []);
 
-  const loginByPhone = useCallback((phone: string, countryCode: string) => {
-    const newUser = createUserFromPhone(phone, countryCode);
+  const loginByPhone = useCallback((phone: string, countryCode: string, name?: string) => {
+    const newUser = createUserFromPhone(phone, countryCode, name);
     setUser(newUser);
     setStoredData("mila-auth", newUser);
   }, []);

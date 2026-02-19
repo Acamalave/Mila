@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion } from "motion/react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
@@ -11,19 +12,69 @@ import { services } from "@/data/services";
 import { stylists } from "@/data/stylists";
 import { getInitialDemoAppointments } from "@/data/appointments";
 import type { Booking } from "@/types";
-import Card from "@/components/ui/Card";
+import type { Variants } from "motion/react";
 import Badge from "@/components/ui/Badge";
-import { fadeInUp, staggerContainer } from "@/styles/animations";
 import {
+  CalendarDays,
   CalendarPlus,
   ShoppingBag,
   Star,
-  ArrowRight,
+  UserCircle,
   Clock,
-  User as UserIcon,
   Sparkles,
+  ArrowRight,
 } from "lucide-react";
 
+/* ── Shared glass style ─────────────────────────────────────────── */
+const glassCard: React.CSSProperties = {
+  background: "rgba(255, 255, 255, 0.03)",
+  backdropFilter: "blur(20px)",
+  WebkitBackdropFilter: "blur(20px)",
+  border: "1px solid rgba(255, 255, 255, 0.06)",
+  borderRadius: 20,
+  boxShadow:
+    "0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.04)",
+};
+
+const glassCardHover: React.CSSProperties = {
+  ...glassCard,
+  cursor: "pointer",
+};
+
+/* ── Colors ─────────────────────────────────────────────────────── */
+const colors = {
+  primary: "#FAF8F5",
+  secondary: "#ABA595",
+  muted: "#6B6560",
+  gold: "#C4A96A",
+  darkGold: "#8E7B54",
+  bg: "#0A0A0A",
+};
+
+/* ── Animations ─────────────────────────────────────────────────── */
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.08, delayChildren: 0.15 },
+  },
+};
+
+const itemVariants: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.55, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
+  },
+};
+
+const cardSpring = {
+  whileHover: { scale: 1.04, boxShadow: "0 12px 40px rgba(196, 169, 106, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.06)" },
+  whileTap: { scale: 0.97 },
+};
+
+/* ── Component ──────────────────────────────────────────────────── */
 export default function DashboardPage() {
   const { user } = useAuth();
   const { language, t } = useLanguage();
@@ -38,207 +89,466 @@ export default function DashboardPage() {
     setAppointments(stored);
   }, []);
 
+  /* ── Derived data ───────────────────────────────────────────── */
   const now = new Date();
   const upcoming = appointments
     .filter((a) => {
       const apptDate = new Date(`${a.date}T${a.startTime}`);
       return apptDate > now && a.status !== "cancelled";
     })
-    .sort((a, b) => new Date(`${a.date}T${a.startTime}`).getTime() - new Date(`${b.date}T${b.startTime}`).getTime());
+    .sort(
+      (a, b) =>
+        new Date(`${a.date}T${a.startTime}`).getTime() -
+        new Date(`${b.date}T${b.startTime}`).getTime()
+    );
 
   const nextAppointment = upcoming[0] ?? null;
   const restUpcoming = upcoming.slice(1, 4);
 
+  /* ── Helpers ────────────────────────────────────────────────── */
   const statusVariant = (status: string) => {
     switch (status) {
-      case "confirmed": return "success" as const;
-      case "pending": return "warning" as const;
-      case "cancelled": return "error" as const;
-      case "completed": return "info" as const;
-      default: return "default" as const;
+      case "confirmed":
+        return "success" as const;
+      case "pending":
+        return "warning" as const;
+      case "cancelled":
+        return "error" as const;
+      case "completed":
+        return "info" as const;
+      default:
+        return "default" as const;
     }
+  };
+
+  const statusLabel = (status: string) => {
+    const labels: Record<string, Record<string, string>> = {
+      confirmed: { es: "Confirmada", en: "Confirmed" },
+      pending: { es: "Pendiente", en: "Pending" },
+      cancelled: { es: "Cancelada", en: "Cancelled" },
+      completed: { es: "Completada", en: "Completed" },
+    };
+    return labels[status]?.[language] ?? status;
   };
 
   const getServiceNames = (appt: Booking): string => {
     const svcIds = appt.serviceIds ?? [];
-    if (svcIds.length === 0) return language === "es" ? "Consulta General" : "General Consultation";
+    if (svcIds.length === 0)
+      return language === "es" ? "Consulta General" : "General Consultation";
     return svcIds
       .map((id) => services.find((s) => s.id === id)?.name[language] ?? id)
       .join(", ");
   };
 
-  const quickActions = [
+  /* ── Navigation cards config ────────────────────────────────── */
+  const navCards = [
+    {
+      href: "/dashboard/appointments",
+      icon: CalendarDays,
+      label: language === "es" ? "Mis Citas" : "My Appointments",
+      accent: false,
+    },
     {
       href: "/",
       icon: CalendarPlus,
-      label: language === "es" ? "Reservar Nueva Cita" : "Book New Appointment",
-      description: language === "es" ? "Agenda una nueva cita" : "Schedule a new appointment",
+      label: language === "es" ? "Reservar Nueva" : "Book New",
+      accent: true,
     },
     {
       href: "/dashboard/shop",
       icon: ShoppingBag,
-      label: t("dashboard", "shop"),
-      description: language === "es" ? "Explora nuestros productos" : "Browse our products",
+      label: language === "es" ? "Tienda" : "Shop",
+      accent: false,
     },
     {
       href: "/dashboard/reviews",
       icon: Star,
-      label: t("dashboard", "reviews"),
-      description: language === "es" ? "Comparte tu experiencia" : "Share your experience",
+      label: language === "es" ? "Rese\u00f1as" : "Reviews",
+      accent: false,
+    },
+    {
+      href: "/dashboard/profile",
+      icon: UserCircle,
+      label: language === "es" ? "Mi Perfil" : "My Profile",
+      accent: false,
     },
   ];
 
+  /* ── Render ─────────────────────────────────────────────────── */
   return (
     <motion.div
-      variants={staggerContainer}
+      variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="space-y-8"
+      className="space-y-6 pb-8"
     >
-      {/* Welcome */}
-      <motion.div variants={fadeInUp}>
-        <h1 className="text-2xl sm:text-3xl font-bold font-[family-name:var(--font-display)] text-text-primary">
+      {/* ─── Welcome Section ─────────────────────────────────── */}
+      <motion.div variants={itemVariants} className="pt-1">
+        <h1
+          className="text-2xl sm:text-3xl font-bold font-[family-name:var(--font-display)]"
+          style={{ color: colors.primary }}
+        >
           {t("dashboard", "welcome")}, {user?.name}
         </h1>
-        <p className="text-text-muted mt-1">{t("dashboard", "title")}</p>
+        <p className="mt-1 text-sm" style={{ color: colors.secondary }}>
+          {language === "es" ? "Tu panel personal" : "Your personal panel"}
+        </p>
       </motion.div>
 
-      {/* Current Reservation (Highlighted) */}
-      {nextAppointment && (
-        <motion.section variants={fadeInUp}>
-          <h2 className="text-lg font-semibold font-[family-name:var(--font-display)] text-text-primary mb-4">
-            {language === "es" ? "Reserva Actual" : "Current Reservation"}
-          </h2>
-          <div
-            className="rounded-2xl p-5 sm:p-6"
-            style={{
-              background: "linear-gradient(135deg, rgba(142, 123, 84, 0.08), rgba(196, 169, 106, 0.05))",
-              border: "1px solid rgba(142, 123, 84, 0.15)",
-            }}
-          >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <Sparkles size={16} className="text-mila-gold" />
-                  <p className="font-semibold text-text-primary">
-                    {getServiceNames(nextAppointment)}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-text-secondary">
-                  <UserIcon size={14} />
-                  <span>{stylists.find((s) => s.id === nextAppointment.stylistId)?.name}</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-text-secondary mt-1">
-                  <Clock size={14} />
-                  <span>
-                    {formatShortDate(nextAppointment.date, language)} &middot;{" "}
-                    {formatTime(nextAppointment.startTime)}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                {nextAppointment.totalPrice > 0 && (
-                  <span className="text-lg font-bold text-mila-gold">
-                    {formatPrice(nextAppointment.totalPrice)}
-                  </span>
-                )}
-                <Badge variant={statusVariant(nextAppointment.status)}>
-                  {nextAppointment.status}
-                </Badge>
-              </div>
-            </div>
-          </div>
-        </motion.section>
-      )}
+      {/* ─── Hero Reservation Card ───────────────────────────── */}
+      <motion.section variants={itemVariants}>
+        {nextAppointment ? (
+          <ReservationHeroCard
+            appointment={nextAppointment}
+            language={language}
+            getServiceNames={getServiceNames}
+            statusVariant={statusVariant}
+            statusLabel={statusLabel}
+          />
+        ) : (
+          <EmptyReservationCard language={language} />
+        )}
+      </motion.section>
 
-      {/* Upcoming Appointments */}
-      <motion.section variants={fadeInUp}>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold font-[family-name:var(--font-display)] text-text-primary">
+      {/* ─── Navigation Grid ─────────────────────────────────── */}
+      <motion.section variants={itemVariants}>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {navCards.map((card, i) => {
+            const Icon = card.icon;
+            return (
+              <Link key={card.href} href={card.href}>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 + i * 0.06, duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
+                  whileHover={cardSpring.whileHover}
+                  whileTap={cardSpring.whileTap}
+                  className="flex flex-col items-center justify-center gap-3 p-5"
+                  style={
+                    card.accent
+                      ? {
+                          ...glassCardHover,
+                          background:
+                            "linear-gradient(135deg, rgba(196, 169, 106, 0.12), rgba(142, 123, 84, 0.06))",
+                          border: "1px solid rgba(196, 169, 106, 0.2)",
+                        }
+                      : glassCardHover
+                  }
+                >
+                  <div
+                    className="flex items-center justify-center"
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: "50%",
+                      background: card.accent
+                        ? "rgba(196, 169, 106, 0.15)"
+                        : "rgba(255, 255, 255, 0.05)",
+                      border: card.accent
+                        ? "1px solid rgba(196, 169, 106, 0.25)"
+                        : "1px solid rgba(255, 255, 255, 0.08)",
+                    }}
+                  >
+                    <Icon
+                      size={24}
+                      style={{
+                        color: card.accent ? colors.gold : colors.secondary,
+                      }}
+                    />
+                  </div>
+                  <span
+                    className="text-xs font-medium text-center leading-tight"
+                    style={{
+                      color: card.accent ? colors.gold : colors.primary,
+                    }}
+                  >
+                    {card.label}
+                  </span>
+                </motion.div>
+              </Link>
+            );
+          })}
+        </div>
+      </motion.section>
+
+      {/* ─── Upcoming Appointments ───────────────────────────── */}
+      <motion.section variants={itemVariants}>
+        <div className="flex items-center justify-between mb-3">
+          <h2
+            className="text-base font-semibold font-[family-name:var(--font-display)]"
+            style={{ color: colors.primary }}
+          >
             {t("dashboard", "upcoming")}
           </h2>
           <Link
             href="/dashboard/appointments"
-            className="text-sm text-mila-gold hover:text-mila-gold-dark flex items-center gap-1 transition-colors"
+            className="flex items-center gap-1 text-xs font-medium transition-colors"
+            style={{ color: colors.gold }}
           >
             {t("common", "viewAll")}
-            <ArrowRight size={14} />
+            <ArrowRight size={13} />
           </Link>
         </div>
 
         {restUpcoming.length === 0 && !nextAppointment ? (
-          <Card>
-            <p className="text-text-muted text-center py-6">
+          <div className="py-10 text-center" style={glassCard}>
+            <p className="text-sm" style={{ color: colors.muted }}>
               {t("dashboard", "noAppointments")}
             </p>
-          </Card>
+          </div>
         ) : restUpcoming.length === 0 ? (
-          <Card>
-            <p className="text-text-muted text-center py-4 text-sm">
-              {language === "es" ? "No hay m\u00e1s citas programadas" : "No more upcoming appointments"}
+          <div className="py-6 text-center" style={glassCard}>
+            <p className="text-sm" style={{ color: colors.muted }}>
+              {language === "es"
+                ? "No hay m\u00e1s citas programadas"
+                : "No more upcoming appointments"}
             </p>
-          </Card>
+          </div>
         ) : (
           <div className="grid gap-3">
             {restUpcoming.map((appt, i) => {
               const stylist = stylists.find((s) => s.id === appt.stylistId);
-
               return (
                 <motion.div
                   key={appt.id}
-                  initial={{ opacity: 0, y: 15 }}
+                  initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 * i, duration: 0.4 }}
+                  transition={{
+                    delay: 0.35 + i * 0.08,
+                    duration: 0.45,
+                    ease: [0.16, 1, 0.3, 1] as [number, number, number, number],
+                  }}
                 >
-                  <Card hover className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div
+                    className="flex items-center gap-4 p-4"
+                    style={glassCard}
+                  >
+                    {/* Stylist avatar */}
+                    {stylist?.avatar && (
+                      <div
+                        className="flex-shrink-0 overflow-hidden"
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: "50%",
+                          border: "1px solid rgba(196, 169, 106, 0.2)",
+                        }}
+                      >
+                        <Image
+                          src={stylist.avatar}
+                          alt={stylist.name}
+                          width={44}
+                          height={44}
+                          className="object-cover"
+                          style={{ width: 44, height: 44 }}
+                        />
+                      </div>
+                    )}
+
+                    {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-text-primary truncate">
+                      <p
+                        className="text-sm font-semibold truncate"
+                        style={{ color: colors.primary }}
+                      >
                         {getServiceNames(appt)}
                       </p>
-                      <p className="text-sm text-text-secondary mt-0.5">
-                        {stylist?.name ?? appt.stylistId} &middot; {stylist?.role[language]}
+                      <p
+                        className="text-xs mt-0.5"
+                        style={{ color: colors.secondary }}
+                      >
+                        {stylist?.name ?? appt.stylistId}
                       </p>
                     </div>
-                    <div className="flex items-center gap-3 flex-shrink-0">
+
+                    {/* Date + status */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       <div className="text-right">
-                        <p className="text-sm font-medium text-text-primary">
+                        <p
+                          className="text-xs font-medium"
+                          style={{ color: colors.primary }}
+                        >
                           {formatShortDate(appt.date, language)}
                         </p>
-                        <p className="text-xs text-text-muted">
+                        <p className="text-[11px]" style={{ color: colors.muted }}>
                           {formatTime(appt.startTime)}
                         </p>
                       </div>
                       <Badge variant={statusVariant(appt.status)}>
-                        {appt.status}
+                        {statusLabel(appt.status)}
                       </Badge>
                     </div>
-                  </Card>
+                  </div>
                 </motion.div>
               );
             })}
           </div>
         )}
       </motion.section>
-
-      {/* Quick Actions */}
-      <motion.section variants={fadeInUp}>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {quickActions.map((action) => {
-            const Icon = action.icon;
-            return (
-              <Link key={action.href} href={action.href}>
-                <Card hover className="text-center py-8">
-                  <div className="w-12 h-12 rounded-full bg-mila-gold/10 flex items-center justify-center mx-auto mb-3">
-                    <Icon size={22} className="text-mila-gold" />
-                  </div>
-                  <p className="font-semibold text-text-primary">{action.label}</p>
-                  <p className="text-xs text-text-muted mt-1">{action.description}</p>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
-      </motion.section>
     </motion.div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Sub-components
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── Hero Reservation Card ──────────────────────────────────────── */
+function ReservationHeroCard({
+  appointment,
+  language,
+  getServiceNames,
+  statusVariant,
+  statusLabel,
+}: {
+  appointment: Booking;
+  language: "en" | "es";
+  getServiceNames: (appt: Booking) => string;
+  statusVariant: (status: string) => "success" | "warning" | "error" | "info" | "default";
+  statusLabel: (status: string) => string;
+}) {
+  const stylist = stylists.find((s) => s.id === appointment.stylistId);
+
+  return (
+    <div
+      className="relative overflow-hidden p-5 sm:p-6"
+      style={{
+        ...glassCard,
+        borderLeft: `3px solid ${colors.gold}`,
+        background:
+          "linear-gradient(135deg, rgba(196, 169, 106, 0.06), rgba(255, 255, 255, 0.02))",
+      }}
+    >
+      {/* Subtle gold glow */}
+      <div
+        className="absolute -top-20 -right-20 pointer-events-none"
+        style={{
+          width: 160,
+          height: 160,
+          borderRadius: "50%",
+          background:
+            "radial-gradient(circle, rgba(196, 169, 106, 0.08) 0%, transparent 70%)",
+        }}
+      />
+
+      {/* Section label */}
+      <div className="flex items-center gap-2 mb-4">
+        <Sparkles size={14} style={{ color: colors.gold }} />
+        <span
+          className="text-xs font-semibold uppercase tracking-wider"
+          style={{ color: colors.gold }}
+        >
+          {language === "es" ? "Reserva Actual" : "Current Reservation"}
+        </span>
+      </div>
+
+      {/* Content row */}
+      <div className="flex items-center gap-4">
+        {/* Specialist Photo */}
+        {stylist?.avatar && (
+          <div
+            className="flex-shrink-0 overflow-hidden"
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: "50%",
+              border: "2px solid rgba(196, 169, 106, 0.3)",
+              boxShadow: "0 4px 16px rgba(0, 0, 0, 0.3)",
+            }}
+          >
+            <Image
+              src={stylist.avatar}
+              alt={stylist.name}
+              width={56}
+              height={56}
+              className="object-cover"
+              style={{ width: 56, height: 56 }}
+            />
+          </div>
+        )}
+
+        {/* Service + Date */}
+        <div className="flex-1 min-w-0">
+          <p
+            className="text-sm sm:text-base font-semibold truncate"
+            style={{ color: colors.primary }}
+          >
+            {getServiceNames(appointment)}
+          </p>
+          <p className="text-xs mt-1" style={{ color: colors.secondary }}>
+            {stylist?.name} &middot; {stylist?.role[language]}
+          </p>
+          <div className="flex items-center gap-1.5 mt-1.5">
+            <Clock size={12} style={{ color: colors.muted }} />
+            <span className="text-xs" style={{ color: colors.muted }}>
+              {formatShortDate(appointment.date, language)} &middot;{" "}
+              {formatTime(appointment.startTime)}
+            </span>
+          </div>
+        </div>
+
+        {/* Price + Status */}
+        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+          {appointment.totalPrice > 0 && (
+            <span
+              className="text-base font-bold"
+              style={{ color: colors.gold }}
+            >
+              {formatPrice(appointment.totalPrice)}
+            </span>
+          )}
+          <Badge variant={statusVariant(appointment.status)}>
+            {statusLabel(appointment.status)}
+          </Badge>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Empty Reservation Card ─────────────────────────────────────── */
+function EmptyReservationCard({ language }: { language: "en" | "es" }) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center py-10 px-6 text-center"
+      style={glassCard}
+    >
+      <div
+        className="flex items-center justify-center mb-4"
+        style={{
+          width: 56,
+          height: 56,
+          borderRadius: "50%",
+          background: "rgba(196, 169, 106, 0.1)",
+          border: "1px solid rgba(196, 169, 106, 0.2)",
+        }}
+      >
+        <CalendarPlus size={24} style={{ color: colors.gold }} />
+      </div>
+      <p className="text-sm font-medium mb-1" style={{ color: colors.primary }}>
+        {language === "es" ? "No tienes reservas" : "No reservations"}
+      </p>
+      <p className="text-xs mb-5" style={{ color: colors.muted }}>
+        {language === "es"
+          ? "Agenda tu pr\u00f3xima experiencia"
+          : "Schedule your next experience"}
+      </p>
+      <Link href="/">
+        <motion.button
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.97 }}
+          className="px-6 py-2.5 text-sm font-semibold"
+          style={{
+            background: `linear-gradient(135deg, ${colors.gold}, ${colors.darkGold})`,
+            color: "#0A0A0A",
+            borderRadius: 12,
+            border: "none",
+            cursor: "pointer",
+          }}
+        >
+          {language === "es" ? "Reservar Ahora" : "Book Now"}
+        </motion.button>
+      </Link>
+    </div>
   );
 }

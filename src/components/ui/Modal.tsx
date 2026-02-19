@@ -38,7 +38,7 @@ export default function Modal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -48,18 +48,19 @@ export default function Modal({
             onClick={onClose}
           />
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            initial={{ opacity: 0, y: 60 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 60 }}
+            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
             className={cn(
-              "relative w-full rounded-2xl",
-              "max-h-[85vh] overflow-y-auto",
+              "relative w-full",
+              "rounded-t-2xl sm:rounded-2xl",
+              "max-h-[90vh] sm:max-h-[85vh] overflow-y-auto",
               modalSizes[size]
             )}
             style={{
               background: "#141414",
-              boxShadow: "0 20px 50px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06)",
+              boxShadow: "0 -10px 40px rgba(0, 0, 0, 0.3), 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06)",
             }}
           >
             {title && (
@@ -84,7 +85,7 @@ export default function Modal({
                 </button>
               </div>
             )}
-            <div className="p-6">{children}</div>
+            <div className="p-4 sm:p-6">{children}</div>
           </motion.div>
         </div>
       )}
