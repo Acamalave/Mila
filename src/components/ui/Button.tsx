@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { motion, type HTMLMotionProps } from "motion/react";
+import type { CSSProperties } from "react";
 
 interface ButtonProps extends Omit<HTMLMotionProps<"button">, "children"> {
   variant?: "primary" | "secondary" | "outline" | "ghost" | "danger";
@@ -10,12 +11,32 @@ interface ButtonProps extends Omit<HTMLMotionProps<"button">, "children"> {
   children: React.ReactNode;
 }
 
-const variants = {
-  primary: "bg-mila-gold text-white hover:bg-mila-gold-dark",
-  secondary: "bg-mila-espresso text-mila-ivory hover:bg-mila-charcoal",
-  outline: "border-2 border-mila-gold text-mila-gold hover:bg-mila-gold hover:text-white",
-  ghost: "text-mila-olive hover:bg-mila-cream",
-  danger: "bg-error text-white hover:opacity-90",
+const variantStyles: Record<string, CSSProperties> = {
+  primary: {
+    background: "var(--gradient-accent)",
+    color: "var(--color-text-inverse)",
+    border: "none",
+  },
+  secondary: {
+    background: "var(--color-bg-glass)",
+    color: "var(--color-text-primary)",
+    border: "1px solid var(--color-border-default)",
+  },
+  outline: {
+    background: "transparent",
+    color: "var(--color-accent)",
+    border: "2px solid var(--color-accent)",
+  },
+  ghost: {
+    background: "transparent",
+    color: "var(--color-text-secondary)",
+    border: "none",
+  },
+  danger: {
+    background: "#9B4D4D",
+    color: "#FAF8F5",
+    border: "none",
+  },
 };
 
 const sizes = {
@@ -38,14 +59,17 @@ export default function Button({
       whileHover={disabled ? {} : { scale: 1.02 }}
       whileTap={disabled ? {} : { scale: 0.98 }}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-300 cursor-pointer",
-        "focus:outline-none focus:ring-2 focus:ring-mila-gold/50 focus:ring-offset-2",
-        variants[variant],
+        "inline-flex items-center justify-center gap-2 rounded-lg font-medium cursor-pointer",
         sizes[size],
         fullWidth && "w-full",
         disabled && "opacity-50 cursor-not-allowed",
         className
       )}
+      style={{
+        ...variantStyles[variant],
+        transition: "all 0.3s ease",
+        boxShadow: variant === "primary" ? "var(--shadow-glow)" : undefined,
+      }}
       disabled={disabled}
       {...props}
     >

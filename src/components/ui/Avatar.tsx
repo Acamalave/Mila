@@ -33,10 +33,14 @@ export default function Avatar({ src, alt, size = "md", className }: AvatarProps
   return (
     <div
       className={cn(
-        "relative rounded-full overflow-hidden bg-mila-gold/20 flex items-center justify-center flex-shrink-0",
+        "relative rounded-full overflow-hidden flex items-center justify-center flex-shrink-0",
         sizes[size],
         className
       )}
+      style={{
+        background: "var(--color-accent-subtle)",
+        transition: "background 0.3s ease",
+      }}
     >
       {src ? (
         <Image
@@ -47,7 +51,12 @@ export default function Avatar({ src, alt, size = "md", className }: AvatarProps
           className="object-cover w-full h-full"
         />
       ) : (
-        <span className="text-mila-gold font-semibold text-sm">{initials}</span>
+        <span
+          className="font-semibold text-sm"
+          style={{ color: "var(--color-accent)" }}
+        >
+          {initials}
+        </span>
       )}
     </div>
   );

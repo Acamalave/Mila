@@ -135,6 +135,12 @@
     letter-spacing: 0.1em;
   }
 
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-text-muted);
+    opacity: 1;
+  }
+
   ::-webkit-scrollbar {
     width: 6px;
   }
