@@ -20,7 +20,6 @@ import {
   ShoppingBag,
   Star,
   UserCircle,
-  Clock,
   Sparkles,
   ArrowRight,
 } from "lucide-react";
@@ -355,25 +354,20 @@ export default function DashboardPage() {
                       </p>
                       <p
                         className="text-xs mt-0.5"
-                        style={{ color: colors.secondary }}
+                        style={{ color: colors.muted }}
                       >
-                        {stylist?.name ?? appt.stylistId}
+                        {formatShortDate(appt.date, language)}
                       </p>
                     </div>
 
-                    {/* Date + status */}
+                    {/* Time + status */}
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <div className="text-right">
-                        <p
-                          className="text-xs font-medium"
-                          style={{ color: colors.primary }}
-                        >
-                          {formatShortDate(appt.date, language)}
-                        </p>
-                        <p className="text-[11px]" style={{ color: colors.muted }}>
-                          {formatTime(appt.startTime)}
-                        </p>
-                      </div>
+                      <span
+                        className="text-base font-bold tabular-nums"
+                        style={{ color: colors.gold, letterSpacing: "0.02em" }}
+                      >
+                        {formatTime(appt.startTime)}
+                      </span>
                       <Badge variant={statusVariant(appt.status)}>
                         {statusLabel(appt.status)}
                       </Badge>
@@ -475,28 +469,19 @@ function ReservationHeroCard({
           >
             {getServiceNames(appointment)}
           </p>
-          <p className="text-xs mt-1" style={{ color: colors.secondary }}>
-            {stylist?.name} &middot; {stylist?.role[language]}
+          <p className="text-xs mt-1" style={{ color: colors.muted }}>
+            {formatShortDate(appointment.date, language)}
           </p>
-          <div className="flex items-center gap-1.5 mt-1.5">
-            <Clock size={12} style={{ color: colors.muted }} />
-            <span className="text-xs" style={{ color: colors.muted }}>
-              {formatShortDate(appointment.date, language)} &middot;{" "}
-              {formatTime(appointment.startTime)}
-            </span>
-          </div>
         </div>
 
-        {/* Price + Status */}
+        {/* Time + Status */}
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
-          {appointment.totalPrice > 0 && (
-            <span
-              className="text-base font-bold"
-              style={{ color: colors.gold }}
-            >
-              {formatPrice(appointment.totalPrice)}
-            </span>
-          )}
+          <span
+            className="text-lg font-bold tabular-nums"
+            style={{ color: colors.gold, letterSpacing: "0.02em" }}
+          >
+            {formatTime(appointment.startTime)}
+          </span>
           <Badge variant={statusVariant(appointment.status)}>
             {statusLabel(appointment.status)}
           </Badge>

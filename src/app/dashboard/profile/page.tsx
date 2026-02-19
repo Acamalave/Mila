@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { motion } from "motion/react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
@@ -22,6 +22,15 @@ export default function ProfilePage() {
   const [name, setName] = useState(user?.name ?? "");
   const [phone, setPhone] = useState(user?.phone ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
+
+  // Sync form fields when user data becomes available (after hydration)
+  useEffect(() => {
+    if (user) {
+      setName(user.name);
+      setPhone(user.phone);
+      setEmail(user.email ?? "");
+    }
+  }, [user]);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();

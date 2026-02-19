@@ -68,19 +68,6 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
     flexShrink: 0,
   });
 
-  const mobileRingStyle = (isSelected: boolean): React.CSSProperties => ({
-    width: 200,
-    height: 200,
-    borderRadius: "50%",
-    border: isSelected ? "3px solid #C4A96A" : "3px solid rgba(255, 255, 255, 0.1)",
-    boxShadow: isSelected
-      ? "0 0 40px rgba(142, 123, 84, 0.4), 0 0 80px rgba(142, 123, 84, 0.15)"
-      : "0 10px 40px rgba(0, 0, 0, 0.5)",
-    overflow: "hidden",
-    position: "relative" as const,
-    cursor: "pointer",
-  });
-
   return (
     <section className="py-12 sm:py-20 px-4 relative">
       <div className="max-w-5xl mx-auto">
@@ -242,86 +229,118 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
           </div>
         </div>
 
-        {/* Mobile Slider (1 visible) */}
+        {/* Mobile Slider (1 visible) — Photo top, info overlay from middle */}
         <div className="md:hidden">
-          <div className="flex items-center justify-center gap-4">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentIndex}
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -40 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="relative mx-auto"
+              style={{ maxWidth: 320 }}
+              onClick={() => handleSelect(currentStylist.id)}
+            >
+              {/* Large photo at top */}
+              <div className="relative mx-auto" style={{ width: 240, height: 240 }}>
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
+                  style={rotatingRingStyle(240)}
+                />
+                <div
+                  style={{
+                    width: 240,
+                    height: 240,
+                    borderRadius: "50%",
+                    border: currentStylist.id === selectedId
+                      ? "3px solid #C4A96A"
+                      : "3px solid rgba(255, 255, 255, 0.1)",
+                    boxShadow: currentStylist.id === selectedId
+                      ? "0 0 40px rgba(142, 123, 84, 0.4), 0 0 80px rgba(142, 123, 84, 0.15)"
+                      : "0 10px 40px rgba(0, 0, 0, 0.5)",
+                    overflow: "hidden",
+                    position: "relative",
+                    zIndex: 1,
+                  }}
+                >
+                  <Image
+                    src={currentStylist.avatar}
+                    alt={currentStylist.name}
+                    fill
+                    className="object-cover"
+                    sizes="240px"
+                  />
+                </div>
+              </div>
+
+              {/* Glass info card overlapping from middle of photo */}
+              <div
+                className="relative mx-4 px-5 pb-5 pt-14 text-center"
+                style={{
+                  marginTop: -48,
+                  background: "rgba(255, 255, 255, 0.04)",
+                  backdropFilter: "blur(20px)",
+                  WebkitBackdropFilter: "blur(20px)",
+                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  borderRadius: 20,
+                  boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)",
+                  zIndex: 2,
+                }}
+              >
+                <p
+                  className="font-bold text-xl"
+                  style={{ fontFamily: "var(--font-display)", color: "#FAF8F5" }}
+                >
+                  {currentStylist.name}
+                </p>
+                <p style={{ fontSize: 13, color: "#ABA595", marginTop: 4 }}>
+                  {currentStylist.role[language]}
+                </p>
+                <div className="flex items-center justify-center gap-1.5 mt-3">
+                  <Star size={15} fill="#C4A96A" color="#C4A96A" />
+                  <span style={{ fontSize: 14, color: "#C4A96A", fontWeight: 700 }}>
+                    {currentStylist.rating}
+                  </span>
+                  <span style={{ fontSize: 12, color: "#6B6560" }}>
+                    ({currentStylist.reviewCount})
+                  </span>
+                </div>
+              </div>
+            </motion.div>
+          </AnimatePresence>
+
+          {/* Mobile navigation arrows */}
+          <div className="flex items-center justify-center gap-6 mt-5">
             <motion.button
               whileTap={{ scale: 0.85 }}
-              onClick={() => goTo(currentIndex - 1)}
+              onClick={(e) => { e.stopPropagation(); goTo(currentIndex - 1); }}
               className="flex-shrink-0 flex items-center justify-center"
               style={{
-                width: 40,
-                height: 40,
+                width: 44,
+                height: 44,
                 borderRadius: "50%",
                 background: "rgba(255, 255, 255, 0.06)",
                 border: "1px solid rgba(255, 255, 255, 0.1)",
                 color: "#C4A96A",
+                cursor: "pointer",
               }}
             >
               <ChevronLeft size={20} />
             </motion.button>
-
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentIndex}
-                initial={{ opacity: 0, x: 40 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -40 }}
-                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                className="flex flex-col items-center"
-                onClick={() => handleSelect(currentStylist.id)}
-              >
-                {/* Mobile photo container with rotating ring */}
-                <div style={{ position: "relative" }}>
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
-                    style={rotatingRingStyle(200)}
-                  />
-                  <div style={{ ...mobileRingStyle(currentStylist.id === selectedId), position: "relative", zIndex: 1 }}>
-                    <Image
-                      src={currentStylist.avatar}
-                      alt={currentStylist.name}
-                      fill
-                      className="object-cover"
-                      sizes="200px"
-                    />
-                  </div>
-                </div>
-                <div className="mt-4 text-center">
-                  <p
-                    className="font-semibold text-lg"
-                    style={{ fontFamily: "var(--font-display)", color: "#FAF8F5" }}
-                  >
-                    {currentStylist.name}
-                  </p>
-                  <p style={{ fontSize: 13, color: "#ABA595", marginTop: 2 }}>
-                    {currentStylist.role[language]}
-                  </p>
-                  <div className="flex items-center justify-center gap-1 mt-2">
-                    <Star size={14} fill="#C4A96A" color="#C4A96A" />
-                    <span style={{ fontSize: 13, color: "#C4A96A", fontWeight: 600 }}>
-                      {currentStylist.rating}
-                    </span>
-                    <span style={{ fontSize: 12, color: "#6B6560" }}>
-                      ({currentStylist.reviewCount})
-                    </span>
-                  </div>
-                </div>
-              </motion.div>
-            </AnimatePresence>
-
             <motion.button
               whileTap={{ scale: 0.85 }}
-              onClick={() => goTo(currentIndex + 1)}
+              onClick={(e) => { e.stopPropagation(); goTo(currentIndex + 1); }}
               className="flex-shrink-0 flex items-center justify-center"
               style={{
-                width: 40,
-                height: 40,
+                width: 44,
+                height: 44,
                 borderRadius: "50%",
                 background: "rgba(255, 255, 255, 0.06)",
                 border: "1px solid rgba(255, 255, 255, 0.1)",
                 color: "#C4A96A",
+                cursor: "pointer",
               }}
             >
               <ChevronRight size={20} />

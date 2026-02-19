@@ -19,7 +19,7 @@ import {
   getDay,
 } from "date-fns";
 import { es, enUS } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Clock, ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
 import { stylists } from "@/data/stylists";
 import { services } from "@/data/services";
 import { useLanguage } from "@/providers/LanguageProvider";
@@ -452,7 +452,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
                       whileHover={{ scale: 1.04 }}
                       whileTap={{ scale: 0.96 }}
                       onClick={() => handleTimeSelect(slot)}
-                      className="flex items-center justify-center gap-1.5 py-3 px-2 rounded-xl"
+                      className="flex items-center justify-center py-3.5 px-2 rounded-xl"
                       style={{
                         background: isSelected
                           ? "linear-gradient(135deg, #8E7B54, #C4A96A)"
@@ -461,8 +461,9 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
                           ? "2px solid #C4A96A"
                           : "2px solid rgba(255, 255, 255, 0.08)",
                         color: isSelected ? "#FAF8F5" : "#ABA595",
-                        fontSize: 13,
-                        fontWeight: isSelected ? 600 : 400,
+                        fontSize: 15,
+                        fontWeight: isSelected ? 700 : 500,
+                        letterSpacing: "0.02em",
                         cursor: "pointer",
                         boxShadow: isSelected
                           ? "0 4px 15px rgba(142, 123, 84, 0.3)"
@@ -470,7 +471,6 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
                         transition: "all 0.2s ease",
                       }}
                     >
-                      <Clock size={12} />
                       {formatTimeDisplay(slot.startTime)}
                     </motion.button>
                   );
