@@ -313,15 +313,15 @@ export const translations = {
   },
   footer: {
     description: {
-      en: "An exclusive beauty destination where artistry and sophistication converge.",
-      es: "Un destino de belleza exclusivo donde el arte y la sofisticación convergen.",
+      en: "An exclusive beauty destination in Panama City where artistry and sophistication converge.",
+      es: "Un destino de belleza exclusivo en Ciudad de Panamá donde el arte y la sofisticación convergen.",
     },
     quickLinks: { en: "Quick Links", es: "Enlaces Rápidos" },
     contact: { en: "Contact", es: "Contacto" },
     hours: { en: "Hours", es: "Horarios" },
-    monFri: { en: "Mon - Fri: 9AM - 8PM", es: "Lun - Vie: 9AM - 8PM" },
-    saturday: { en: "Saturday: 9AM - 6PM", es: "Sábado: 9AM - 6PM" },
-    sunday: { en: "Sunday: 10AM - 4PM", es: "Domingo: 10AM - 4PM" },
+    monFri: { en: "Mon - Sat: 8AM - 7PM", es: "Lun - Sáb: 8AM - 7PM" },
+    saturday: { en: "Sunday: Closed", es: "Domingo: Cerrado" },
+    sunday: { en: "WhatsApp: +507 6583-0099", es: "WhatsApp: +507 6583-0099" },
     rights: { en: "All rights reserved.", es: "Todos los derechos reservados." },
   },
 } as const;

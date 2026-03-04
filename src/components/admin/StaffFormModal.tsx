@@ -6,7 +6,7 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { services } from "@/data/services";
-import { formatPrice } from "@/lib/utils";
+import { formatServicePrice } from "@/lib/utils";
 import type { Stylist, StylistSchedule, ServiceCommission } from "@/types";
 
 interface StaffFormModalProps {
@@ -327,7 +327,7 @@ export default function StaffFormModal({
                   className="text-sm font-medium"
                   style={{ color: "var(--color-accent)", transition: "color 0.3s ease" }}
                 >
-                  {formatPrice(service.price)}
+                  {formatServicePrice(service.price, service.priceMax)}
                 </span>
               </label>
             ))}

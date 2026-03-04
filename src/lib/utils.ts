@@ -9,6 +9,14 @@ export function formatPrice(amount: number): string {
   }).format(amount);
 }
 
+/** Formats a price range for services that have a priceMax */
+export function formatServicePrice(price: number, priceMax?: number): string {
+  if (priceMax && priceMax > price) {
+    return `${formatPrice(price)} - ${formatPrice(priceMax)}`;
+  }
+  return formatPrice(price);
+}
+
 export function getStoredData<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {

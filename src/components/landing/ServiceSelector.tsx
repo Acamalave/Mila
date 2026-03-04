@@ -2,15 +2,15 @@
 
 import { useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Scissors, Paintbrush, Sun, Sparkles, Hand, Gem, Flower2, Palette, Droplets, Layers, CircleDot, Zap, Heart, Star, Crown, GraduationCap, Calendar, Check, Wind } from "lucide-react";
+import { Scissors, Paintbrush, Sun, Sparkles, Hand, Gem, Flower2, Palette, Droplets, Layers, CircleDot, Zap, Heart, Star, Crown, GraduationCap, Calendar, Check, Wind, Eye, Waves } from "lucide-react";
 import { useStaff } from "@/providers/StaffProvider";
 import { services } from "@/data/services";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useBooking } from "@/providers/BookingProvider";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, formatServicePrice } from "@/lib/utils";
 
 const iconMap: Record<string, React.ComponentType<{ size?: number; style?: React.CSSProperties; className?: string }>> = {
-  Scissors, Paintbrush, Sun, Sparkles, Hand, Gem, Flower2, Palette, Droplets, Layers, CircleDot, Zap, Heart, Star, Crown, GraduationCap, Calendar, Wind,
+  Scissors, Paintbrush, Sun, Sparkles, Hand, Gem, Flower2, Palette, Droplets, Layers, CircleDot, Zap, Heart, Star, Crown, GraduationCap, Calendar, Wind, Eye, Waves,
 };
 
 interface ServiceSelectorProps {
@@ -243,7 +243,7 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                     color: "var(--color-accent)",
                   }}
                 >
-                  {formatPrice(service.price)}
+                  {formatServicePrice(service.price, service.priceMax)}
                 </span>
 
                 {/* Checkmark */}
