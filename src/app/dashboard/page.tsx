@@ -9,7 +9,7 @@ import { useLanguage } from "@/providers/LanguageProvider";
 import { getStoredData, setStoredData, formatPrice } from "@/lib/utils";
 import { formatShortDate, formatTime } from "@/lib/date-utils";
 import { services } from "@/data/services";
-import { stylists } from "@/data/stylists";
+import { useStaff } from "@/providers/StaffProvider";
 import { getInitialDemoAppointments } from "@/data/appointments";
 import type { Booking } from "@/types";
 import type { Variants } from "motion/react";
@@ -77,6 +77,7 @@ const cardSpring = {
 export default function DashboardPage() {
   const { user } = useAuth();
   const { language, t } = useLanguage();
+  const { allStylists } = useStaff();
   const [appointments, setAppointments] = useState<Booking[]>([]);
 
   useEffect(() => {
@@ -305,7 +306,7 @@ export default function DashboardPage() {
         ) : (
           <div className="grid gap-3">
             {restUpcoming.map((appt, i) => {
-              const stylist = stylists.find((s) => s.id === appt.stylistId);
+              const stylist = allStylists.find((s) => s.id === appt.stylistId);
               return (
                 <motion.div
                   key={appt.id}
@@ -400,7 +401,8 @@ function ReservationHeroCard({
   statusVariant: (status: string) => "success" | "warning" | "error" | "info" | "default";
   statusLabel: (status: string) => string;
 }) {
-  const stylist = stylists.find((s) => s.id === appointment.stylistId);
+  const { allStylists } = useStaff();
+  const stylist = allStylists.find((s) => s.id === appointment.stylistId);
 
   return (
     <div

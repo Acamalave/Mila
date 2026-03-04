@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { User } from "@/types";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
+import { stylists as seedStylists } from "@/data/stylists";
 
 interface AuthContextValue {
   user: User | null;
@@ -22,19 +23,48 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const MOCK_USERS: Record<string, { name: string; role: "admin" | "client"; id: string }> = {
+const MOCK_USERS: Record<string, { name: string; role: "admin" | "client" | "stylist"; id: string }> = {
   "5551002000": { name: "Isabella Martinez", role: "admin", id: "user-admin" },
+  "5552003000": { name: "Camila Reyes", role: "stylist", id: "user-camila" },
   "5553004000": { name: "Sofia Chen", role: "client", id: "user-sofia" },
 };
 
 function createUserFromPhone(phone: string, countryCode: string, providedName?: string): User {
   const mock = MOCK_USERS[phone];
+  if (mock) {
+    return {
+      id: mock.id,
+      name: mock.name,
+      phone,
+      countryCode,
+      role: mock.role,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  // Check if phone is linked to a stylist in seed data or custom staff
+  const allStaffCustom = getStoredData<Array<{ linkedPhone?: string; name: string }>>("mila-staff-custom", []);
+  const linkedStylist =
+    seedStylists.find((s) => s.linkedPhone === phone) ||
+    allStaffCustom.find((s) => s.linkedPhone === phone);
+
+  if (linkedStylist) {
+    return {
+      id: generateId(),
+      name: linkedStylist.name,
+      phone,
+      countryCode,
+      role: "stylist",
+      createdAt: new Date().toISOString(),
+    };
+  }
+
   return {
-    id: mock?.id ?? generateId(),
-    name: mock?.name ?? providedName ?? `User ${phone.slice(-4)}`,
+    id: generateId(),
+    name: providedName ?? `User ${phone.slice(-4)}`,
     phone,
     countryCode,
-    role: mock?.role ?? "client",
+    role: "client",
     createdAt: new Date().toISOString(),
   };
 }

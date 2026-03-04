@@ -6,6 +6,7 @@ import Image from "next/image";
 import { motion } from "motion/react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
+import { useStaff } from "@/providers/StaffProvider";
 import { Phone, ChevronDown } from "lucide-react";
 
 const countryCodes = [
@@ -24,8 +25,9 @@ const countryCodes = [
 
 export default function LoginPage() {
   const router = useRouter();
-  const { loginByPhone, isAuthenticated, hydrated } = useAuth();
+  const { loginByPhone, isAuthenticated, hydrated, user } = useAuth();
   const { t } = useLanguage();
+  const { getStylistByPhone } = useStaff();
 
   const [phone, setPhone] = useState("");
   const [selectedCountry, setSelectedCountry] = useState(countryCodes[0]);
@@ -33,8 +35,10 @@ export default function LoginPage() {
   const [error, setError] = useState("");
 
   // Redirect if already authenticated
-  if (hydrated && isAuthenticated) {
-    router.push("/dashboard");
+  if (hydrated && isAuthenticated && user) {
+    if (user.role === "admin") router.push("/admin");
+    else if (user.role === "stylist") router.push("/stylist");
+    else router.push("/dashboard");
     return null;
   }
 
@@ -50,9 +54,11 @@ export default function LoginPage() {
 
     loginByPhone(cleanPhone, selectedCountry.code);
 
-    // Check if admin
+    // Route based on role
     if (cleanPhone === "5551002000") {
       router.push("/admin");
+    } else if (cleanPhone === "5552003000" || getStylistByPhone(cleanPhone)) {
+      router.push("/stylist");
     } else {
       router.push("/dashboard");
     }

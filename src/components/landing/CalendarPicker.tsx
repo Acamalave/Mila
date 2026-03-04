@@ -20,7 +20,7 @@ import {
 } from "date-fns";
 import { es, enUS } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
-import { stylists } from "@/data/stylists";
+import { useStaff } from "@/providers/StaffProvider";
 import { services } from "@/data/services";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useBooking } from "@/providers/BookingProvider";
@@ -37,6 +37,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
   const { language, t } = useLanguage();
   const { state, dispatch } = useBooking();
   const { isAuthenticated } = useAuth();
+  const { allStylists } = useStaff();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [viewMode, setViewMode] = useState<"week" | "month">("week");
   const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date()));
@@ -44,8 +45,8 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
   const locale = language === "es" ? es : enUS;
 
   const stylist = useMemo(
-    () => stylists.find((s) => s.id === state.selectedStylistId),
-    [state.selectedStylistId]
+    () => allStylists.find((s) => s.id === state.selectedStylistId),
+    [state.selectedStylistId, allStylists]
   );
 
   const selectedServices = useMemo(

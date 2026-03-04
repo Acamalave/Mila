@@ -5,6 +5,11 @@ export interface StylistSchedule {
   isAvailable: boolean;
 }
 
+export interface ServiceCommission {
+  serviceId: string;
+  percentage: number;
+}
+
 export interface Stylist {
   id: string;
   name: string;
@@ -17,4 +22,8 @@ export interface Stylist {
   reviewCount: number;
   schedule: StylistSchedule[];
   instagram?: string;
+  defaultCommission: number;
+  serviceCommissions?: ServiceCommission[];
+  linkedUserId?: string;
+  linkedPhone?: string;
 }

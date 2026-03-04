@@ -1,37 +1,31 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { motion } from "motion/react";
 import Image from "next/image";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useToast } from "@/providers/ToastProvider";
-import {
-  cn,
-  formatPrice,
-  getStoredData,
-  setStoredData,
-  generateId,
-} from "@/lib/utils";
-import { products as staticProducts } from "@/data/products";
+import { useProducts } from "@/providers/ProductProvider";
+import { cn, formatPrice, generateId } from "@/lib/utils";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import Input from "@/components/ui/Input";
+import DeleteConfirmModal from "@/components/admin/DeleteConfirmModal";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
-import { Plus, Edit2, Package } from "lucide-react";
+import { Plus, Edit2, Package, Trash2 } from "lucide-react";
 import type { Product } from "@/types";
 
 export default function AdminProductsPage() {
   const { language, t } = useLanguage();
   const { addToast } = useToast();
-  const [customProducts, setCustomProducts] = useState<Product[]>([]);
-  const [stockOverrides, setStockOverrides] = useState<
-    Record<string, number>
-  >({});
+  const { allProducts, addProduct, deleteProduct, updateStock } = useProducts();
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editStock, setEditStock] = useState<number>(0);
+  const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [addForm, setAddForm] = useState({
     name: "",
     brand: "",
@@ -39,35 +33,6 @@ export default function AdminProductsPage() {
     category: "hair-care",
     stockQuantity: "",
   });
-
-  useEffect(() => {
-    const storedCustom = getStoredData<Product[]>(
-      "mila-products-custom",
-      []
-    );
-    setCustomProducts(storedCustom);
-
-    const storedOverrides = getStoredData<Record<string, number>>(
-      "mila-stock-overrides",
-      {}
-    );
-    setStockOverrides(storedOverrides);
-  }, []);
-
-  const allProducts = useMemo(() => {
-    const withOverrides = staticProducts.map((p) => ({
-      ...p,
-      stockQuantity:
-        stockOverrides[p.id] !== undefined
-          ? stockOverrides[p.id]
-          : p.stockQuantity,
-      inStock:
-        (stockOverrides[p.id] !== undefined
-          ? stockOverrides[p.id]
-          : p.stockQuantity) > 0,
-    }));
-    return [...withOverrides, ...customProducts];
-  }, [customProducts, stockOverrides]);
 
   const stockBadgeVariant = (qty: number) => {
     if (qty === 0) return "error" as const;
@@ -88,22 +53,7 @@ export default function AdminProductsPage() {
   const saveStockEdit = useCallback(() => {
     if (!editingProduct) return;
 
-    // Check if it's a custom product
-    const isCustom = customProducts.some((p) => p.id === editingProduct.id);
-
-    if (isCustom) {
-      const updated = customProducts.map((p) =>
-        p.id === editingProduct.id
-          ? { ...p, stockQuantity: editStock, inStock: editStock > 0 }
-          : p
-      );
-      setCustomProducts(updated);
-      setStoredData("mila-products-custom", updated);
-    } else {
-      const updated = { ...stockOverrides, [editingProduct.id]: editStock };
-      setStockOverrides(updated);
-      setStoredData("mila-stock-overrides", updated);
-    }
+    updateStock(editingProduct.id, editStock);
 
     setEditingProduct(null);
     addToast(
@@ -112,9 +62,9 @@ export default function AdminProductsPage() {
         : "Stock updated",
       "success"
     );
-  }, [editingProduct, editStock, customProducts, stockOverrides, addToast, language]);
+  }, [editingProduct, editStock, updateStock, addToast, language]);
 
-  const addProduct = useCallback(() => {
+  const handleAddProduct = useCallback(() => {
     const price = parseFloat(addForm.price);
     const stockQty = parseInt(addForm.stockQuantity, 10);
 
@@ -128,8 +78,7 @@ export default function AdminProductsPage() {
       return;
     }
 
-    const newProduct: Product = {
-      id: `prod-custom-${generateId()}`,
+    addProduct({
       name: addForm.name,
       brand: addForm.brand,
       description: { en: "", es: "" },
@@ -140,11 +89,8 @@ export default function AdminProductsPage() {
       stockQuantity: stockQty,
       rating: 0,
       featured: false,
-    };
+    });
 
-    const updated = [...customProducts, newProduct];
-    setCustomProducts(updated);
-    setStoredData("mila-products-custom", updated);
     setShowAddModal(false);
     setAddForm({
       name: "",
@@ -159,7 +105,19 @@ export default function AdminProductsPage() {
         : "Product added",
       "success"
     );
-  }, [addForm, customProducts, addToast, language]);
+  }, [addForm, addProduct, addToast, language]);
+
+  const handleDeleteProduct = useCallback(() => {
+    if (!deletingProduct) return;
+    deleteProduct(deletingProduct.id);
+    setDeletingProduct(null);
+    addToast(
+      language === "es"
+        ? "Producto eliminado"
+        : "Product deleted",
+      "success"
+    );
+  }, [deletingProduct, deleteProduct, addToast, language]);
 
   const categoryOptions = [
     { value: "hair-care", label: language === "es" ? "Cuidado Capilar" : "Hair Care" },
@@ -267,12 +225,20 @@ export default function AdminProductsPage() {
                       </Badge>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => openStockEditor(product)}
-                        className="p-2 rounded-lg hover:bg-mila-cream transition-colors text-text-muted hover:text-text-primary cursor-pointer"
-                      >
-                        <Edit2 size={16} />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => openStockEditor(product)}
+                          className="p-2 rounded-lg hover:bg-mila-cream transition-colors text-text-muted hover:text-text-primary cursor-pointer"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button
+                          onClick={() => setDeletingProduct(product)}
+                          className="p-2 rounded-lg hover:bg-red-50 transition-colors text-text-muted hover:text-red-500 cursor-pointer"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -415,12 +381,22 @@ export default function AdminProductsPage() {
             >
               {t("common", "cancel")}
             </Button>
-            <Button size="sm" onClick={addProduct}>
+            <Button size="sm" onClick={handleAddProduct}>
               {t("admin", "addProduct")}
             </Button>
           </div>
         </div>
       </Modal>
+
+      {/* Delete confirmation modal */}
+      <DeleteConfirmModal
+        isOpen={!!deletingProduct}
+        onClose={() => setDeletingProduct(null)}
+        onConfirm={handleDeleteProduct}
+        title={t("admin", "deleteProduct")}
+        message={t("admin", "confirmDeleteProduct")}
+        itemName={deletingProduct?.name ?? ""}
+      />
     </motion.div>
   );
 }

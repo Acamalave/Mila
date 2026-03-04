@@ -5,8 +5,15 @@ import { ThemeProvider } from "@/providers/ThemeProvider";
 import { ToastProvider } from "@/providers/ToastProvider";
 import { LanguageProvider } from "@/providers/LanguageProvider";
 import { AuthProvider } from "@/providers/AuthProvider";
-import { CartProvider } from "@/providers/CartProvider";
+import { EventBusProvider } from "@/providers/EventBusProvider";
+import { StaffProvider } from "@/providers/StaffProvider";
+import { ProductProvider } from "@/providers/ProductProvider";
 import { BookingProvider } from "@/providers/BookingProvider";
+import { InvoiceProvider } from "@/providers/InvoiceProvider";
+import { NotificationProvider } from "@/providers/NotificationProvider";
+import { PaymentProvider } from "@/providers/PaymentProvider";
+import { CartProvider } from "@/providers/CartProvider";
+import { CommissionProvider } from "@/providers/CommissionProvider";
 
 export default function AppProviders({ children }: { children: ReactNode }) {
   return (
@@ -14,9 +21,23 @@ export default function AppProviders({ children }: { children: ReactNode }) {
       <ToastProvider>
         <LanguageProvider>
           <AuthProvider>
-            <BookingProvider>
-              <CartProvider>{children}</CartProvider>
-            </BookingProvider>
+            <EventBusProvider>
+              <StaffProvider>
+                <ProductProvider>
+                  <BookingProvider>
+                    <CommissionProvider>
+                      <InvoiceProvider>
+                        <NotificationProvider>
+                          <PaymentProvider>
+                            <CartProvider>{children}</CartProvider>
+                          </PaymentProvider>
+                        </NotificationProvider>
+                      </InvoiceProvider>
+                    </CommissionProvider>
+                  </BookingProvider>
+                </ProductProvider>
+              </StaffProvider>
+            </EventBusProvider>
           </AuthProvider>
         </LanguageProvider>
       </ToastProvider>

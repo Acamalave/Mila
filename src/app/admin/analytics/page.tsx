@@ -5,7 +5,8 @@ import { motion } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { cn, formatPrice, getStoredData } from "@/lib/utils";
 import { services, serviceCategories } from "@/data/services";
-import { stylists } from "@/data/stylists";
+import { useStaff } from "@/providers/StaffProvider";
+import { useCommissions } from "@/providers/CommissionProvider";
 import { reviews as mockReviews } from "@/data/reviews";
 import { getInitialDemoAppointments } from "@/data/appointments";
 import Card from "@/components/ui/Card";
@@ -18,6 +19,7 @@ import {
   TrendingUp,
   Award,
   BarChart3,
+  DollarSign,
 } from "lucide-react";
 import type { Booking } from "@/types";
 
@@ -26,6 +28,8 @@ const DAY_NAMES_ES = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"];
 
 export default function AdminAnalyticsPage() {
   const { language, t } = useLanguage();
+  const { allStylists } = useStaff();
+  const { commissions } = useCommissions();
   const [bookings, setBookings] = useState<Booking[]>([]);
 
   useEffect(() => {
@@ -86,8 +90,8 @@ export default function AdminAnalyticsPage() {
     const topStylistId = Object.entries(countMap).sort(
       (a, b) => b[1] - a[1]
     )[0]?.[0];
-    return stylists.find((s) => s.id === topStylistId) || null;
-  }, [bookings]);
+    return allStylists.find((s) => s.id === topStylistId) || null;
+  }, [bookings, allStylists]);
 
   // Revenue by service category
   const revenueByCategory = useMemo(() => {
@@ -142,6 +146,22 @@ export default function AdminAnalyticsPage() {
       percent: Math.round((count / max) * 100),
     }));
   }, [bookings, language]);
+
+  const commissionByStylist = useMemo(() => {
+    const map: Record<string, { total: number; pending: number; paid: number; name: string }> = {};
+    commissions.forEach((c) => {
+      if (!map[c.stylistId]) {
+        const stylist = allStylists.find((s) => s.id === c.stylistId);
+        map[c.stylistId] = { total: 0, pending: 0, paid: 0, name: stylist?.name ?? c.stylistId };
+      }
+      map[c.stylistId].total += c.commissionAmount;
+      if (c.status === "pending") map[c.stylistId].pending += c.commissionAmount;
+      else map[c.stylistId].paid += c.commissionAmount;
+    });
+    return Object.entries(map)
+      .map(([id, data]) => ({ stylistId: id, ...data }))
+      .sort((a, b) => b.total - a.total);
+  }, [commissions, allStylists]);
 
   const metricCards = [
     {
@@ -375,6 +395,62 @@ export default function AdminAnalyticsPage() {
           </Card>
         </motion.div>
       )}
+
+      {/* Commission Breakdown */}
+      <motion.div variants={fadeInUp}>
+        <Card padding="none">
+          <div className="p-6 border-b border-border-default flex items-center gap-2">
+            <DollarSign size={18} className="text-mila-gold" />
+            <h2 className="text-lg font-semibold font-[family-name:var(--font-display)]">
+              {t("admin", "commissionBreakdown")}
+            </h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border-default text-left">
+                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">
+                    {language === "es" ? "Estilista" : "Stylist"}
+                  </th>
+                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider text-right">
+                    {t("admin", "totalCommissions")}
+                  </th>
+                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider text-right hidden md:table-cell">
+                    {t("admin", "pendingCommissions")}
+                  </th>
+                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider text-right hidden md:table-cell">
+                    {t("admin", "paidCommissions")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-default">
+                {commissionByStylist.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-12 text-center text-text-muted">
+                      {language === "es" ? "Sin comisiones registradas" : "No commissions recorded"}
+                    </td>
+                  </tr>
+                ) : (
+                  commissionByStylist.map((row) => (
+                    <tr key={row.stylistId} className="hover:bg-mila-cream/50 transition-colors">
+                      <td className="px-6 py-4 text-sm font-medium text-text-primary">{row.name}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-text-primary text-right">
+                        {formatPrice(row.total)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-warning text-right hidden md:table-cell">
+                        {formatPrice(row.pending)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-success text-right hidden md:table-cell">
+                        {formatPrice(row.paid)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </motion.div>
     </motion.div>
   );
 }

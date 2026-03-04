@@ -5,7 +5,7 @@ import { motion } from "motion/react";
 import { Check, Calendar, Clock, User as UserIcon, Sparkles } from "lucide-react";
 import { format } from "date-fns";
 import { es, enUS } from "date-fns/locale";
-import { stylists } from "@/data/stylists";
+import { useStaff } from "@/providers/StaffProvider";
 import { services } from "@/data/services";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useBooking } from "@/providers/BookingProvider";
@@ -54,6 +54,7 @@ function Particle({ delay, x }: { delay: number; x: number }) {
 export default function BookingSuccess({ onGoToDashboard, onBookAnother }: BookingSuccessProps) {
   const { language, t } = useLanguage();
   const { state } = useBooking();
+  const { allStylists } = useStaff();
   const [showParticles, setShowParticles] = useState(false);
   const locale = language === "es" ? es : enUS;
 
@@ -62,7 +63,7 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
     return () => clearTimeout(timer);
   }, []);
 
-  const stylist = stylists.find((s) => s.id === state.selectedStylistId);
+  const stylist = allStylists.find((s) => s.id === state.selectedStylistId);
   const selectedServices = services.filter((s) => state.selectedServiceIds.includes(s.id));
   const totalPrice = selectedServices.reduce((sum, s) => sum + s.price, 0);
 

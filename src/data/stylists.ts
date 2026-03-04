@@ -38,6 +38,12 @@ export const stylists: Stylist[] = [
       { dayOfWeek: 6, startTime: "10:00", endTime: "16:00", isAvailable: true },
     ],
     instagram: "@milaconcept",
+    defaultCommission: 50,
+    serviceCommissions: [
+      { serviceId: "svc-hair-highlights", percentage: 45 },
+      { serviceId: "svc-hair-extensions", percentage: 40 },
+    ],
+    linkedPhone: "5551002000",
   },
   {
     id: "stylist-camila",
@@ -73,6 +79,12 @@ export const stylists: Stylist[] = [
       { dayOfWeek: 6, startTime: "09:00", endTime: "15:00", isAvailable: true },
     ],
     instagram: "@camila.reyes.hair",
+    defaultCommission: 45,
+    serviceCommissions: [
+      { serviceId: "svc-hair-highlights", percentage: 42 },
+      { serviceId: "svc-hair-treatment", percentage: 40 },
+    ],
+    linkedPhone: "5552003000",
   },
   {
     id: "stylist-valentina",
@@ -107,6 +119,7 @@ export const stylists: Stylist[] = [
       { dayOfWeek: 6, startTime: "10:00", endTime: "14:00", isAvailable: true },
     ],
     instagram: "@val.colorstudio",
+    defaultCommission: 42,
   },
   {
     id: "stylist-lucia",
@@ -141,6 +154,11 @@ export const stylists: Stylist[] = [
       { dayOfWeek: 6, startTime: "09:00", endTime: "14:00", isAvailable: true },
     ],
     instagram: "@lucia.hairhealth",
+    defaultCommission: 40,
+    serviceCommissions: [
+      { serviceId: "svc-hair-treatment", percentage: 45 },
+      { serviceId: "svc-hair-olaplex", percentage: 38 },
+    ],
   },
   {
     id: "stylist-mariana",
@@ -175,5 +193,9 @@ export const stylists: Stylist[] = [
       { dayOfWeek: 6, startTime: "10:00", endTime: "15:00", isAvailable: true },
     ],
     instagram: "@mariana.styling",
+    defaultCommission: 40,
+    serviceCommissions: [
+      { serviceId: "svc-hair-extensions", percentage: 35 },
+    ],
   },
 ];

@@ -7,7 +7,7 @@ import { useToast } from "@/providers/ToastProvider";
 import { getStoredData, setStoredData, formatPrice } from "@/lib/utils";
 import { formatShortDate, formatTime } from "@/lib/date-utils";
 import { services } from "@/data/services";
-import { stylists } from "@/data/stylists";
+import { useStaff } from "@/providers/StaffProvider";
 import { getInitialDemoAppointments } from "@/data/appointments";
 import type { Booking, BookingStatus } from "@/types";
 import Card from "@/components/ui/Card";
@@ -19,6 +19,7 @@ import { CalendarDays } from "lucide-react";
 export default function AppointmentsPage() {
   const { language, t } = useLanguage();
   const { addToast } = useToast();
+  const { allStylists } = useStaff();
   const [appointments, setAppointments] = useState<Booking[]>([]);
 
   useEffect(() => {
@@ -108,7 +109,7 @@ export default function AppointmentsPage() {
       ) : (
         <div className="space-y-4">
           {sorted.map((appt, i) => {
-            const stylist = stylists.find((s) => s.id === appt.stylistId);
+            const stylist = allStylists.find((s) => s.id === appt.stylistId);
             const isFuture = new Date(`${appt.date}T${appt.startTime}`) > now;
             const isPast = !isFuture;
 

@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Scissors, Paintbrush, Sun, Sparkles, Hand, Gem, Flower2, Palette, Droplets, Layers, CircleDot, Zap, Heart, Star, Crown, GraduationCap, Calendar, Check, Wind } from "lucide-react";
-import { stylists } from "@/data/stylists";
+import { useStaff } from "@/providers/StaffProvider";
 import { services } from "@/data/services";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useBooking } from "@/providers/BookingProvider";
@@ -21,8 +21,9 @@ interface ServiceSelectorProps {
 export default function ServiceSelector({ stylistId, onContinue }: ServiceSelectorProps) {
   const { language, t } = useLanguage();
   const { state, dispatch } = useBooking();
+  const { allStylists } = useStaff();
 
-  const stylist = useMemo(() => stylists.find(s => s.id === stylistId), [stylistId]);
+  const stylist = useMemo(() => allStylists.find(s => s.id === stylistId), [stylistId, allStylists]);
 
   const availableServices = useMemo(() => {
     if (!stylist) return [];

@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
 import { ChevronLeft, ChevronRight, Star } from "lucide-react";
-import { stylists } from "@/data/stylists";
+import { useStaff } from "@/providers/StaffProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useBooking } from "@/providers/BookingProvider";
 
@@ -28,12 +28,13 @@ const rotatingRingStyle = (size: number): React.CSSProperties => ({
 export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
   const { language, t } = useLanguage();
   const { state, dispatch } = useBooking();
+  const { allStylists } = useStaff();
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const selectedId = state.selectedStylistId;
 
   const goTo = (index: number) => {
-    const wrapped = ((index % stylists.length) + stylists.length) % stylists.length;
+    const wrapped = ((index % allStylists.length) + allStylists.length) % allStylists.length;
     setCurrentIndex(wrapped);
   };
 
@@ -44,14 +45,14 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
 
   // Get visible stylists (for desktop: show 3 at a time)
   const getVisibleIndices = () => {
-    const total = stylists.length;
+    const total = allStylists.length;
     const prev = ((currentIndex - 1) + total) % total;
     const next = (currentIndex + 1) % total;
     return [prev, currentIndex, next];
   };
 
   const visibleIndices = getVisibleIndices();
-  const currentStylist = stylists[currentIndex];
+  const currentStylist = allStylists[currentIndex];
 
   const ringStyle = (isSelected: boolean, isCenter: boolean): React.CSSProperties => ({
     width: isCenter ? 240 : 180,
@@ -118,7 +119,7 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
             {/* Stylists */}
             <div className="flex items-center justify-center gap-10">
               {visibleIndices.map((idx, i) => {
-                const stylist = stylists[idx];
+                const stylist = allStylists[idx];
                 const isCenter = i === 1;
                 const isSelected = stylist.id === selectedId;
                 const photoSize = isCenter ? 240 : 180;
@@ -351,7 +352,7 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
 
         {/* Dot Indicators */}
         <div className="flex items-center justify-center gap-2 mt-8">
-          {stylists.map((s, i) => (
+          {allStylists.map((s, i) => (
             <motion.button
               key={s.id}
               onClick={() => goTo(i)}
@@ -392,7 +393,7 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
                   transition: "all 0.3s ease",
                 }}
               >
-                {stylists.find(s => s.id === selectedId)?.name}
+                {allStylists.find(s => s.id === selectedId)?.name}
               </span>
             </motion.div>
           )}

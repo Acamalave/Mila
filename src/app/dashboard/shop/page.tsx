@@ -1,18 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useCart } from "@/providers/CartProvider";
 import { useToast } from "@/providers/ToastProvider";
+import { useAuth } from "@/providers/AuthProvider";
+import { useInvoices } from "@/providers/InvoiceProvider";
+import { useProducts } from "@/providers/ProductProvider";
 import { formatPrice, cn } from "@/lib/utils";
-import { products } from "@/data/products";
+import PaymentModal from "@/components/payment/PaymentModal";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import StarRating from "@/components/ui/StarRating";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
+import type { Invoice } from "@/types";
 import {
   ShoppingBag,
   Plus,
@@ -31,15 +35,23 @@ const CATEGORIES = [
 
 export default function ShopPage() {
   const { language, t } = useLanguage();
-  const { items, addItem, removeItem, updateQuantity, totalItems, totalPrice } = useCart();
+  const { items, addItem, removeItem, updateQuantity, clearCart, totalItems, totalPrice } = useCart();
   const { addToast } = useToast();
+  const { user } = useAuth();
+  const { invoices, addInvoice } = useInvoices();
+  const { allProducts } = useProducts();
   const [activeCategory, setActiveCategory] = useState("all");
   const [cartOpen, setCartOpen] = useState(false);
+  const [checkoutInvoice, setCheckoutInvoice] = useState<Invoice | null>(null);
+  const [showPayment, setShowPayment] = useState(false);
+
+  // Track the previous invoices length to detect newly added invoice
+  const prevInvoicesLenRef = useRef(invoices.length);
 
   const filtered =
     activeCategory === "all"
-      ? products
-      : products.filter((p) => p.category === activeCategory);
+      ? allProducts
+      : allProducts.filter((p) => p.category === activeCategory);
 
   function handleAddToCart(productId: string) {
     addItem(productId);
@@ -50,7 +62,59 @@ export default function ShopPage() {
   }
 
   function getCartProduct(productId: string) {
-    return products.find((p) => p.id === productId);
+    return allProducts.find((p) => p.id === productId);
+  }
+
+  // When a new invoice is added (invoices length grows), pick it up for checkout
+  useEffect(() => {
+    if (invoices.length > prevInvoicesLenRef.current && user) {
+      const latestForUser = [...invoices]
+        .filter((inv) => inv.clientId === user.id)
+        .pop();
+      if (latestForUser && latestForUser.status === "sent") {
+        setCheckoutInvoice(latestForUser);
+        setShowPayment(true);
+      }
+    }
+    prevInvoicesLenRef.current = invoices.length;
+  }, [invoices, user]);
+
+  function handleCheckout() {
+    if (!user) return;
+
+    // Create an auto-invoice for the cart total
+    addInvoice({
+      clientId: user.id,
+      clientName: user.name,
+      amount: totalPrice,
+      status: "sent",
+      date: new Date().toISOString().split("T")[0],
+      sentAt: new Date().toISOString(),
+      description: {
+        en: "Product purchase from Mila Shop",
+        es: "Compra de productos en Mila Shop",
+      },
+    });
+
+    // Close the cart modal; the useEffect will open the PaymentModal
+    setCartOpen(false);
+  }
+
+  function handlePaymentComplete() {
+    clearCart();
+    setShowPayment(false);
+    setCheckoutInvoice(null);
+    addToast(
+      language === "es"
+        ? "Pedido procesado con exito"
+        : "Order processed successfully",
+      "success"
+    );
+  }
+
+  function handlePaymentClose() {
+    setShowPayment(false);
+    setCheckoutInvoice(null);
   }
 
   return (
@@ -263,15 +327,7 @@ export default function ShopPage() {
               <Button
                 fullWidth
                 size="lg"
-                onClick={() => {
-                  addToast(
-                    language === "es"
-                      ? "Pedido procesado con exito"
-                      : "Order processed successfully",
-                    "success"
-                  );
-                  setCartOpen(false);
-                }}
+                onClick={handleCheckout}
               >
                 {t("dashboard", "checkout")}
               </Button>
@@ -279,6 +335,14 @@ export default function ShopPage() {
           </div>
         )}
       </Modal>
+
+      {/* Payment modal */}
+      <PaymentModal
+        isOpen={showPayment}
+        onClose={handlePaymentClose}
+        invoice={checkoutInvoice}
+        onPaymentComplete={handlePaymentComplete}
+      />
     </motion.div>
   );
 }

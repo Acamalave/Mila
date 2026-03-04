@@ -12,7 +12,7 @@ import {
 } from "@/lib/utils";
 import { formatTime } from "@/lib/date-utils";
 import { services } from "@/data/services";
-import { stylists } from "@/data/stylists";
+import { useStaff } from "@/providers/StaffProvider";
 import { getInitialDemoAppointments } from "@/data/appointments";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
@@ -62,6 +62,7 @@ function toDateString(d: Date): string {
 export default function AdminCalendarPage() {
   const { language, t } = useLanguage();
   const { addToast } = useToast();
+  const { allStylists } = useStaff();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [weekStart, setWeekStart] = useState<Date>(() => getMonday(new Date()));
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
@@ -94,7 +95,7 @@ export default function AdminCalendarPage() {
   const goPrevWeek = () => setWeekStart(addDaysToDate(weekStart, -7));
   const goNextWeek = () => setWeekStart(addDaysToDate(weekStart, 7));
 
-  const getStylist = (id: string) => stylists.find((s) => s.id === id);
+  const getStylist = (id: string) => allStylists.find((s) => s.id === id);
 
   const getServiceNames = (svcIds: string[] | undefined, lang: string) => {
     if (!svcIds || svcIds.length === 0) return lang === "es" ? "Consulta General" : "General Consultation";

@@ -2,13 +2,14 @@
 
 import { motion } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
-import { stylists } from "@/data/stylists";
+import { useStaff } from "@/providers/StaffProvider";
 import { Star, Instagram } from "lucide-react";
 import { staggerContainer, fadeInUp } from "@/styles/animations";
 import Image from "next/image";
 
 export default function StylistsPreview() {
   const { language, t } = useLanguage();
+  const { allStylists } = useStaff();
 
   return (
     <section id="team" className="py-24 bg-mila-espresso">
@@ -37,7 +38,7 @@ export default function StylistsPreview() {
           variants={staggerContainer}
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8"
         >
-          {stylists.map((stylist) => (
+          {allStylists.map((stylist) => (
             <motion.div
               key={stylist.id}
               variants={fadeInUp}

@@ -8,7 +8,7 @@ import { useToast } from "@/providers/ToastProvider";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { formatShortDate } from "@/lib/date-utils";
 import { services } from "@/data/services";
-import { stylists } from "@/data/stylists";
+import { useStaff } from "@/providers/StaffProvider";
 import { getInitialDemoAppointments } from "@/data/appointments";
 import { reviews as mockReviews } from "@/data/reviews";
 import type { Booking, Review } from "@/types";
@@ -23,6 +23,7 @@ export default function ReviewsPage() {
   const { user } = useAuth();
   const { language, t } = useLanguage();
   const { addToast } = useToast();
+  const { allStylists } = useStaff();
 
   const [appointments, setAppointments] = useState<Booking[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -67,7 +68,7 @@ export default function ReviewsPage() {
 
   const completedOptions = completedAppointments.map((a) => {
     const serviceLabel = getServiceNames(a.serviceIds, language);
-    const stylist = stylists.find((s) => s.id === a.stylistId);
+    const stylist = allStylists.find((s) => s.id === a.stylistId);
     return {
       value: a.id,
       label: `${serviceLabel} - ${stylist?.name ?? a.stylistId} (${formatShortDate(a.date, language)})`,
@@ -221,7 +222,7 @@ export default function ReviewsPage() {
                 const service = services.find(
                   (s) => s.id === review.serviceId
                 );
-                const stylist = stylists.find(
+                const stylist = allStylists.find(
                   (s) => s.id === review.stylistId
                 );
 
