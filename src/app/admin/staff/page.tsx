@@ -185,14 +185,16 @@ export default function AdminStaffPage() {
                         type="time"
                         value={daySched.startTime}
                         onChange={(e) => updateDaySchedule(dayOfWeek, "startTime", e.target.value)}
-                        className="px-3 py-1.5 rounded-lg border border-border-default text-sm bg-white focus:outline-none focus:ring-2 focus:ring-mila-gold/30"
+                        className="px-3 py-1.5 rounded-lg border border-border-default text-sm focus:outline-none focus:ring-2 focus:ring-mila-gold/30"
+                        style={{ background: "var(--color-bg-input)", color: "var(--color-text-primary)" }}
                       />
                       <span className="text-text-muted">-</span>
                       <input
                         type="time"
                         value={daySched.endTime}
                         onChange={(e) => updateDaySchedule(dayOfWeek, "endTime", e.target.value)}
-                        className="px-3 py-1.5 rounded-lg border border-border-default text-sm bg-white focus:outline-none focus:ring-2 focus:ring-mila-gold/30"
+                        className="px-3 py-1.5 rounded-lg border border-border-default text-sm focus:outline-none focus:ring-2 focus:ring-mila-gold/30"
+                        style={{ background: "var(--color-bg-input)", color: "var(--color-text-primary)" }}
                       />
                     </div>
                   )}

@@ -18,6 +18,8 @@ export interface PaymentTransaction {
   invoiceId: string;
   amount: number;
   paymentMethodId: string;
+  paymentMethod?: "card" | "counter";
+  counterNote?: string;
   status: "completed" | "failed";
   createdAt: string;
 }

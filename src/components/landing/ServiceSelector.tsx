@@ -7,7 +7,7 @@ import { useStaff } from "@/providers/StaffProvider";
 import { services } from "@/data/services";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useBooking } from "@/providers/BookingProvider";
-import { formatPrice, formatServicePrice } from "@/lib/utils";
+import { formatPrice, formatServicePrice, getStoredData } from "@/lib/utils";
 
 const iconMap: Record<string, React.ComponentType<{ size?: number; style?: React.CSSProperties; className?: string }>> = {
   Scissors, Paintbrush, Sun, Sparkles, Hand, Gem, Flower2, Palette, Droplets, Layers, CircleDot, Zap, Heart, Star, Crown, GraduationCap, Calendar, Wind, Eye, Waves,
@@ -25,10 +25,18 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
 
   const stylist = useMemo(() => allStylists.find(s => s.id === stylistId), [stylistId, allStylists]);
 
+  const durationOverrides = useMemo(() =>
+    getStoredData<Record<string, number>>("mila-service-duration-overrides", {}), []);
+
   const availableServices = useMemo(() => {
     if (!stylist) return [];
-    return services.filter(s => stylist.serviceIds.includes(s.id));
-  }, [stylist]);
+    return services
+      .filter(s => stylist.serviceIds.includes(s.id))
+      .map(s => ({
+        ...s,
+        durationMinutes: durationOverrides[s.id] ?? s.durationMinutes,
+      }));
+  }, [stylist, durationOverrides]);
 
   const selectedIds = state.selectedServiceIds;
   const isGeneral = state.isGeneralAppointment;
@@ -174,7 +182,7 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
           <div className="flex-1 h-px" style={{ background: "var(--color-border-default)" }} />
         </div>
 
-        {/* Services List */}
+        {/* Services List - 2 column grid */}
         <motion.div
           initial="hidden"
           animate="visible"
@@ -185,7 +193,7 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
               transition: { staggerChildren: 0.05, delayChildren: 0.15 },
             },
           }}
-          className="flex flex-col gap-3 pb-24"
+          className="grid grid-cols-2 gap-3 pb-24"
         >
           {availableServices.map((service) => {
             const isSelected = selectedIds.includes(service.id);
@@ -202,70 +210,78 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                 whileTap={{ scale: 0.98 }}
                 style={cardStyle(isSelected)}
                 onClick={() => toggleService(service.id)}
-                className="flex items-center gap-4"
+                className="flex flex-col gap-3"
               >
-                {/* Icon */}
-                <div
-                  className="flex items-center justify-center flex-shrink-0"
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 12,
-                    background: isSelected
-                      ? "var(--gradient-accent)"
-                      : "var(--color-bg-glass-selected)",
-                    transition: "all 0.3s ease",
-                  }}
-                >
-                  <IconComp size={20} style={{ color: isSelected ? "var(--color-text-inverse)" : "var(--color-accent)" }} />
-                </div>
-
-                {/* Service Name + Duration */}
-                <div className="flex-1 min-w-0">
-                  <p
-                    className="font-medium"
+                {/* Top row: Icon + Checkmark */}
+                <div className="flex items-center justify-between">
+                  <div
+                    className="flex items-center justify-center flex-shrink-0"
                     style={{
-                      fontSize: 14,
-                      color: "var(--color-text-primary)",
-                      lineHeight: 1.3,
+                      width: 40,
+                      height: 40,
+                      borderRadius: 12,
+                      background: isSelected
+                        ? "var(--gradient-accent)"
+                        : "var(--color-bg-glass-selected)",
+                      transition: "all 0.3s ease",
                     }}
                   >
-                    {service.name[language]}
-                  </p>
+                    <IconComp size={18} style={{ color: isSelected ? "var(--color-text-inverse)" : "var(--color-accent)" }} />
+                  </div>
+                  <AnimatePresence>
+                    {isSelected && (
+                      <motion.div
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0, opacity: 0 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                        className="flex items-center justify-center flex-shrink-0"
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: "50%",
+                          background: "var(--gradient-accent)",
+                        }}
+                      >
+                        <Check size={12} color="var(--color-text-inverse)" strokeWidth={3} />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
 
-                {/* Price */}
-                <span
-                  className="flex-shrink-0"
+                {/* Service Name */}
+                <p
+                  className="font-medium"
                   style={{
-                    fontSize: 15,
-                    fontWeight: 700,
-                    color: "var(--color-accent)",
+                    fontSize: 13,
+                    color: "var(--color-text-primary)",
+                    lineHeight: 1.3,
                   }}
                 >
-                  {formatServicePrice(service.price, service.priceMax)}
-                </span>
+                  {service.name[language]}
+                </p>
 
-                {/* Checkmark */}
-                <AnimatePresence>
-                  {isSelected && (
-                    <motion.div
-                      initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0, opacity: 0 }}
-                      transition={{ type: "spring", stiffness: 500, damping: 25 }}
-                      className="flex items-center justify-center flex-shrink-0"
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: "50%",
-                        background: "var(--gradient-accent)",
-                      }}
-                    >
-                      <Check size={14} color="var(--color-text-inverse)" strokeWidth={3} />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                {/* Duration + Price */}
+                <div className="flex items-center justify-between mt-auto">
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: "var(--color-text-muted)",
+                      fontWeight: 500,
+                    }}
+                  >
+                    ~{service.durationMinutes} min
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: "var(--color-accent)",
+                    }}
+                  >
+                    {formatServicePrice(service.price, service.priceMax)}
+                  </span>
+                </div>
               </motion.div>
             );
           })}

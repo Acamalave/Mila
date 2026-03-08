@@ -12,6 +12,8 @@ import {
   Package,
   BarChart3,
   ChevronLeft,
+  Scissors,
+  ShoppingCart,
 } from "lucide-react";
 
 export default function AdminSidebar() {
@@ -20,9 +22,11 @@ export default function AdminSidebar() {
 
   const links = [
     { href: "/admin", icon: LayoutDashboard, label: t("admin", "overview") },
+    { href: "/admin/pos", icon: ShoppingCart, label: t("admin", "pos") },
     { href: "/admin/calendar", icon: CalendarDays, label: t("admin", "calendar") },
     { href: "/admin/billing", icon: Receipt, label: t("admin", "billing") },
     { href: "/admin/staff", icon: Users, label: t("admin", "staff") },
+    { href: "/admin/services", icon: Scissors, label: t("admin", "services") },
     { href: "/admin/products", icon: Package, label: t("admin", "products") },
     { href: "/admin/analytics", icon: BarChart3, label: t("admin", "analytics") },
   ];

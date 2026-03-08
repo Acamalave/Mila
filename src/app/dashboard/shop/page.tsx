@@ -48,10 +48,11 @@ export default function ShopPage() {
   // Track the previous invoices length to detect newly added invoice
   const prevInvoicesLenRef = useRef(invoices.length);
 
+  const visibleProducts = allProducts.filter((p) => !p.hidden);
   const filtered =
     activeCategory === "all"
-      ? allProducts
-      : allProducts.filter((p) => p.category === activeCategory);
+      ? visibleProducts
+      : visibleProducts.filter((p) => p.category === activeCategory);
 
   function handleAddToCart(productId: string) {
     addItem(productId);
@@ -90,10 +91,7 @@ export default function ShopPage() {
       status: "sent",
       date: new Date().toISOString().split("T")[0],
       sentAt: new Date().toISOString(),
-      description: {
-        en: "Product purchase from Mila Shop",
-        es: "Compra de productos en Mila Shop",
-      },
+      description: language === "es" ? "Compra de productos en Mila Shop" : "Product purchase from Mila Shop",
     });
 
     // Close the cart modal; the useEffect will open the PaymentModal
@@ -171,6 +169,11 @@ export default function ShopPage() {
                   className="object-cover"
                   sizes="(max-width: 768px) 50vw, 25vw"
                 />
+                {product.discount && product.discount > 0 && (
+                  <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">
+                    -{product.discount}%
+                  </div>
+                )}
               </div>
 
               {/* Info */}
@@ -183,9 +186,20 @@ export default function ShopPage() {
                 </p>
                 <StarRating rating={product.rating} size={12} className="mt-2" />
                 <div className="flex items-center justify-between mt-3">
-                  <p className="text-lg font-bold text-mila-gold">
-                    {formatPrice(product.price)}
-                  </p>
+                  {product.discount && product.discount > 0 ? (
+                    <div className="flex flex-col">
+                      <span className="text-xs line-through text-text-muted">
+                        {formatPrice(product.price)}
+                      </span>
+                      <span className="text-lg font-bold text-red-500">
+                        {formatPrice(product.price * (1 - product.discount / 100))}
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="text-lg font-bold text-mila-gold">
+                      {formatPrice(product.price)}
+                    </p>
+                  )}
                   <Button
                     size="sm"
                     onClick={() => handleAddToCart(product.id)}

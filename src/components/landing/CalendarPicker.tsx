@@ -24,7 +24,6 @@ import { useStaff } from "@/providers/StaffProvider";
 import { services } from "@/data/services";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useBooking } from "@/providers/BookingProvider";
-import { useAuth } from "@/providers/AuthProvider";
 import { formatPrice } from "@/lib/utils";
 import type { TimeSlot } from "@/types";
 
@@ -36,7 +35,6 @@ interface CalendarPickerProps {
 export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPickerProps) {
   const { language, t } = useLanguage();
   const { state, dispatch } = useBooking();
-  const { isAuthenticated } = useAuth();
   const { allStylists } = useStaff();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [viewMode, setViewMode] = useState<"week" | "month">("week");
@@ -178,11 +176,8 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
   };
 
   const handleBook = () => {
-    if (!isAuthenticated) {
-      onLoginRequired?.();
-    } else {
-      onBook?.();
-    }
+    // Always show the name/phone modal first
+    onLoginRequired?.();
   };
 
   const handlePrev = () => {
@@ -531,7 +526,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
                   cursor: "pointer",
                 }}
               >
-                {isAuthenticated ? t("home", "bookAppointment") : t("home", "loginToBook")}
+                {t("home", "bookAppointment")}
               </motion.button>
             </motion.div>
           )}

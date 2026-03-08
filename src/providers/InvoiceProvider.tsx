@@ -20,6 +20,7 @@ interface InvoiceContextValue {
   markAsPaid: (invoiceId: string, transactionId: string) => void;
   deleteInvoice: (invoiceId: string) => void;
   getInvoicesForClient: (clientId: string) => Invoice[];
+  createAndPayInvoice: (data: Omit<Invoice, "id" | "createdAt">, transactionId: string) => Invoice;
 }
 
 const InvoiceContext = createContext<InvoiceContextValue | null>(null);
@@ -108,6 +109,28 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
     [invoices]
   );
 
+  const createAndPayInvoice = useCallback(
+    (data: Omit<Invoice, "id" | "createdAt">, transactionId: string): Invoice => {
+      const newInvoice: Invoice = {
+        ...data,
+        id: `inv-${generateId()}`,
+        status: "paid",
+        paidAt: new Date().toISOString(),
+        paymentTransactionId: transactionId,
+        createdAt: new Date().toISOString(),
+      };
+      setInvoices((prev) => {
+        const next = [...prev, newInvoice];
+        persist(next);
+        return next;
+      });
+      emit("invoice:created", newInvoice);
+      emit("invoice:paid", newInvoice);
+      return newInvoice;
+    },
+    [emit, persist]
+  );
+
   useEffect(() => {
     const unsubs = [
       on("invoice:created", () => setInvoices(getStoredData<Invoice[]>("mila-invoices", []))),
@@ -120,7 +143,7 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
 
   return (
     <InvoiceContext.Provider
-      value={{ invoices, addInvoice, updateInvoice, sendInvoice, markAsPaid, deleteInvoice, getInvoicesForClient }}
+      value={{ invoices, addInvoice, updateInvoice, sendInvoice, markAsPaid, deleteInvoice, getInvoicesForClient, createAndPayInvoice }}
     >
       {children}
     </InvoiceContext.Provider>

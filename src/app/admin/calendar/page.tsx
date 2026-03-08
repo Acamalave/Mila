@@ -254,10 +254,11 @@ export default function AdminCalendarPage() {
                         key={booking.id}
                         onClick={() => setSelectedBooking(booking)}
                         className={cn(
-                          "w-full text-left p-2.5 rounded-lg bg-white hover:bg-mila-cream/60 transition-colors cursor-pointer",
+                          "w-full text-left p-2.5 rounded-lg hover:bg-mila-cream/60 transition-colors cursor-pointer",
                           "shadow-[0_1px_2px_rgba(93,86,69,0.06)]",
                           statusBorder(booking.status)
                         )}
+                        style={{ background: "var(--color-bg-glass)" }}
                       >
                         <div className="flex items-center gap-1.5 text-xs text-text-muted mb-1">
                           <Clock size={12} />
@@ -382,7 +383,7 @@ export default function AdminCalendarPage() {
                 </div>
 
                 {selectedBooking.notes && (
-                  <div className="bg-mila-cream/60 rounded-lg p-3">
+                  <div className="rounded-lg p-3" style={{ background: "var(--color-bg-glass)" }}>
                     <p className="text-sm text-text-muted mb-1">
                       {language === "es" ? "Notas" : "Notes"}
                     </p>

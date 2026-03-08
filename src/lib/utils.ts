@@ -35,3 +35,15 @@ export function setStoredData<T>(key: string, data: T): void {
 export function generateId(): string {
   return Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
 }
+
+const ITBMS_RATE = 0.07;
+
+export function calculateTaxBreakdown(totalWithTax: number): {
+  subtotal: number;
+  taxAmount: number;
+  taxRate: number;
+} {
+  const subtotal = Math.round((totalWithTax / (1 + ITBMS_RATE)) * 100) / 100;
+  const taxAmount = Math.round((totalWithTax - subtotal) * 100) / 100;
+  return { subtotal, taxAmount, taxRate: ITBMS_RATE };
+}

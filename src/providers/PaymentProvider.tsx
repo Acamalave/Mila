@@ -21,6 +21,8 @@ interface PaymentContextValue {
   removeCard: (cardId: string) => void;
   setDefaultCard: (cardId: string) => void;
   processPayment: (invoiceId: string, cardId: string, amount: number) => PaymentTransaction;
+  processCounterPayment: (invoiceId: string, amount: number, note: string) => PaymentTransaction;
+  getClientCards: (clientId: string) => CreditCard[];
 }
 
 const PaymentContext = createContext<PaymentContextValue | null>(null);
@@ -129,10 +131,44 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
     [user, emit]
   );
 
+  const processCounterPayment = useCallback(
+    (invoiceId: string, amount: number, note: string): PaymentTransaction => {
+      const transaction: PaymentTransaction = {
+        id: `txn-${generateId()}`,
+        userId: user?.id ?? "admin",
+        invoiceId,
+        amount,
+        paymentMethodId: "counter",
+        paymentMethod: "counter",
+        counterNote: note,
+        status: "completed",
+        createdAt: new Date().toISOString(),
+      };
+
+      setAllTransactions((prev) => {
+        const next = [...prev, transaction];
+        setStoredData("mila-payment-transactions", next);
+        return next;
+      });
+
+      emit("payment:completed", transaction);
+      return transaction;
+    },
+    [user, emit]
+  );
+
+  const getClientCards = useCallback(
+    (clientId: string): CreditCard[] => {
+      return allCards.filter((c) => c.userId === clientId);
+    },
+    [allCards]
+  );
+
   useEffect(() => {
     const unsubs = [
       on("payment:completed", () => {
         setAllTransactions(getStoredData<PaymentTransaction[]>("mila-payment-transactions", []));
+        setAllCards(getStoredData<CreditCard[]>("mila-payment-methods", []));
       }),
     ];
     return () => unsubs.forEach((u) => u());
@@ -140,7 +176,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
 
   return (
     <PaymentContext.Provider
-      value={{ savedCards, transactions, addCard, removeCard, setDefaultCard, processPayment }}
+      value={{ savedCards, transactions, addCard, removeCard, setDefaultCard, processPayment, processCounterPayment, getClientCards }}
     >
       {children}
     </PaymentContext.Provider>

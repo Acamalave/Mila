@@ -27,16 +27,22 @@ const ProductContext = createContext<ProductContextValue | null>(null);
 function mergeProducts(
   customProducts: Product[],
   stockOverrides: Record<string, number>,
+  seedOverrides: Record<string, Partial<Product>>,
   deletedIds: string[]
 ): Product[] {
   const base = seedProducts
     .filter((p) => !deletedIds.includes(p.id))
     .map((p) => {
+      let merged = { ...p };
+      const overrides = seedOverrides[p.id];
+      if (overrides) {
+        merged = { ...merged, ...overrides };
+      }
       const stockQty = stockOverrides[p.id];
       if (stockQty !== undefined) {
-        return { ...p, stockQuantity: stockQty, inStock: stockQty > 0 };
+        merged = { ...merged, stockQuantity: stockQty, inStock: stockQty > 0 };
       }
-      return p;
+      return merged;
     });
 
   const custom = customProducts.filter((p) => !deletedIds.includes(p.id));
@@ -52,13 +58,16 @@ export function ProductProvider({ children }: { children: ReactNode }) {
   const [stockOverrides, setStockOverrides] = useState<Record<string, number>>(() =>
     getStoredData<Record<string, number>>("mila-stock-overrides", {})
   );
+  const [seedOverrides, setSeedOverrides] = useState<Record<string, Partial<Product>>>(() =>
+    getStoredData<Record<string, Partial<Product>>>("mila-products-seed-overrides", {})
+  );
   const [deletedIds, setDeletedIds] = useState<string[]>(() =>
     getStoredData<string[]>("mila-products-deleted", [])
   );
 
   const allProducts = useMemo(
-    () => mergeProducts(customProducts, stockOverrides, deletedIds),
-    [customProducts, stockOverrides, deletedIds]
+    () => mergeProducts(customProducts, stockOverrides, seedOverrides, deletedIds),
+    [customProducts, stockOverrides, seedOverrides, deletedIds]
   );
 
   const addProduct = useCallback((data: Omit<Product, "id">) => {
@@ -77,6 +86,14 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       setCustomProducts((prev) => {
         const next = prev.map((p) => (p.id === id ? { ...p, ...updates } : p));
         setStoredData("mila-products-custom", next);
+        return next;
+      });
+    } else {
+      // Seed product — save field overrides
+      setSeedOverrides((prev) => {
+        const existing = prev[id] ?? {};
+        const next = { ...prev, [id]: { ...existing, ...updates } };
+        setStoredData("mila-products-seed-overrides", next);
         return next;
       });
     }
@@ -134,6 +151,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       }),
       on("product:updated", () => {
         setStockOverrides(getStoredData<Record<string, number>>("mila-stock-overrides", {}));
+        setSeedOverrides(getStoredData<Record<string, Partial<Product>>>("mila-products-seed-overrides", {}));
         setCustomProducts(getStoredData<Product[]>("mila-products-custom", []));
       }),
       on("product:deleted", () => {

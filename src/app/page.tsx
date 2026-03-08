@@ -12,14 +12,12 @@ import Footer from "@/components/layout/Footer";
 import SpecialistSlider from "@/components/landing/SpecialistSlider";
 import ServiceSelector from "@/components/landing/ServiceSelector";
 import CalendarPicker from "@/components/landing/CalendarPicker";
-import BookingSuccess from "@/components/landing/BookingSuccess";
 import PhoneLoginModal from "@/components/landing/PhoneLoginModal";
 
 export default function HomePage() {
   const router = useRouter();
   const { user, isAuthenticated, hydrated } = useAuth();
   const { state, dispatch, resetBooking } = useBooking();
-  const [showSuccess, setShowSuccess] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [pendingBook, setPendingBook] = useState(false);
 
@@ -30,11 +28,11 @@ export default function HomePage() {
   useEffect(() => {
     if (hydrated && isAuthenticated) {
       const hasBookingInProgress = state.selectedStylistId !== null;
-      if (!hasBookingInProgress && !showSuccess) {
+      if (!hasBookingInProgress) {
         router.push("/dashboard");
       }
     }
-  }, [hydrated, isAuthenticated, router, state.selectedStylistId, showSuccess]);
+  }, [hydrated, isAuthenticated, router, state.selectedStylistId]);
 
   // Smooth scroll to section
   const scrollToSection = useCallback((ref: React.RefObject<HTMLDivElement | null>) => {
@@ -55,7 +53,7 @@ export default function HomePage() {
     scrollToSection(calendarRef);
   }, [dispatch, scrollToSection]);
 
-  // Handle booking confirmation
+  // Handle booking confirmation — save and go straight to dashboard
   const handleBook = useCallback(() => {
     const booking: Booking = {
       id: generateId(),
@@ -74,10 +72,9 @@ export default function HomePage() {
     const existing = getStoredData<Booking[]>("mila-bookings", []);
     setStoredData("mila-bookings", [...existing, booking]);
 
-    dispatch({ type: "GO_TO_STEP", payload: 4 });
-    setShowSuccess(true);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [state, user, dispatch]);
+    resetBooking();
+    router.push("/dashboard");
+  }, [state, user, resetBooking, router]);
 
   // Handle login required during booking
   const handleLoginRequired = useCallback(() => {
@@ -94,33 +91,8 @@ export default function HomePage() {
     }
   }, [pendingBook, handleBook]);
 
-  // Go to dashboard after booking
-  const handleGoToDashboard = useCallback(() => {
-    router.push("/dashboard");
-  }, [router]);
-
-  // Book another appointment
-  const handleBookAnother = useCallback(() => {
-    resetBooking();
-    setShowSuccess(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [resetBooking]);
-
   // Don't render until hydrated
   if (!hydrated) return null;
-
-  // Show success screen
-  if (showSuccess) {
-    return (
-      <>
-        <Header />
-        <BookingSuccess
-          onGoToDashboard={handleGoToDashboard}
-          onBookAnother={handleBookAnother}
-        />
-      </>
-    );
-  }
 
   const showServices = state.selectedStylistId !== null;
   const showCalendar = showServices && (state.selectedServiceIds.length > 0 || state.isGeneralAppointment);
