@@ -6,7 +6,7 @@ import { useLanguage } from "@/providers/LanguageProvider";
 import { useInvoices } from "@/providers/InvoiceProvider";
 import { usePayment } from "@/providers/PaymentProvider";
 import { useToast } from "@/providers/ToastProvider";
-import { calculateTaxBreakdown, generateId } from "@/lib/utils";
+import { calculateTaxBreakdown, generateId, formatPrice } from "@/lib/utils";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import POSClientSelector from "@/components/admin/pos/POSClientSelector";
@@ -43,7 +43,7 @@ const STEP_ICONS: Record<Step, typeof User> = {
 export default function POSPage() {
   const { language, t } = useLanguage();
   const { addInvoice, createAndPayInvoice } = useInvoices();
-  const { processPayment, processCounterPayment } = usePayment();
+  const { processCounterPayment } = usePayment();
   const { addToast } = useToast();
 
   const [step, setStep] = useState<Step>("client");
@@ -80,51 +80,6 @@ export default function POSPage() {
     if (idx > 0) {
       setStep(STEPS[idx - 1]);
     }
-  };
-
-  const handlePayCard = async (cardId: string) => {
-    if (!client) return;
-    setIsProcessing(true);
-
-    // Simulate processing delay (PagueloFacil)
-    await new Promise((r) => setTimeout(r, 2000));
-
-    const { subtotal, taxAmount, taxRate } = calculateTaxBreakdown(total);
-    const transactionId = `txn-${generateId()}`;
-
-    // Create paid invoice in one step
-    const invoice = createAndPayInvoice(
-      {
-        clientId: client.id,
-        clientName: client.name,
-        amount: total,
-        subtotal,
-        taxAmount,
-        taxRate,
-        items,
-        paymentMethod: "card",
-        status: "paid",
-        date: new Date().toISOString().split("T")[0],
-        description:
-          language === "es"
-            ? "Venta en punto de venta"
-            : "Point of sale transaction",
-      },
-      transactionId
-    );
-
-    // Also record in payment transactions
-    processPayment(invoice.id, cardId, total);
-
-    setLastPaymentMethod("card");
-    setIsProcessing(false);
-    setStep("success");
-    addToast(
-      language === "es"
-        ? "Pago procesado exitosamente"
-        : "Payment processed successfully",
-      "success"
-    );
   };
 
   const handlePayCounter = async (note: string) => {
@@ -373,9 +328,7 @@ export default function POSPage() {
 
               {step === "payment" && client && (
                 <POSPaymentSelector
-                  clientId={client.id}
                   total={total}
-                  onPayCard={handlePayCard}
                   onPayCounter={handlePayCounter}
                   onSendRequest={handleSendRequest}
                   isProcessing={isProcessing}

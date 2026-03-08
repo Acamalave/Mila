@@ -3,43 +3,33 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
-import { usePayment } from "@/providers/PaymentProvider";
 import { formatPrice } from "@/lib/utils";
 import Button from "@/components/ui/Button";
-import SavedCardSelector from "@/components/payment/SavedCardSelector";
 import {
   CreditCard,
   Banknote,
   Loader2,
   Send,
   ShieldCheck,
+  Smartphone,
 } from "lucide-react";
 
 interface POSPaymentSelectorProps {
-  clientId: string;
   total: number;
-  onPayCard: (cardId: string) => void;
   onPayCounter: (note: string) => void;
   onSendRequest: () => void;
   isProcessing: boolean;
 }
 
 export default function POSPaymentSelector({
-  clientId,
   total,
-  onPayCard,
   onPayCounter,
   onSendRequest,
   isProcessing,
 }: POSPaymentSelectorProps) {
   const { language, t } = useLanguage();
-  const { getClientCards } = usePayment();
   const [method, setMethod] = useState<"card" | "counter" | null>(null);
   const [counterNote, setCounterNote] = useState("");
-  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
-
-  const clientCards = getClientCards(clientId);
-  const hasCards = clientCards.length > 0;
 
   if (isProcessing) {
     return (
@@ -82,13 +72,7 @@ export default function POSPaymentSelector({
       <div className="grid grid-cols-2 gap-3">
         {/* Card option */}
         <button
-          onClick={() => {
-            setMethod("card");
-            if (hasCards && clientCards.length > 0) {
-              const defaultCard = clientCards.find((c) => c.isDefault);
-              setSelectedCardId(defaultCard?.id ?? clientCards[0].id);
-            }
-          }}
+          onClick={() => setMethod("card")}
           className="flex flex-col items-center gap-2 p-4 rounded-xl transition-all cursor-pointer"
           style={{
             background:
@@ -157,7 +141,7 @@ export default function POSPaymentSelector({
         </button>
       </div>
 
-      {/* Card payment details */}
+      {/* Payment details */}
       <AnimatePresence mode="wait">
         {method === "card" && (
           <motion.div
@@ -167,76 +151,66 @@ export default function POSPaymentSelector({
             exit={{ opacity: 0, height: 0 }}
             className="space-y-4 overflow-hidden"
           >
-            {hasCards ? (
-              <>
-                <SavedCardSelector
-                  cards={clientCards}
-                  selectedCardId={selectedCardId}
-                  onSelect={setSelectedCardId}
-                  onAddNew={() => {
-                    // In POS context, "add new" sends a request to client
-                    onSendRequest();
-                  }}
-                />
-
-                {/* PagueloFacil branding */}
-                <div
-                  className="flex items-center justify-center gap-2 py-2"
-                >
-                  <ShieldCheck
-                    size={14}
-                    style={{ color: "var(--color-text-muted)" }}
-                  />
-                  <span
-                    className="text-xs"
-                    style={{ color: "var(--color-text-muted)" }}
-                  >
-                    {t("pos", "poweredBy")} PagueloFacil
-                  </span>
-                </div>
-
-                <Button
-                  fullWidth
-                  size="lg"
-                  onClick={() => {
-                    if (selectedCardId) onPayCard(selectedCardId);
-                  }}
-                  disabled={!selectedCardId}
-                >
-                  <ShieldCheck size={16} />
-                  {t("pos", "confirmPayment")} — {formatPrice(total)}
-                </Button>
-              </>
-            ) : (
+            <div
+              className="rounded-xl p-6 text-center space-y-4"
+              style={{
+                background: "var(--color-bg-glass)",
+                border: "1px solid var(--color-border-default)",
+              }}
+            >
               <div
-                className="rounded-xl p-6 text-center space-y-4"
+                className="flex items-center justify-center mx-auto"
                 style={{
-                  background: "var(--color-bg-glass)",
-                  border: "1px solid var(--color-border-default)",
+                  width: 56,
+                  height: 56,
+                  borderRadius: "50%",
+                  background: "var(--color-accent-subtle)",
+                  border: "1px solid var(--color-border-accent)",
                 }}
               >
-                <CreditCard
-                  size={32}
-                  style={{ color: "var(--color-text-muted)", margin: "0 auto" }}
+                <Smartphone
+                  size={24}
+                  style={{ color: "var(--color-accent)" }}
                 />
+              </div>
+              <div className="space-y-1">
                 <p
-                  className="text-sm"
-                  style={{ color: "var(--color-text-secondary)" }}
+                  className="text-sm font-medium"
+                  style={{ color: "var(--color-text-primary)" }}
                 >
-                  {t("pos", "noSavedCards")}
+                  {language === "es"
+                    ? "Solicitud de pago al cliente"
+                    : "Payment request to client"}
                 </p>
-                <Button fullWidth onClick={onSendRequest}>
-                  <Send size={16} />
-                  {t("pos", "sendPaymentRequest")}
-                </Button>
                 <p
+                  className="text-xs leading-relaxed"
+                  style={{ color: "var(--color-text-muted)" }}
+                >
+                  {language === "es"
+                    ? "El cliente recibirá una notificación en su dashboard para completar el pago con su tarjeta registrada o agregar una nueva."
+                    : "The client will receive a notification on their dashboard to complete payment with their saved card or add a new one."}
+                </p>
+              </div>
+
+              {/* PagueloFacil branding */}
+              <div className="flex items-center justify-center gap-2 pt-1">
+                <ShieldCheck
+                  size={14}
+                  style={{ color: "var(--color-text-muted)" }}
+                />
+                <span
                   className="text-xs"
                   style={{ color: "var(--color-text-muted)" }}
                 >
-                  {t("pos", "requestSent")}
-                </p>
+                  {t("pos", "poweredBy")} PagueloFacil
+                </span>
               </div>
-            )}
+
+              <Button fullWidth size="lg" onClick={onSendRequest}>
+                <Send size={16} />
+                {t("pos", "sendPaymentRequest")} — {formatPrice(total)}
+              </Button>
+            </div>
           </motion.div>
         )}
 
