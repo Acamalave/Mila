@@ -146,7 +146,7 @@ export default function StylistEarningsPage() {
                   "px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 cursor-pointer",
                   filter === tab.key
                     ? "bg-mila-gold text-white"
-                    : "text-text-muted hover:text-text-primary hover:bg-mila-cream/60"
+                    : "text-text-muted hover:text-text-primary hover:bg-white/5"
                 )}
               >
                 {tab.label}
@@ -199,7 +199,7 @@ export default function StylistEarningsPage() {
                     return (
                       <tr
                         key={commission.id}
-                        className="hover:bg-mila-cream/50 transition-colors"
+                        className="hover:bg-white/5 transition-colors"
                       >
                         <td className="px-6 py-4 text-sm font-medium text-text-primary">
                           {service?.name[language] ?? commission.serviceId}

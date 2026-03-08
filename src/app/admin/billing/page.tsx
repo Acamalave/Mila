@@ -234,7 +234,7 @@ export default function AdminBillingPage() {
             "px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer",
             view === "invoices"
               ? "bg-mila-gold/15 text-mila-gold"
-              : "text-text-muted hover:text-text-primary hover:bg-mila-cream/60"
+              : "text-text-muted hover:text-text-primary hover:bg-white/5"
           )}
         >
           <span className="flex items-center gap-2">
@@ -248,7 +248,7 @@ export default function AdminBillingPage() {
             "px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer",
             view === "commissions"
               ? "bg-mila-gold/15 text-mila-gold"
-              : "text-text-muted hover:text-text-primary hover:bg-mila-cream/60"
+              : "text-text-muted hover:text-text-primary hover:bg-white/5"
           )}
         >
           <span className="flex items-center gap-2">
@@ -296,7 +296,7 @@ export default function AdminBillingPage() {
                   "px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer",
                   activeTab === tab.key
                     ? "bg-mila-gold/10 text-mila-gold"
-                    : "text-text-muted hover:text-text-primary hover:bg-mila-cream/60"
+                    : "text-text-muted hover:text-text-primary hover:bg-white/5"
                 )}
               >
                 {tab.label}
@@ -355,7 +355,7 @@ export default function AdminBillingPage() {
                     return (
                       <tr
                         key={invoice.id}
-                        className="hover:bg-mila-cream/50 transition-colors"
+                        className="hover:bg-white/5 transition-colors"
                       >
                         <td className="px-6 py-4 text-sm font-mono text-text-primary font-medium">
                           {invoice.id}
@@ -385,14 +385,14 @@ export default function AdminBillingPage() {
                               <button
                                 onClick={() => handleSendInvoice(invoice.id)}
                                 title={t("admin", "sendInvoice")}
-                                className="p-2 rounded-lg hover:bg-mila-cream transition-colors text-text-muted hover:text-mila-gold cursor-pointer"
+                                className="p-2 rounded-lg hover:bg-white/5 transition-colors text-text-muted hover:text-mila-gold cursor-pointer"
                               >
                                 <Send size={16} />
                               </button>
                             )}
                             <button
                               onClick={() => openEditModal(invoice)}
-                              className="p-2 rounded-lg hover:bg-mila-cream transition-colors text-text-muted hover:text-text-primary cursor-pointer"
+                              className="p-2 rounded-lg hover:bg-white/5 transition-colors text-text-muted hover:text-text-primary cursor-pointer"
                             >
                               <Edit2 size={16} />
                             </button>
@@ -482,7 +482,7 @@ export default function AdminBillingPage() {
                       "px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer",
                       commissionFilter === f
                         ? "bg-mila-gold/10 text-mila-gold"
-                        : "text-text-muted hover:text-text-primary hover:bg-mila-cream/60"
+                        : "text-text-muted hover:text-text-primary hover:bg-white/5"
                     )}
                   >
                     {f === "all" ? (language === "es" ? "Todas" : "All") : f === "pending" ? (language === "es" ? "Pendientes" : "Pending") : (language === "es" ? "Pagadas" : "Paid")}
@@ -514,7 +514,7 @@ export default function AdminBillingPage() {
                         const stylist = allStylists.find((s) => s.id === c.stylistId);
                         const service = services.find((s) => s.id === c.serviceId);
                         return (
-                          <tr key={c.id} className="hover:bg-mila-cream/50 transition-colors">
+                          <tr key={c.id} className="hover:bg-white/5 transition-colors">
                             <td className="px-6 py-4 text-sm font-medium text-text-primary">{stylist?.name ?? c.stylistId}</td>
                             <td className="px-6 py-4 text-sm text-text-secondary hidden md:table-cell">{service?.name[language] ?? c.serviceId}</td>
                             <td className="px-6 py-4 text-sm text-text-secondary text-right hidden lg:table-cell">{formatPrice(c.serviceAmount)}</td>

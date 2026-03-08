@@ -179,7 +179,7 @@ export default function StylistSchedulePage() {
                         ? "bg-mila-gold text-mila-espresso shadow-lg"
                         : isToday
                         ? "bg-mila-gold/15 text-mila-gold border border-mila-gold/30"
-                        : "bg-transparent text-text-secondary hover:bg-mila-cream/50 hover:text-text-primary"
+                        : "bg-transparent text-text-secondary hover:bg-white/5 hover:text-text-primary"
                     }
                   `}
                 >
@@ -204,7 +204,7 @@ export default function StylistSchedulePage() {
               selectedDayBookings.map((booking) => (
                 <div
                   key={booking.id}
-                  className="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 hover:bg-mila-cream/50 transition-colors"
+                  className="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 hover:bg-white/5 transition-colors"
                 >
                   {/* Time */}
                   <div className="flex items-center gap-2 text-mila-gold shrink-0">

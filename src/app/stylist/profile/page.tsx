@@ -130,7 +130,8 @@ export default function StylistProfilePage() {
                         value={editForm.bioEn}
                         onChange={(e) => setEditForm((prev) => ({ ...prev, bioEn: e.target.value }))}
                         rows={3}
-                        className="w-full mt-1 px-3 py-2 rounded-lg border border-border-default text-sm bg-white focus:outline-none focus:ring-2 focus:ring-mila-gold/30 resize-none"
+                        className="w-full mt-1 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-mila-gold/30 resize-none"
+                        style={{ background: "var(--color-bg-input)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
                         placeholder="Bio in English..."
                       />
                     </div>
@@ -140,7 +141,8 @@ export default function StylistProfilePage() {
                         value={editForm.bioEs}
                         onChange={(e) => setEditForm((prev) => ({ ...prev, bioEs: e.target.value }))}
                         rows={3}
-                        className="w-full mt-1 px-3 py-2 rounded-lg border border-border-default text-sm bg-white focus:outline-none focus:ring-2 focus:ring-mila-gold/30 resize-none"
+                        className="w-full mt-1 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-mila-gold/30 resize-none"
+                        style={{ background: "var(--color-bg-input)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
                         placeholder="Bio en Espa\u00f1ol..."
                       />
                     </div>
@@ -160,7 +162,8 @@ export default function StylistProfilePage() {
                     type="text"
                     value={editForm.instagram}
                     onChange={(e) => setEditForm((prev) => ({ ...prev, instagram: e.target.value }))}
-                    className="flex-1 px-3 py-1.5 rounded-lg border border-border-default text-sm bg-white focus:outline-none focus:ring-2 focus:ring-mila-gold/30"
+                    className="flex-1 px-3 py-1.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-mila-gold/30"
+                    style={{ background: "var(--color-bg-input)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
                     placeholder="@instagram_handle"
                   />
                 ) : (
@@ -207,7 +210,7 @@ export default function StylistProfilePage() {
                     </button>
                     <button
                       onClick={handleCancel}
-                      className="px-5 py-2 text-sm font-medium rounded-lg border border-border-default text-text-secondary hover:bg-mila-cream/50 transition-colors"
+                      className="px-5 py-2 text-sm font-medium rounded-lg border border-border-default text-text-secondary hover:bg-mila-gold/10 transition-colors"
                     >
                       {language === "es" ? "Cancelar" : "Cancel"}
                     </button>
@@ -215,7 +218,7 @@ export default function StylistProfilePage() {
                 ) : (
                   <button
                     onClick={handleStartEdit}
-                    className="px-5 py-2 text-sm font-medium rounded-lg border border-border-default text-text-secondary hover:bg-mila-cream/50 transition-colors flex items-center gap-2"
+                    className="px-5 py-2 text-sm font-medium rounded-lg border border-border-default text-text-secondary hover:bg-mila-gold/10 transition-colors flex items-center gap-2"
                   >
                     <User size={14} />
                     {t("stylistDash", "editProfile")}
@@ -240,7 +243,7 @@ export default function StylistProfilePage() {
           </div>
 
           {/* Default commission */}
-          <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-mila-cream/40 mb-4">
+          <div className="flex items-center justify-between py-3 px-4 rounded-lg mb-4" style={{ background: "var(--color-accent-subtle)" }}>
             <span className="text-sm font-medium text-text-primary">
               {language === "es" ? "Comisi\u00f3n por defecto" : "Default Commission"}
             </span>

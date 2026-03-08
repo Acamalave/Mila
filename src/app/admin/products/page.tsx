@@ -294,13 +294,13 @@ export default function AdminProductsPage() {
                   <tr
                     key={product.id}
                     className={cn(
-                      "hover:bg-mila-cream/50 transition-colors",
+                      "hover:bg-white/5 transition-colors",
                       product.hidden && "opacity-50"
                     )}
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-mila-cream">
+                        <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-white/5">
                           <Image
                             src={product.image}
                             alt={product.name}
@@ -366,7 +366,7 @@ export default function AdminProductsPage() {
                             "p-2 rounded-lg transition-colors cursor-pointer",
                             product.featured
                               ? "bg-mila-gold/10 text-mila-gold"
-                              : "text-text-muted hover:text-mila-gold hover:bg-mila-cream"
+                              : "text-text-muted hover:text-mila-gold hover:bg-white/5"
                           )}
                         >
                           <Star size={16} />
@@ -374,13 +374,13 @@ export default function AdminProductsPage() {
                         <button
                           onClick={() => toggleHidden(product)}
                           title={language === "es" ? "Visibilidad" : "Visibility"}
-                          className="p-2 rounded-lg hover:bg-mila-cream transition-colors text-text-muted hover:text-text-primary cursor-pointer"
+                          className="p-2 rounded-lg hover:bg-white/5 transition-colors text-text-muted hover:text-text-primary cursor-pointer"
                         >
                           {product.hidden ? <EyeOff size={16} /> : <Eye size={16} />}
                         </button>
                         <button
                           onClick={() => openEdit(product)}
-                          className="p-2 rounded-lg hover:bg-mila-cream transition-colors text-text-muted hover:text-text-primary cursor-pointer"
+                          className="p-2 rounded-lg hover:bg-white/5 transition-colors text-text-muted hover:text-text-primary cursor-pointer"
                         >
                           <Edit2 size={16} />
                         </button>

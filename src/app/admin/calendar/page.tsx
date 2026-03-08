@@ -216,7 +216,7 @@ export default function AdminCalendarPage() {
               <div
                 className={cn(
                   "px-4 py-3 border-b border-border-default",
-                  isToday ? "bg-mila-gold/10" : "bg-mila-cream/50"
+                  isToday ? "bg-mila-gold/10" : "bg-white/5"
                 )}
               >
                 <p
@@ -254,7 +254,7 @@ export default function AdminCalendarPage() {
                         key={booking.id}
                         onClick={() => setSelectedBooking(booking)}
                         className={cn(
-                          "w-full text-left p-2.5 rounded-lg hover:bg-mila-cream/60 transition-colors cursor-pointer",
+                          "w-full text-left p-2.5 rounded-lg hover:bg-white/5 transition-colors cursor-pointer",
                           "shadow-[0_1px_2px_rgba(93,86,69,0.06)]",
                           statusBorder(booking.status)
                         )}

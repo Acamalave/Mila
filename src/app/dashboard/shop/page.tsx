@@ -140,7 +140,7 @@ export default function ShopPage() {
               "px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200",
               activeCategory === cat.value
                 ? "bg-mila-gold text-white"
-                : "bg-mila-cream text-text-secondary hover:bg-mila-gold/10 hover:text-mila-gold"
+                : "bg-white/5 text-text-secondary hover:bg-mila-gold/10 hover:text-mila-gold"
             )}
           >
             {language === "es" ? cat.labelEs : cat.labelEn}
@@ -161,7 +161,7 @@ export default function ShopPage() {
           >
             <Card padding="none" hover className="overflow-hidden h-full flex flex-col">
               {/* Image */}
-              <div className="relative aspect-square bg-mila-cream">
+              <div className="relative aspect-square bg-white/5">
                 <Image
                   src={product.image}
                   alt={product.name}
@@ -276,7 +276,7 @@ export default function ShopPage() {
                   className="flex items-center gap-4 py-3 border-b border-border-default last:border-0"
                 >
                   {/* Image */}
-                  <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-mila-cream flex-shrink-0">
+                  <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-white/5 flex-shrink-0">
                     <Image
                       src={product.image}
                       alt={product.name}
@@ -302,7 +302,7 @@ export default function ShopPage() {
                       onClick={() =>
                         updateQuantity(item.productId, item.quantity - 1)
                       }
-                      className="w-8 h-8 rounded-lg border border-border-default flex items-center justify-center hover:bg-mila-cream transition-colors"
+                      className="w-8 h-8 rounded-lg border border-border-default flex items-center justify-center hover:bg-white/5 transition-colors"
                     >
                       <Minus size={14} />
                     </button>
@@ -313,7 +313,7 @@ export default function ShopPage() {
                       onClick={() =>
                         updateQuantity(item.productId, item.quantity + 1)
                       }
-                      className="w-8 h-8 rounded-lg border border-border-default flex items-center justify-center hover:bg-mila-cream transition-colors"
+                      className="w-8 h-8 rounded-lg border border-border-default flex items-center justify-center hover:bg-white/5 transition-colors"
                     >
                       <Plus size={14} />
                     </button>

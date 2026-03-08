@@ -28,7 +28,7 @@ export default function DashboardSidebar() {
   ];
 
   return (
-    <aside className="w-64 bg-white border-r border-border-default min-h-screen p-6 hidden lg:block">
+    <aside className="w-64 border-r border-border-default min-h-screen p-6 hidden lg:block" style={{ background: "var(--color-bg-card)" }}>
       {/* Back to home */}
       <Link
         href="/"
@@ -61,7 +61,7 @@ export default function DashboardSidebar() {
                 "flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-all duration-200",
                 isActive
                   ? "bg-mila-gold/10 text-mila-gold font-medium"
-                  : "text-text-secondary hover:bg-mila-cream hover:text-text-primary"
+                  : "text-text-secondary hover:bg-white/5 hover:text-text-primary"
               )}
             >
               <Icon size={18} />

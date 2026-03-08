@@ -289,7 +289,7 @@ export default function AdminAnalyticsPage() {
                       {formatPrice(cat.revenue)}
                     </span>
                   </div>
-                  <div className="h-3 bg-mila-cream rounded-full overflow-hidden">
+                  <div className="h-3 bg-white/10 rounded-full overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${cat.percent}%` }}
@@ -327,7 +327,7 @@ export default function AdminAnalyticsPage() {
                   <span className="text-xs font-medium text-text-primary">
                     {day.count}
                   </span>
-                  <div className="w-full bg-mila-cream rounded-t-lg overflow-hidden flex-1 flex items-end">
+                  <div className="w-full bg-white/10 rounded-t-lg overflow-hidden flex-1 flex items-end">
                     <motion.div
                       initial={{ height: 0 }}
                       animate={{ height: `${Math.max(day.percent, 5)}%` }}
@@ -432,7 +432,7 @@ export default function AdminAnalyticsPage() {
                   </tr>
                 ) : (
                   commissionByStylist.map((row) => (
-                    <tr key={row.stylistId} className="hover:bg-mila-cream/50 transition-colors">
+                    <tr key={row.stylistId} className="hover:bg-white/5 transition-colors">
                       <td className="px-6 py-4 text-sm font-medium text-text-primary">{row.name}</td>
                       <td className="px-6 py-4 text-sm font-medium text-text-primary text-right">
                         {formatPrice(row.total)}

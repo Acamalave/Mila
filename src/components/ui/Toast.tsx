@@ -47,7 +47,7 @@ export default function ToastContainer({ toasts, onRemove }: ToastContainerProps
               exit={{ opacity: 0, x: 100, scale: 0.95 }}
               transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
               className={cn(
-                "flex items-center gap-3 px-4 py-3 rounded-xl border bg-white shadow-[0_10px_25px_rgba(93,86,69,0.12)]",
+                "flex items-center gap-3 px-4 py-3 rounded-xl border shadow-[0_10px_25px_rgba(0,0,0,0.4)]",
                 "min-w-[300px] max-w-[400px]",
                 styles[toast.type]
               )}
@@ -56,7 +56,7 @@ export default function ToastContainer({ toasts, onRemove }: ToastContainerProps
               <p className="flex-1 text-sm text-text-primary">{toast.message}</p>
               <button
                 onClick={() => onRemove(toast.id)}
-                className="p-1 rounded-lg hover:bg-mila-cream transition-colors"
+                className="p-1 rounded-lg hover:bg-white/10 transition-colors"
               >
                 <X size={14} className="text-text-muted" />
               </button>

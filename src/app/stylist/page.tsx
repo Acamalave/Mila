@@ -197,7 +197,7 @@ export default function StylistOverviewPage() {
               upcomingBookings.map((booking) => (
                 <div
                   key={booking.id}
-                  className="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 hover:bg-mila-cream/50 transition-colors"
+                  className="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 hover:bg-white/5 transition-colors"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-text-primary truncate">

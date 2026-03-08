@@ -113,7 +113,7 @@ export default function AdminServicesPage() {
                     return (
                       <tr
                         key={service.id}
-                        className="hover:bg-mila-cream/50 transition-colors"
+                        className="hover:bg-white/5 transition-colors"
                       >
                         <td className="px-6 py-4">
                           <span className="text-sm font-medium text-text-primary">
@@ -146,7 +146,7 @@ export default function AdminServicesPage() {
                             onClick={() =>
                               openEditor(service.id, service.durationMinutes)
                             }
-                            className="p-2 rounded-lg hover:bg-mila-cream transition-colors text-text-muted hover:text-text-primary cursor-pointer"
+                            className="p-2 rounded-lg hover:bg-white/5 transition-colors text-text-muted hover:text-text-primary cursor-pointer"
                           >
                             <Edit2 size={16} />
                           </button>

@@ -6,10 +6,9 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useAuth } from "@/providers/AuthProvider";
-import { useTheme } from "@/providers/ThemeProvider";
 import { useNotifications } from "@/providers/NotificationProvider";
 import { useInvoices } from "@/providers/InvoiceProvider";
-import { Globe, User, LogOut, ChevronDown, Sun, Moon } from "lucide-react";
+import { Globe, User, LogOut, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import NotificationPanel from "@/components/notifications/NotificationPanel";
@@ -21,7 +20,6 @@ export default function Header() {
   const router = useRouter();
   const { language, setLanguage, t } = useLanguage();
   const { user, isAuthenticated, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const { unreadCount } = useNotifications();
   const { invoices } = useInvoices();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -43,15 +41,8 @@ export default function Header() {
   const headerBlur = Math.min(20, 8 + scrollY / 50);
   const borderOpacity = 0.03 + scrollY / 3000;
 
-  const headerBg =
-    theme === "dark"
-      ? `rgba(10, 10, 10, ${headerOpacity})`
-      : `rgba(245, 245, 247, ${headerOpacity})`;
-
-  const headerBorder =
-    theme === "dark"
-      ? `1px solid rgba(255, 255, 255, ${borderOpacity})`
-      : `1px solid rgba(0, 0, 0, ${borderOpacity})`;
+  const headerBg = `rgba(10, 10, 10, ${headerOpacity})`;
+  const headerBorder = `1px solid rgba(255, 255, 255, ${borderOpacity})`;
 
   const headerStyle: React.CSSProperties = {
     position: "fixed" as const,
@@ -104,49 +95,6 @@ export default function Header() {
 
             {/* Right side actions */}
             <div className="flex items-center gap-3 sm:gap-4">
-              {/* Theme Toggle */}
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={toggleTheme}
-                className="flex items-center justify-center rounded-full"
-                style={{
-                  width: 36,
-                  height: 36,
-                  background: "var(--color-bg-glass)",
-                  border: "1px solid var(--color-border-default)",
-                  color: "var(--color-accent)",
-                  transition: "all 0.3s ease",
-                }}
-                aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              >
-                <AnimatePresence mode="wait" initial={false}>
-                  {theme === "dark" ? (
-                    <motion.div
-                      key="sun"
-                      initial={{ rotate: -90, opacity: 0, scale: 0.5 }}
-                      animate={{ rotate: 0, opacity: 1, scale: 1 }}
-                      exit={{ rotate: 90, opacity: 0, scale: 0.5 }}
-                      transition={{ duration: 0.25, ease: "easeInOut" }}
-                      className="flex items-center justify-center"
-                    >
-                      <Sun size={16} />
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="moon"
-                      initial={{ rotate: 90, opacity: 0, scale: 0.5 }}
-                      animate={{ rotate: 0, opacity: 1, scale: 1 }}
-                      exit={{ rotate: -90, opacity: 0, scale: 0.5 }}
-                      transition={{ duration: 0.25, ease: "easeInOut" }}
-                      className="flex items-center justify-center"
-                    >
-                      <Moon size={16} />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.button>
-
               {/* Language Toggle */}
               <motion.button
                 whileHover={{ scale: 1.05 }}

@@ -156,7 +156,7 @@ export default function LoginPage() {
                       animate={{ opacity: 1, y: 0 }}
                       className="absolute top-full left-0 mt-1 w-48 rounded-xl overflow-hidden z-50"
                       style={{
-                        background: "#FFFFFF",
+                        background: "#1E1E1E",
                         boxShadow: "0 10px 40px rgba(0, 0, 0, 0.5)",
                         border: "1px solid rgba(255, 255, 255, 0.08)",
                         maxHeight: 240,
@@ -176,7 +176,7 @@ export default function LoginPage() {
                             color: "#FAF8F5",
                             cursor: "pointer",
                             background: "transparent",
-                            borderBottom: "1px solid rgba(229, 224, 218, 0.3)",
+                            borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
                           }}
                           onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(142, 123, 84, 0.1)")}
                           onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
@@ -198,7 +198,7 @@ export default function LoginPage() {
                   placeholder="555 100 2000"
                   className="flex-1 px-4 py-3 rounded-lg"
                   style={{
-                    background: "#FFFFFF",
+                    background: "#1A1A1A",
                     border: error ? "1px solid #9B4D4D" : "1px solid rgba(255, 255, 255, 0.1)",
                     color: "#FAF8F5",
                     fontSize: 15,
@@ -207,9 +207,11 @@ export default function LoginPage() {
                   }}
                   onFocus={(e) => {
                     if (!error) e.currentTarget.style.borderColor = "#C4A96A";
+                    e.currentTarget.style.boxShadow = "0 0 0 2px rgba(142, 123, 84, 0.4)";
                   }}
                   onBlur={(e) => {
                     if (!error) e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.1)";
+                    e.currentTarget.style.boxShadow = "none";
                   }}
                 />
               </div>

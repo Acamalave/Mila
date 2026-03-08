@@ -164,7 +164,7 @@ export default function AdminStaffPage() {
                   key={dayOfWeek}
                   className={cn(
                     "flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-lg",
-                    daySched.isAvailable ? "bg-success/5" : "bg-mila-cream/60"
+                    daySched.isAvailable ? "bg-success/5" : "bg-white/5"
                   )}
                 >
                   <div className="w-28 font-medium text-sm text-text-primary">{dayNames[dayOfWeek]}</div>

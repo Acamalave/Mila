@@ -221,7 +221,7 @@ export default function AdminOverviewPage() {
                     return (
                       <tr
                         key={booking.id}
-                        className="hover:bg-mila-cream/50 transition-colors"
+                        className="hover:bg-white/5 transition-colors"
                       >
                         <td className="px-6 py-4 text-sm text-text-primary font-medium">
                           {clientName}

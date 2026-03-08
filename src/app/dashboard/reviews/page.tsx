@@ -183,7 +183,8 @@ export default function ReviewsPage() {
                       ? "Comparte tu experiencia..."
                       : "Share your experience..."
                   }
-                  className="w-full px-4 py-3 rounded-lg border border-border-default bg-white text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-mila-gold/30 focus:border-mila-gold transition-all duration-200 resize-none"
+                  className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-mila-gold/30 transition-all duration-200 resize-none"
+                  style={{ background: "var(--color-bg-input)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
                 />
               </div>
 
