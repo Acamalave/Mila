@@ -14,14 +14,27 @@ import type { Booking, BookingStatus } from "@/types";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
+import Modal from "@/components/ui/Modal";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, CalendarClock } from "lucide-react";
+import {
+  format,
+  addDays,
+  startOfWeek,
+  getDay,
+  isBefore,
+  startOfDay,
+} from "date-fns";
+import { es as esLocale, enUS } from "date-fns/locale";
 
 export default function AppointmentsPage() {
   const { language, t } = useLanguage();
   const { addToast } = useToast();
   const { allStylists } = useStaff();
   const [appointments, setAppointments] = useState<Booking[]>([]);
+  const [rescheduleAppt, setRescheduleAppt] = useState<Booking | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState<string>("");
+  const [rescheduleTime, setRescheduleTime] = useState<string>("");
 
   useEffect(() => {
     let stored = getStoredData<Booking[]>("mila-bookings", []);
@@ -104,6 +117,100 @@ export default function AppointmentsPage() {
     );
   }
 
+  function canReschedule(appt: Booking): boolean {
+    const apptDate = new Date(`${appt.date}T${appt.startTime}`);
+    return apptDate > now && appt.status === "confirmed";
+  }
+
+  function openReschedule(appt: Booking) {
+    setRescheduleAppt(appt);
+    setRescheduleDate("");
+    setRescheduleTime("");
+  }
+
+  // Generate available dates for next 14 days based on stylist schedule
+  function getAvailableDates(): { date: Date; dateStr: string }[] {
+    if (!rescheduleAppt) return [];
+    const stylist = allStylists.find((s) => s.id === rescheduleAppt.stylistId);
+    if (!stylist) return [];
+    const dates: { date: Date; dateStr: string }[] = [];
+    for (let i = 1; i <= 21; i++) {
+      const d = addDays(new Date(), i);
+      const dow = getDay(d);
+      const sched = stylist.schedule.find((s) => s.dayOfWeek === dow && s.isAvailable);
+      if (sched) {
+        dates.push({ date: d, dateStr: format(d, "yyyy-MM-dd") });
+      }
+    }
+    return dates;
+  }
+
+  // Generate time slots for selected reschedule date
+  function getRescheduleSlots(): string[] {
+    if (!rescheduleAppt || !rescheduleDate) return [];
+    const stylist = allStylists.find((s) => s.id === rescheduleAppt.stylistId);
+    if (!stylist) return [];
+    const d = new Date(rescheduleDate + "T12:00:00");
+    const dow = getDay(d);
+    const sched = stylist.schedule.find((s) => s.dayOfWeek === dow && s.isAvailable);
+    if (!sched) return [];
+
+    const totalDuration = (rescheduleAppt.serviceIds ?? []).reduce((sum, sid) => {
+      const svc = services.find((s) => s.id === sid);
+      return sum + (svc?.durationMinutes ?? 60);
+    }, 0) || 60;
+
+    const [startH, startM] = sched.startTime.split(":").map(Number);
+    const [endH, endM] = sched.endTime.split(":").map(Number);
+    const startMin = startH * 60 + startM;
+    const endMin = endH * 60 + endM;
+    const slots: string[] = [];
+    for (let m = startMin; m + totalDuration <= endMin; m += 30) {
+      const h = Math.floor(m / 60);
+      const min = m % 60;
+      slots.push(`${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`);
+    }
+    return slots;
+  }
+
+  function handleReschedule() {
+    if (!rescheduleAppt || !rescheduleDate || !rescheduleTime) return;
+    const totalDuration = (rescheduleAppt.serviceIds ?? []).reduce((sum, sid) => {
+      const svc = services.find((s) => s.id === sid);
+      return sum + (svc?.durationMinutes ?? 60);
+    }, 0) || 60;
+    const [h, m] = rescheduleTime.split(":").map(Number);
+    const endMin = h * 60 + m + totalDuration;
+    const endTime = `${String(Math.floor(endMin / 60)).padStart(2, "0")}:${String(endMin % 60).padStart(2, "0")}`;
+
+    const updated = appointments.map((a) =>
+      a.id === rescheduleAppt.id
+        ? { ...a, date: rescheduleDate, startTime: rescheduleTime, endTime }
+        : a
+    );
+    setAppointments(updated);
+    setStoredData("mila-bookings", updated);
+    setDocument("bookings", rescheduleAppt.id, {
+      date: rescheduleDate,
+      startTime: rescheduleTime,
+      endTime,
+    }).catch(() => {});
+    addToast(
+      language === "es" ? "Cita reprogramada" : "Appointment rescheduled",
+      "success"
+    );
+    setRescheduleAppt(null);
+  }
+
+  const formatTimeDisplay = (time: string) => {
+    const [h, m] = time.split(":").map(Number);
+    const period = h >= 12 ? "PM" : "AM";
+    const hour = h % 12 || 12;
+    return `${hour}:${String(m).padStart(2, "0")} ${period}`;
+  };
+
+  const locale = language === "es" ? esLocale : enUS;
+
   return (
     <motion.div
       variants={staggerContainer}
@@ -167,6 +274,16 @@ export default function AppointmentsPage() {
                       <p style={{ fontFamily: "var(--font-accent)", fontSize: 20, fontWeight: 400, color: "var(--color-accent)" }}>
                         {formatPrice(appt.totalPrice)}
                       </p>
+                      {canReschedule(appt) && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => openReschedule(appt)}
+                        >
+                          <CalendarClock size={14} className="mr-1 inline" />
+                          {t("dashboard", "reschedule")}
+                        </Button>
+                      )}
                       {canCancel(appt) && (
                         <Button
                           variant="danger"
@@ -190,6 +307,93 @@ export default function AppointmentsPage() {
           })}
         </div>
       )}
+      {/* Reschedule Modal */}
+      <Modal
+        isOpen={!!rescheduleAppt}
+        onClose={() => setRescheduleAppt(null)}
+        title={t("dashboard", "rescheduleTitle")}
+        size="md"
+      >
+        <div className="space-y-5">
+          <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
+            {t("dashboard", "selectNewDate")}
+          </p>
+
+          {/* Date Selection */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--color-text-secondary)" }}>
+              {language === "es" ? "Fecha" : "Date"}
+            </p>
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto">
+              {getAvailableDates().map(({ date, dateStr }) => (
+                <button
+                  key={dateStr}
+                  onClick={() => { setRescheduleDate(dateStr); setRescheduleTime(""); }}
+                  className="py-2.5 px-2 rounded-xl text-center"
+                  style={{
+                    background: rescheduleDate === dateStr ? "var(--gradient-accent)" : "var(--color-bg-glass)",
+                    border: `1px solid ${rescheduleDate === dateStr ? "var(--color-accent)" : "var(--color-border-default)"}`,
+                    color: rescheduleDate === dateStr ? "var(--color-text-inverse)" : "var(--color-text-secondary)",
+                    fontSize: 12,
+                    fontWeight: rescheduleDate === dateStr ? 700 : 400,
+                    cursor: "pointer",
+                  }}
+                >
+                  <span className="block text-[10px] uppercase">
+                    {format(date, "EEE", { locale })}
+                  </span>
+                  <span className="block font-medium">{format(date, "d MMM", { locale })}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Time Selection */}
+          {rescheduleDate && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--color-text-secondary)" }}>
+                {language === "es" ? "Hora" : "Time"}
+              </p>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-36 overflow-y-auto">
+                {getRescheduleSlots().map((time) => (
+                  <button
+                    key={time}
+                    onClick={() => setRescheduleTime(time)}
+                    className="py-3 px-2 rounded-xl text-center"
+                    style={{
+                      background: rescheduleTime === time ? "var(--gradient-accent)" : "var(--color-bg-glass)",
+                      border: `1px solid ${rescheduleTime === time ? "var(--color-accent)" : "var(--color-border-default)"}`,
+                      color: rescheduleTime === time ? "var(--color-text-inverse)" : "var(--color-text-secondary)",
+                      fontSize: 14,
+                      fontWeight: rescheduleTime === time ? 700 : 500,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {formatTimeDisplay(time)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Confirm Button */}
+          <button
+            onClick={handleReschedule}
+            disabled={!rescheduleDate || !rescheduleTime}
+            className="w-full py-4 rounded-2xl font-semibold text-base"
+            style={{
+              background: rescheduleDate && rescheduleTime ? "var(--gradient-accent)" : "var(--color-bg-glass)",
+              color: rescheduleDate && rescheduleTime ? "var(--color-text-inverse)" : "var(--color-text-muted)",
+              boxShadow: rescheduleDate && rescheduleTime ? "var(--shadow-glow)" : "none",
+              border: rescheduleDate && rescheduleTime ? "none" : "1px solid var(--color-border-default)",
+              cursor: rescheduleDate && rescheduleTime ? "pointer" : "not-allowed",
+              opacity: rescheduleDate && rescheduleTime ? 1 : 0.5,
+            }}
+          >
+            {t("dashboard", "rescheduleConfirm")}
+          </button>
+        </div>
+      </Modal>
     </motion.div>
   );
 }

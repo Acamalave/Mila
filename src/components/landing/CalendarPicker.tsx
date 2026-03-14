@@ -25,6 +25,7 @@ import { services } from "@/data/services";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useBooking } from "@/providers/BookingProvider";
 import { formatPrice } from "@/lib/utils";
+import BookingPolicyModal from "@/components/landing/BookingPolicyModal";
 import type { TimeSlot } from "@/types";
 
 interface CalendarPickerProps {
@@ -39,6 +40,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [viewMode, setViewMode] = useState<"week" | "month">("week");
   const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date()));
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
 
   const locale = language === "es" ? es : enUS;
 
@@ -175,8 +177,18 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
     dispatch({ type: "SET_TIME_SLOT", payload: slot });
   };
 
-  const handleBook = () => {
-    // Always show the name/phone modal first
+  const hasColorService = useMemo(
+    () => selectedServices.some((s) => s.categoryId === "cat-color"),
+    [selectedServices]
+  );
+
+  const handleBookClick = () => {
+    setShowPolicyModal(true);
+  };
+
+  const handlePolicyAccepted = () => {
+    setShowPolicyModal(false);
+    // Show the name/phone modal
     onLoginRequired?.();
   };
 
@@ -516,7 +528,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={handleBook}
+                onClick={handleBookClick}
                 className="w-full py-4 rounded-2xl font-semibold text-base"
                 style={{
                   background: "var(--gradient-accent)",
@@ -532,6 +544,14 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
           )}
         </AnimatePresence>
       </div>
+
+      {/* Booking Policy Modal */}
+      <BookingPolicyModal
+        isOpen={showPolicyModal}
+        onClose={() => setShowPolicyModal(false)}
+        onAccept={handlePolicyAccepted}
+        hasColorService={hasColorService}
+      />
     </section>
   );
 }

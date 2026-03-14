@@ -148,6 +148,10 @@ export const translations = {
     noSavedCards: { en: "No saved cards", es: "No hay tarjetas guardadas" },
     defaultCard: { en: "Default", es: "Predeterminada" },
     removeCard: { en: "Remove Card", es: "Eliminar Tarjeta" },
+    reschedule: { en: "Reschedule", es: "Reprogramar" },
+    rescheduleTitle: { en: "Reschedule Appointment", es: "Reprogramar Cita" },
+    rescheduleConfirm: { en: "Confirm New Date", es: "Confirmar Nueva Fecha" },
+    selectNewDate: { en: "Select a new date and time", es: "Selecciona una nueva fecha y hora" },
   },
   admin: {
     title: { en: "Admin Dashboard", es: "Panel de Administración" },
@@ -371,10 +375,56 @@ export const translations = {
     quickLinks: { en: "Quick Links", es: "Enlaces Rápidos" },
     contact: { en: "Contact", es: "Contacto" },
     hours: { en: "Hours", es: "Horarios" },
-    monFri: { en: "Mon - Sat: 8AM - 7PM", es: "Lun - Sáb: 8AM - 7PM" },
+    monFri: { en: "Mon - Sat: 9AM - 7PM", es: "Lun - Sáb: 9AM - 7PM" },
     saturday: { en: "Sunday: Closed", es: "Domingo: Cerrado" },
     sunday: { en: "WhatsApp: +507 6583-0099", es: "WhatsApp: +507 6583-0099" },
     rights: { en: "All rights reserved.", es: "Todos los derechos reservados." },
+    location: { en: "Our Location", es: "Ubícanos" },
+    promo: { en: "Special Benefit %", es: "Beneficio Especial %" },
+  },
+  brandStory: {
+    title: { en: "Our Story", es: "Nuestra Historia" },
+    meaning: { en: "The Meaning of MILÀ", es: "El Significado de MILÀ" },
+    meaningText: {
+      en: "MILÀ is born from the fusion of \"Milan\" — the world capital of fashion and design — with the warmth of Latin artistry. It represents a bridge between European sophistication and the vibrant energy of Panama, where every detail is crafted with intention and passion.",
+      es: "MILÀ nace de la fusión de \"Milán\" — la capital mundial de la moda y el diseño — con la calidez de la artesanía latina. Representa un puente entre la sofisticación europea y la energía vibrante de Panamá, donde cada detalle se trabaja con intención y pasión.",
+    },
+    mission: { en: "Mission", es: "Misión" },
+    missionText: {
+      en: "To elevate the beauty experience through personalized luxury services, combining world-class techniques with premium products to empower every client to feel their most confident and radiant self.",
+      es: "Elevar la experiencia de belleza a través de servicios de lujo personalizados, combinando técnicas de clase mundial con productos premium para empoderar a cada cliente a sentirse segura y radiante.",
+    },
+    vision: { en: "Vision", es: "Visión" },
+    visionText: {
+      en: "To be the leading reference in premium beauty and wellness in Panama, recognized for our artistic excellence, innovation, and the transformative experiences we create for our community.",
+      es: "Ser el referente líder en belleza y bienestar premium en Panamá, reconocidos por nuestra excelencia artística, innovación y las experiencias transformadoras que creamos para nuestra comunidad.",
+    },
+    objectives: { en: "Our Purpose", es: "Nuestro Propósito" },
+    objectivesText: {
+      en: "We exist to create a sanctuary where artistry meets self-care. Through continuous education, sustainable practices, and an unwavering commitment to excellence, we aim to set the gold standard in luxury beauty services across the region.",
+      es: "Existimos para crear un santuario donde el arte se encuentra con el autocuidado. A través de la educación continua, prácticas sostenibles y un compromiso inquebrantable con la excelencia, buscamos establecer el estándar de oro en servicios de belleza de lujo en la región.",
+    },
+  },
+  bookingPolicy: {
+    title: { en: "Booking Policies", es: "Políticas de Reserva" },
+    subtitle: {
+      en: "Please review our policies before confirming your appointment",
+      es: "Por favor revisa nuestras políticas antes de confirmar tu cita",
+    },
+    cancellation: {
+      en: "Cancellations must be notified at least 24 hours before the appointment to allow the space to be offered to another client.",
+      es: "Las cancelaciones deben notificarse al menos 24 horas antes de la cita para poder ceder el espacio a otro cliente.",
+    },
+    colorDeposit: {
+      en: "Color appointments require a $100 deposit one day prior to your reservation to confirm the appointment.",
+      es: "Las citas de color requieren un abono de $100 un día previo a su reserva para confirmar la cita.",
+    },
+    noShow: {
+      en: "If you do not attend and do not notify, you will automatically lose 50% of the deposit.",
+      es: "En caso de no asistir y no notificar, automáticamente pierde el 50% del abono.",
+    },
+    accept: { en: "I accept the booking policies", es: "Acepto las políticas de reserva" },
+    confirm: { en: "Confirm Appointment", es: "Confirmar Cita" },
   },
 } as const;
 

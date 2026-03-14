@@ -71,6 +71,26 @@ export const serviceCategories: ServiceCategory[] = [
     image: "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800&q=80",
     icon: "Scissors",
   },
+  {
+    id: "cat-vip",
+    name: { en: "VIP Masterclass", es: "Cursos VIP" },
+    description: {
+      en: "Exclusive private masterclasses with our top specialists",
+      es: "Masterclass exclusivas privadas con nuestras mejores especialistas",
+    },
+    image: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&q=80",
+    icon: "GraduationCap",
+  },
+  {
+    id: "cat-packages",
+    name: { en: "Packages & Consultations", es: "Paquetes y Consultas" },
+    description: {
+      en: "Special packages and complimentary consultations",
+      es: "Paquetes especiales y consultas complementarias",
+    },
+    image: "https://images.unsplash.com/photo-1519699047748-de8e457a634e?w=800&q=80",
+    icon: "Gift",
+  },
 ];
 
 export const services: Service[] = [
@@ -438,5 +458,46 @@ export const services: Service[] = [
     durationMinutes: 15,
     price: 15,
     lucideIcon: "Eye",
+  },
+
+  // === VIP MASTERCLASS ===
+  {
+    id: "svc-curso-vip",
+    categoryId: "cat-vip",
+    name: { en: "VIP Masterclass", es: "Curso VIP" },
+    description: {
+      en: "Exclusive 1-on-1 masterclass with our top specialists. Learn professional techniques in color, styling, or treatments tailored to your goals.",
+      es: "Masterclass exclusiva 1 a 1 con nuestras mejores especialistas. Aprende técnicas profesionales en color, estilismo o tratamientos adaptadas a tus metas.",
+    },
+    durationMinutes: 180,
+    price: 200,
+    priceMax: 1300,
+    lucideIcon: "GraduationCap",
+  },
+
+  // === PACKAGES ===
+  {
+    id: "svc-bride-package",
+    categoryId: "cat-packages",
+    name: { en: "Bride Package", es: "Paquete Novia" },
+    description: {
+      en: "Complete bridal experience including updo, makeup, trial session, and day-of touch-ups for your perfect day.",
+      es: "Experiencia nupcial completa que incluye peinado, maquillaje, sesión de prueba y retoques el día del evento para tu día perfecto.",
+    },
+    durationMinutes: 300,
+    price: 600,
+    lucideIcon: "Heart",
+  },
+  {
+    id: "svc-free-evaluation",
+    categoryId: "cat-packages",
+    name: { en: "Free Initial Evaluation", es: "Primera Evaluación Gratuita" },
+    description: {
+      en: "Complimentary consultation to assess your hair needs and recommend the best services and treatments for you.",
+      es: "Consulta gratuita para evaluar las necesidades de tu cabello y recomendar los mejores servicios y tratamientos para ti.",
+    },
+    durationMinutes: 30,
+    price: 0,
+    lucideIcon: "MessageCircle",
   },
 ];

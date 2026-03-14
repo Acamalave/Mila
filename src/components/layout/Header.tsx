@@ -14,6 +14,7 @@ import NotificationBell from "@/components/notifications/NotificationBell";
 import NotificationPanel from "@/components/notifications/NotificationPanel";
 import InvoiceDetailModal from "@/components/payment/InvoiceDetailModal";
 import PaymentModal from "@/components/payment/PaymentModal";
+import BrandStoryModal from "@/components/landing/BrandStoryModal";
 import type { Invoice } from "@/types";
 
 export default function Header() {
@@ -30,6 +31,7 @@ export default function Header() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [showInvoiceDetail, setShowInvoiceDetail] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showBrandStory, setShowBrandStory] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
@@ -81,8 +83,11 @@ export default function Header() {
       <header style={headerStyle}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-20">
-            {/* Logo */}
-            <Link href="/" className="flex-shrink-0">
+            {/* Logo — opens brand story */}
+            <button
+              onClick={() => setShowBrandStory(true)}
+              className="flex-shrink-0 cursor-pointer bg-transparent border-none p-0"
+            >
               <Image
                 src="/logo-mila-brand.png"
                 alt="Milà Concept"
@@ -91,7 +96,7 @@ export default function Header() {
                 className="h-8 sm:h-10 w-auto object-contain"
                 priority
               />
-            </Link>
+            </button>
 
             {/* Right side actions */}
             <div className="flex items-center gap-3 sm:gap-4">
@@ -250,6 +255,12 @@ export default function Header() {
         }}
         invoice={selectedInvoice}
         onPaymentComplete={handlePaymentComplete}
+      />
+
+      {/* Brand Story Modal */}
+      <BrandStoryModal
+        isOpen={showBrandStory}
+        onClose={() => setShowBrandStory(false)}
       />
     </>
   );

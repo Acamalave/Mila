@@ -45,6 +45,9 @@ import {
   CreditCard,
   Shield,
   MessageSquare,
+  MapPin,
+  Phone,
+  Instagram,
 } from "lucide-react";
 
 /* ── Shared glass style ─────────────────────────────────────────── */
@@ -426,6 +429,45 @@ export default function DashboardPage() {
         <p className="mt-2 text-sm" style={{ color: colors.secondary }}>
           {language === "es" ? "Qué bueno que estás aquí" : "So glad you're here"}
         </p>
+        {/* Contact strip */}
+        <div className="flex flex-wrap items-center gap-4 mt-4">
+          <a
+            href="https://maps.app.goo.gl/nLgCPhrNMXrHgAPMA"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs transition-colors"
+            style={{ color: colors.muted }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--color-accent)")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = colors.muted)}
+          >
+            <MapPin size={12} style={{ color: "var(--color-accent)" }} />
+            <span>Piso 18, Oficina 18 C2</span>
+          </a>
+          <a
+            href="https://wa.me/50765830099"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs transition-colors"
+            style={{ color: colors.muted }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#25d366")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = colors.muted)}
+          >
+            <Phone size={12} style={{ color: "var(--color-accent)" }} />
+            <span>+507 6583-0099</span>
+          </a>
+          <a
+            href="https://www.instagram.com/milaconceptpty"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs transition-colors"
+            style={{ color: colors.muted }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--color-accent)")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = colors.muted)}
+          >
+            <Instagram size={12} style={{ color: "var(--color-accent)" }} />
+            <span>@milaconceptpty</span>
+          </a>
+        </div>
       </motion.div>
 
       {/* ─── Hero Reservation Card ────────────────────────── */}
