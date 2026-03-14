@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
 import { ChevronLeft, ChevronRight, Star } from "lucide-react";
@@ -12,336 +12,245 @@ interface SpecialistSliderProps {
   onSelect?: (stylistId: string) => void;
 }
 
-const rotatingRingStyle = (size: number): React.CSSProperties => ({
-  position: "absolute",
-  top: -8,
-  left: -8,
-  width: size + 16,
-  height: size + 16,
-  borderRadius: "50%",
-  background: "var(--gradient-ring)",
-  filter: "blur(8px)",
-  opacity: 0.6,
-  zIndex: 0,
-});
-
 export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
   const { language, t } = useLanguage();
   const { state, dispatch } = useBooking();
   const { allStylists } = useStaff();
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [direction, setDirection] = useState(0);
 
   const selectedId = state.selectedStylistId;
 
-  const goTo = (index: number) => {
+  const goTo = useCallback((index: number, dir: number) => {
     const wrapped = ((index % allStylists.length) + allStylists.length) % allStylists.length;
+    setDirection(dir);
     setCurrentIndex(wrapped);
-  };
+  }, [allStylists.length]);
 
   const handleSelect = (id: string) => {
     dispatch({ type: "SET_STYLIST", payload: id });
     onSelect?.(id);
   };
 
-  // Get visible stylists (for desktop: show 3 at a time)
-  const getVisibleIndices = () => {
-    const total = allStylists.length;
-    const prev = ((currentIndex - 1) + total) % total;
-    const next = (currentIndex + 1) % total;
-    return [prev, currentIndex, next];
-  };
-
-  const visibleIndices = getVisibleIndices();
   const currentStylist = allStylists[currentIndex];
 
-  const ringStyle = (isSelected: boolean, isCenter: boolean): React.CSSProperties => ({
-    width: isCenter ? 240 : 180,
-    height: isCenter ? 240 : 180,
-    borderRadius: "50%",
-    border: isSelected ? "3px solid var(--color-accent)" : "3px solid transparent",
-    boxShadow: isSelected
-      ? "var(--shadow-card-selected)"
-      : "0 8px 30px rgba(0, 0, 0, 0.5)",
-    transition: "all 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
-    cursor: "pointer",
-    overflow: "hidden",
-    position: "relative" as const,
-    flexShrink: 0,
-  });
+  const slideVariants = {
+    enter: (dir: number) => ({
+      x: dir > 0 ? "100%" : "-100%",
+      opacity: 0,
+    }),
+    center: {
+      x: 0,
+      opacity: 1,
+    },
+    exit: (dir: number) => ({
+      x: dir > 0 ? "-100%" : "100%",
+      opacity: 0,
+    }),
+  };
+
+  if (!currentStylist) return null;
 
   return (
-    <section className="py-12 sm:py-20 px-4 relative">
-      <div className="max-w-5xl mx-auto">
-        {/* Section Title */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-10 sm:mb-14"
+    <section className="relative" style={{ minHeight: "100svh" }}>
+      {/* Title overlay at top */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.2 }}
+        className="absolute top-0 left-0 right-0 z-20 text-center pt-6 sm:pt-10 px-4"
+      >
+        <h2
+          className="text-2xl sm:text-4xl font-bold mb-2"
+          style={{
+            fontFamily: "var(--font-display)",
+            color: "#fff",
+            letterSpacing: "0.02em",
+            textShadow: "0 2px 20px rgba(0,0,0,0.5)",
+          }}
         >
-          <h2
-            className="text-2xl sm:text-4xl font-bold mb-3"
-            style={{
-              fontFamily: "var(--font-display)",
-              color: "var(--color-text-primary)",
-              letterSpacing: "0.02em",
-            }}
+          {t("home", "selectSpecialist")}
+        </h2>
+        <div style={{ width: 50, height: 2, background: "var(--gradient-accent-h)", margin: "0 auto", borderRadius: 2 }} />
+      </motion.div>
+
+      {/* Full-screen photo slider */}
+      <div className="relative w-full overflow-hidden" style={{ height: "100svh" }}>
+        <AnimatePresence initial={false} custom={direction} mode="wait">
+          <motion.div
+            key={currentIndex}
+            custom={direction}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className="absolute inset-0"
+            onClick={() => handleSelect(currentStylist.id)}
+            style={{ cursor: "pointer" }}
           >
-            {t("home", "selectSpecialist")}
-          </h2>
-          <div style={{ width: 50, height: 2, background: "var(--gradient-accent-h)", margin: "0 auto", borderRadius: 2 }} />
-        </motion.div>
+            {/* Full-screen image */}
+            <Image
+              src={currentStylist.avatar}
+              alt={currentStylist.name}
+              fill
+              className="object-cover"
+              sizes="100vw"
+              priority
+            />
 
-        {/* Desktop Slider (3 visible) */}
-        <div className="hidden md:block">
-          <div className="flex items-center justify-center gap-8">
-            {/* Left Arrow */}
-            <motion.button
-              whileHover={{ scale: 1.1, x: -2 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={() => goTo(currentIndex - 1)}
-              className="flex-shrink-0 flex items-center justify-center"
+            {/* Gradient overlay - bottom */}
+            <div
+              className="absolute inset-0"
               style={{
-                width: 48,
-                height: 48,
-                borderRadius: "50%",
-                background: "var(--color-bg-glass-hover)",
-                border: "1px solid var(--color-border-default)",
-                color: "var(--color-accent)",
-                cursor: "pointer",
-                transition: "all 0.3s ease",
+                background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 40%, rgba(0,0,0,0.1) 60%, rgba(0,0,0,0.3) 100%)",
               }}
-            >
-              <ChevronLeft size={22} />
-            </motion.button>
+            />
+          </motion.div>
+        </AnimatePresence>
 
-            {/* Stylists */}
-            <div className="flex items-center justify-center gap-10">
-              {visibleIndices.map((idx, i) => {
-                const stylist = allStylists[idx];
-                const isCenter = i === 1;
-                const isSelected = stylist.id === selectedId;
-                const photoSize = isCenter ? 240 : 180;
-
-                return (
-                  <motion.div
-                    key={stylist.id}
-                    layout
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{
-                      opacity: isCenter ? 1 : 0.65,
-                      scale: isCenter ? 1 : 0.78,
-                    }}
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    className="flex flex-col items-center"
-                    onClick={() => {
-                      if (isCenter) {
-                        handleSelect(stylist.id);
-                      } else {
-                        goTo(idx);
-                      }
-                    }}
-                  >
-                    {/* Photo container with rotating ring */}
-                    <div style={{ position: "relative" }}>
-                      {isCenter && (
-                        <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
-                          style={rotatingRingStyle(photoSize)}
-                        />
-                      )}
-                      <motion.div
-                        whileHover={{ scale: isCenter ? 1.05 : 0.83 }}
-                        style={{ ...ringStyle(isSelected, isCenter), position: "relative", zIndex: 1 }}
-                      >
-                        <Image
-                          src={stylist.avatar}
-                          alt={stylist.name}
-                          fill
-                          className="object-cover"
-                          sizes={isCenter ? "240px" : "180px"}
-                        />
-                      </motion.div>
-                    </div>
-                    <motion.div
-                      className="mt-4 text-center"
-                      animate={{ opacity: isCenter ? 1 : 0.5 }}
-                    >
-                      <p
-                        className="font-semibold"
-                        style={{
-                          fontFamily: "var(--font-display)",
-                          fontSize: isCenter ? 18 : 14,
-                          color: "var(--color-text-primary)",
-                        }}
-                      >
-                        {stylist.name}
-                      </p>
-                      <p
-                        className="mt-0.5"
-                        style={{
-                          fontSize: isCenter ? 13 : 11,
-                          color: "var(--color-text-secondary)",
-                        }}
-                      >
-                        {stylist.role[language]}
-                      </p>
-                      {isCenter && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 5 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="flex items-center justify-center gap-1 mt-2"
-                        >
-                          <Star size={14} fill="var(--color-accent)" color="var(--color-accent)" />
-                          <span style={{ fontSize: 13, color: "var(--color-accent)", fontWeight: 600 }}>
-                            {stylist.rating}
-                          </span>
-                          <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-                            ({stylist.reviewCount})
-                          </span>
-                        </motion.div>
-                      )}
-                    </motion.div>
-                  </motion.div>
-                );
-              })}
-            </div>
-
-            {/* Right Arrow */}
-            <motion.button
-              whileHover={{ scale: 1.1, x: 2 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={() => goTo(currentIndex + 1)}
-              className="flex-shrink-0 flex items-center justify-center"
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: "50%",
-                background: "var(--color-bg-glass-hover)",
-                border: "1px solid var(--color-border-default)",
-                color: "var(--color-accent)",
-                cursor: "pointer",
-              }}
-            >
-              <ChevronRight size={22} />
-            </motion.button>
-          </div>
-        </div>
-
-        {/* Mobile Slider (1 visible) — Photo top, info overlay from middle */}
-        <div className="md:hidden">
+        {/* Info overlay at bottom */}
+        <div className="absolute bottom-0 left-0 right-0 z-10 px-6 pb-8 sm:pb-12">
           <AnimatePresence mode="wait">
             <motion.div
-              key={currentIndex}
-              initial={{ opacity: 0, x: 40 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -40 }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="relative mx-auto"
-              style={{ maxWidth: 320 }}
-              onClick={() => handleSelect(currentStylist.id)}
+              key={currentStylist.id}
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              className="max-w-lg mx-auto"
             >
-              {/* Large photo at top */}
-              <div className="relative mx-auto" style={{ width: 240, height: 240 }}>
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
-                  style={rotatingRingStyle(240)}
-                />
-                <div
-                  style={{
-                    width: 240,
-                    height: 240,
-                    borderRadius: "50%",
-                    border: currentStylist.id === selectedId
-                      ? "3px solid var(--color-accent)"
-                      : "3px solid var(--color-border-default)",
-                    boxShadow: currentStylist.id === selectedId
-                      ? "var(--shadow-card-selected)"
-                      : "0 10px 40px rgba(0, 0, 0, 0.5)",
-                    overflow: "hidden",
-                    position: "relative",
-                    zIndex: 1,
-                  }}
-                >
-                  <Image
-                    src={currentStylist.avatar}
-                    alt={currentStylist.name}
-                    fill
-                    className="object-cover"
-                    sizes="240px"
-                  />
-                </div>
-              </div>
-
-              {/* Glass info card overlapping from middle of photo */}
+              {/* Glass card with info */}
               <div
-                className="relative mx-4 px-5 pb-5 pt-14 text-center"
+                className="p-5 sm:p-6 rounded-2xl text-center"
                 style={{
-                  marginTop: -48,
-                  background: "var(--color-bg-glass)",
+                  background: "rgba(10, 10, 10, 0.6)",
                   backdropFilter: "blur(20px)",
                   WebkitBackdropFilter: "blur(20px)",
-                  border: "1px solid var(--color-border-default)",
-                  borderRadius: 20,
-                  boxShadow: "var(--shadow-card)",
-                  zIndex: 2,
-                  transition: "all 0.3s ease",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
                 }}
               >
                 <p
-                  className="font-bold text-xl"
-                  style={{ fontFamily: "var(--font-display)", color: "var(--color-text-primary)" }}
+                  className="font-bold text-2xl sm:text-3xl"
+                  style={{ fontFamily: "var(--font-display)", color: "#fff" }}
                 >
                   {currentStylist.name}
                 </p>
-                <p style={{ fontSize: 13, color: "var(--color-text-secondary)", marginTop: 4 }}>
+                <p className="mt-1" style={{ fontSize: 14, color: "rgba(255,255,255,0.65)" }}>
                   {currentStylist.role[language]}
                 </p>
                 <div className="flex items-center justify-center gap-1.5 mt-3">
-                  <Star size={15} fill="var(--color-accent)" color="var(--color-accent)" />
-                  <span style={{ fontSize: 14, color: "var(--color-accent)", fontWeight: 700 }}>
+                  <Star size={16} fill="var(--color-accent)" color="var(--color-accent)" />
+                  <span style={{ fontSize: 15, color: "var(--color-accent)", fontWeight: 700 }}>
                     {currentStylist.rating}
                   </span>
-                  <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
+                  <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>
                     ({currentStylist.reviewCount})
                   </span>
                 </div>
+
+                {/* Specialties */}
+                <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+                  {currentStylist.specialties.slice(0, 3).map((spec) => (
+                    <span
+                      key={spec}
+                      className="px-3 py-1 rounded-full text-[11px] font-medium"
+                      style={{
+                        background: "rgba(255,255,255,0.08)",
+                        color: "rgba(255,255,255,0.7)",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                      }}
+                    >
+                      {spec}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Select button */}
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSelect(currentStylist.id);
+                  }}
+                  className="mt-5 w-full py-3.5 rounded-xl font-semibold text-sm"
+                  style={{
+                    background: selectedId === currentStylist.id
+                      ? "var(--color-accent)"
+                      : "var(--gradient-accent)",
+                    color: "var(--color-text-inverse)",
+                    boxShadow: "var(--shadow-glow)",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  {selectedId === currentStylist.id
+                    ? (language === "es" ? "Seleccionado" : "Selected")
+                    : (language === "es" ? "Elegir Especialista" : "Choose Specialist")}
+                </motion.button>
               </div>
             </motion.div>
           </AnimatePresence>
 
-          {/* Mobile navigation arrows */}
-          <div className="flex items-center justify-center gap-6 mt-5">
+          {/* Navigation arrows + dots */}
+          <div className="flex items-center justify-center gap-4 mt-5">
             <motion.button
+              whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.85 }}
-              onClick={(e) => { e.stopPropagation(); goTo(currentIndex - 1); }}
+              onClick={(e) => { e.stopPropagation(); goTo(currentIndex - 1, -1); }}
               className="flex-shrink-0 flex items-center justify-center"
               style={{
                 width: 44,
                 height: 44,
                 borderRadius: "50%",
-                background: "var(--color-bg-glass-hover)",
-                border: "1px solid var(--color-border-default)",
-                color: "var(--color-accent)",
+                background: "rgba(255,255,255,0.1)",
+                backdropFilter: "blur(10px)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                color: "#fff",
                 cursor: "pointer",
               }}
             >
               <ChevronLeft size={20} />
             </motion.button>
+
+            {/* Dot Indicators */}
+            <div className="flex items-center gap-2">
+              {allStylists.map((s, i) => (
+                <motion.button
+                  key={s.id}
+                  onClick={(e) => { e.stopPropagation(); goTo(i, i > currentIndex ? 1 : -1); }}
+                  whileHover={{ scale: 1.3 }}
+                  className="rounded-full"
+                  style={{
+                    width: i === currentIndex ? 24 : 8,
+                    height: 8,
+                    borderRadius: 4,
+                    background: i === currentIndex
+                      ? "var(--gradient-accent-h)"
+                      : "rgba(255,255,255,0.3)",
+                    transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
+                    cursor: "pointer",
+                    border: "none",
+                  }}
+                />
+              ))}
+            </div>
+
             <motion.button
+              whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.85 }}
-              onClick={(e) => { e.stopPropagation(); goTo(currentIndex + 1); }}
+              onClick={(e) => { e.stopPropagation(); goTo(currentIndex + 1, 1); }}
               className="flex-shrink-0 flex items-center justify-center"
               style={{
                 width: 44,
                 height: 44,
                 borderRadius: "50%",
-                background: "var(--color-bg-glass-hover)",
-                border: "1px solid var(--color-border-default)",
-                color: "var(--color-accent)",
+                background: "rgba(255,255,255,0.1)",
+                backdropFilter: "blur(10px)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                color: "#fff",
                 cursor: "pointer",
               }}
             >
@@ -349,55 +258,6 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
             </motion.button>
           </div>
         </div>
-
-        {/* Dot Indicators */}
-        <div className="flex items-center justify-center gap-2 mt-8">
-          {allStylists.map((s, i) => (
-            <motion.button
-              key={s.id}
-              onClick={() => goTo(i)}
-              whileHover={{ scale: 1.3 }}
-              className="rounded-full"
-              style={{
-                width: i === currentIndex ? 24 : 8,
-                height: 8,
-                borderRadius: 4,
-                background: i === currentIndex
-                  ? "var(--gradient-accent-h)"
-                  : "var(--color-border-default)",
-                transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
-                cursor: "pointer",
-                border: "none",
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Selected indicator */}
-        <AnimatePresence>
-          {selectedId && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              className="text-center mt-6"
-            >
-              <span
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full"
-                style={{
-                  background: "var(--color-accent-subtle)",
-                  border: "1px solid var(--color-border-accent)",
-                  color: "var(--color-accent)",
-                  fontSize: 14,
-                  fontWeight: 500,
-                  transition: "all 0.3s ease",
-                }}
-              >
-                {allStylists.find(s => s.id === selectedId)?.name}
-              </span>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
     </section>
   );
