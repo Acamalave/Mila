@@ -171,7 +171,7 @@ export default function ShopPage() {
                 />
                 {product.discount && product.discount > 0 && (
                   <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">
-                    Beneficio especial {product.discount}%
+                    -{product.discount}%
                   </div>
                 )}
               </div>

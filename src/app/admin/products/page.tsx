@@ -322,8 +322,8 @@ export default function AdminProductsPage() {
                             )}
                           </div>
                           {product.discount && product.discount > 0 && (
-                            <span className="text-xs font-medium" style={{ color: "var(--color-accent)" }}>
-                              Beneficio {product.discount}%
+                            <span className="text-xs text-red-500 font-medium">
+                              -{product.discount}%
                             </span>
                           )}
                         </div>
@@ -555,7 +555,7 @@ export default function AdminProductsPage() {
               >
                 <span className="flex items-center gap-1">
                   <Percent size={12} />
-                  {language === "es" ? "Beneficio especial (%)" : "Special benefit (%)"}
+                  {language === "es" ? "Descuento (%)" : "Discount (%)"}
                 </span>
               </label>
               <input
@@ -602,7 +602,7 @@ export default function AdminProductsPage() {
               }}
             >
               <span className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
-                {language === "es" ? "Precio con beneficio" : "Price with benefit"}
+                {language === "es" ? "Precio con descuento" : "Discounted price"}
               </span>
               <div className="flex items-center gap-2">
                 <span className="text-sm line-through" style={{ color: "var(--color-text-muted)" }}>

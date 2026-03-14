@@ -364,7 +364,7 @@ export const translations = {
     quickLinks: { en: "Quick Links", es: "Enlaces Rápidos" },
     contact: { en: "Contact", es: "Contacto" },
     hours: { en: "Hours", es: "Horarios" },
-    monFri: { en: "Mon - Sat: 9AM - 7PM", es: "Lun - Sáb: 9AM - 7PM" },
+    monFri: { en: "Mon - Sat: 8AM - 7PM", es: "Lun - Sáb: 8AM - 7PM" },
     saturday: { en: "Sunday: Closed", es: "Domingo: Cerrado" },
     sunday: { en: "WhatsApp: +507 6583-0099", es: "WhatsApp: +507 6583-0099" },
     rights: { en: "All rights reserved.", es: "Todos los derechos reservados." },
