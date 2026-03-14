@@ -383,6 +383,23 @@ export default function DashboardPage() {
         <p className="mt-1 text-sm" style={{ color: colors.secondary }}>
           {language === "es" ? "Qué bueno que estás aquí" : "So glad you're here"}
         </p>
+        <div className="flex flex-wrap items-center gap-3 mt-3">
+          <a
+            href="https://www.instagram.com/milaconceptpty"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full"
+            style={{ background: "var(--color-accent-subtle)", color: "var(--color-accent)", border: "1px solid var(--color-border-default)" }}
+          >
+            @milaconceptpty
+          </a>
+          <span className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full" style={{ background: "var(--color-bg-glass)", color: colors.secondary, border: "1px solid var(--color-border-default)" }}>
+            +507 6583-0099
+          </span>
+          <span className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full" style={{ background: "var(--color-bg-glass)", color: colors.secondary, border: "1px solid var(--color-border-default)" }}>
+            {language === "es" ? "Piso 18, Oficina 18-C2" : "Floor 18, Office 18-C2"}
+          </span>
+        </div>
       </motion.div>
 
       {/* ─── Hero Reservation Card ────────────────────────── */}
@@ -464,7 +481,7 @@ export default function DashboardPage() {
                       <div className="relative aspect-square" style={{ background: "var(--color-bg-glass)" }}>
                         <Image src={product.image} alt={product.name} fill className="object-cover" sizes="(max-width: 768px) 50vw, 33vw" />
                         {product.discount && product.discount > 0 && (
-                          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: "#ef4444", color: "#fff" }}>-{product.discount}%</div>
+                          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: "var(--gradient-accent)", color: "#fff" }}>{language === "es" ? "Beneficio especial" : "Special benefit"} {product.discount}%</div>
                         )}
                         {product.featured && (
                           <div className="absolute top-2 right-2 flex items-center justify-center" style={{ width: 22, height: 22, borderRadius: "50%", background: "var(--color-accent-subtle)", border: "1px solid var(--color-border-accent)" }}>
@@ -770,6 +787,11 @@ function ReservationHeroCard({ appointment, language, getServiceNames, statusVar
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
           <span className="text-lg font-bold tabular-nums" style={{ color: colors.gold, letterSpacing: "0.02em" }}>{formatTime(appointment.startTime)}</span>
           <Badge variant={statusVariant(appointment.status)}>{statusLabel(appointment.status)}</Badge>
+          {appointment.status === "confirmed" && (
+            <Link href="/dashboard/appointments" className="text-[10px] font-medium mt-1" style={{ color: colors.gold, textDecoration: "underline" }}>
+              {language === "es" ? "Reagendar" : "Reschedule"}
+            </Link>
+          )}
         </div>
       </div>
     </div>

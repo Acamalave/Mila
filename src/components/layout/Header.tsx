@@ -8,7 +8,7 @@ import { useLanguage } from "@/providers/LanguageProvider";
 import { useAuth } from "@/providers/AuthProvider";
 import { useNotifications } from "@/providers/NotificationProvider";
 import { useInvoices } from "@/providers/InvoiceProvider";
-import { Globe, User, LogOut, ChevronDown } from "lucide-react";
+import { Globe, User, LogOut, ChevronDown, X, Target, Eye, Award } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import NotificationPanel from "@/components/notifications/NotificationPanel";
@@ -25,6 +25,7 @@ export default function Header() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [scrollY, setScrollY] = useState(0);
+  const [showBrandModal, setShowBrandModal] = useState(false);
 
   // Payment flow states
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
@@ -81,8 +82,11 @@ export default function Header() {
       <header style={headerStyle}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-20">
-            {/* Logo */}
-            <Link href="/" className="flex-shrink-0">
+            {/* Logo - click to show brand story */}
+            <button
+              onClick={() => setShowBrandModal(true)}
+              className="flex-shrink-0 cursor-pointer bg-transparent border-none p-0"
+            >
               <Image
                 src="/logo-mila.png"
                 alt="Mila Concept"
@@ -91,7 +95,7 @@ export default function Header() {
                 className="h-10 sm:h-14 w-auto object-contain"
                 priority
               />
-            </Link>
+            </button>
 
             {/* Right side actions */}
             <div className="flex items-center gap-3 sm:gap-4">
@@ -248,6 +252,106 @@ export default function Header() {
         invoice={selectedInvoice}
         onPaymentComplete={handlePaymentComplete}
       />
+
+      {/* Brand Story Modal */}
+      <AnimatePresence>
+        {showBrandModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+            style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }}
+            onClick={() => setShowBrandModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 30 }}
+              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+              className="relative w-full max-w-lg rounded-2xl overflow-hidden"
+              style={{
+                background: "var(--color-bg-card)",
+                border: "1px solid var(--color-border-default)",
+                boxShadow: "var(--shadow-float)",
+                maxHeight: "90vh",
+                overflowY: "auto",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setShowBrandModal(false)}
+                className="absolute top-4 right-4 p-1 rounded-full"
+                style={{ background: "var(--color-bg-glass)", border: "1px solid var(--color-border-default)", color: "var(--color-text-muted)", cursor: "pointer" }}
+              >
+                <X size={18} />
+              </button>
+
+              <div className="p-6 sm:p-8">
+                <div className="text-center mb-6">
+                  <Image src="/logo-mila.png" alt="Milà Concept" width={140} height={56} className="mx-auto h-12 w-auto object-contain mb-4" />
+                  <h2 className="text-xl sm:text-2xl font-bold" style={{ fontFamily: "var(--font-display)", color: "var(--color-text-primary)" }}>
+                    {language === "es" ? "¿Qué significa MILÀ?" : "What does MILÀ mean?"}
+                  </h2>
+                  <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
+                    {language === "es"
+                      ? "MILÀ nace de la pasión por transformar y empoderar a cada persona que cruza nuestras puertas. Es sinónimo de elegancia, sofisticación y cuidado personal de alta gama en el corazón de Panamá."
+                      : "MILÀ is born from the passion to transform and empower every person who walks through our doors. It is synonymous with elegance, sophistication, and high-end personal care in the heart of Panama."}
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Mission */}
+                  <div className="p-4 rounded-xl" style={{ background: "var(--color-accent-subtle)", border: "1px solid var(--color-border-default)" }}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Target size={18} style={{ color: "var(--color-accent)" }} />
+                      <h3 className="font-semibold text-sm" style={{ color: "var(--color-accent)" }}>
+                        {language === "es" ? "Misión" : "Mission"}
+                      </h3>
+                    </div>
+                    <p className="text-xs leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
+                      {language === "es"
+                        ? "Brindar servicios de belleza de alta calidad, utilizando productos premium y técnicas innovadoras que realcen la belleza natural de cada cliente, en un ambiente de lujo y confianza."
+                        : "To provide high-quality beauty services using premium products and innovative techniques that enhance the natural beauty of each client, in an atmosphere of luxury and trust."}
+                    </p>
+                  </div>
+
+                  {/* Vision */}
+                  <div className="p-4 rounded-xl" style={{ background: "var(--color-accent-subtle)", border: "1px solid var(--color-border-default)" }}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Eye size={18} style={{ color: "var(--color-accent)" }} />
+                      <h3 className="font-semibold text-sm" style={{ color: "var(--color-accent)" }}>
+                        {language === "es" ? "Visión" : "Vision"}
+                      </h3>
+                    </div>
+                    <p className="text-xs leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
+                      {language === "es"
+                        ? "Ser el salón de belleza de referencia en Panamá, reconocido por la excelencia en el servicio, la innovación constante y la formación de profesionales líderes en la industria."
+                        : "To be the leading beauty salon in Panama, recognized for service excellence, constant innovation, and the training of industry-leading professionals."}
+                    </p>
+                  </div>
+
+                  {/* Objectives */}
+                  <div className="p-4 rounded-xl" style={{ background: "var(--color-accent-subtle)", border: "1px solid var(--color-border-default)" }}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Award size={18} style={{ color: "var(--color-accent)" }} />
+                      <h3 className="font-semibold text-sm" style={{ color: "var(--color-accent)" }}>
+                        {language === "es" ? "Objetivos" : "Objectives"}
+                      </h3>
+                    </div>
+                    <ul className="text-xs leading-relaxed space-y-1.5" style={{ color: "var(--color-text-secondary)" }}>
+                      <li>{language === "es" ? "• Ofrecer una experiencia personalizada y exclusiva a cada cliente." : "• Offer a personalized and exclusive experience to each client."}</li>
+                      <li>{language === "es" ? "• Capacitar y formar talento en técnicas de vanguardia." : "• Train and develop talent in cutting-edge techniques."}</li>
+                      <li>{language === "es" ? "• Expandir nuestros servicios VIP y formación profesional." : "• Expand our VIP services and professional training."}</li>
+                      <li>{language === "es" ? "• Ser líderes en innovación, calidad y atención al cliente." : "• Be leaders in innovation, quality, and customer service."}</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

@@ -19,7 +19,7 @@ import {
   getDay,
 } from "date-fns";
 import { es, enUS } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 import { useStaff } from "@/providers/StaffProvider";
 import { services } from "@/data/services";
 import { useLanguage } from "@/providers/LanguageProvider";
@@ -39,6 +39,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [viewMode, setViewMode] = useState<"week" | "month">("week");
   const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date()));
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
 
   const locale = language === "es" ? es : enUS;
 
@@ -176,7 +177,13 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
   };
 
   const handleBook = () => {
-    // Always show the name/phone modal first
+    // Show policy modal first
+    setShowPolicyModal(true);
+  };
+
+  const handleAcceptPolicy = () => {
+    setShowPolicyModal(false);
+    // Then show the name/phone modal
     onLoginRequired?.();
   };
 
@@ -532,6 +539,114 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
           )}
         </AnimatePresence>
       </div>
+
+      {/* Booking Policy Modal */}
+      <AnimatePresence>
+        {showPolicyModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+            style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }}
+            onClick={() => setShowPolicyModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 30 }}
+              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+              className="relative w-full max-w-md rounded-2xl overflow-hidden"
+              style={{
+                background: "var(--color-bg-card)",
+                border: "1px solid var(--color-border-default)",
+                boxShadow: "var(--shadow-float)",
+                maxHeight: "90vh",
+                overflowY: "auto",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                <div className="text-center mb-5">
+                  <div
+                    className="mx-auto mb-3 flex items-center justify-center"
+                    style={{
+                      width: 52,
+                      height: 52,
+                      borderRadius: "50%",
+                      background: "var(--color-accent-subtle)",
+                    }}
+                  >
+                    <AlertTriangle size={24} style={{ color: "var(--color-accent)" }} />
+                  </div>
+                  <h3
+                    className="text-lg font-bold"
+                    style={{ fontFamily: "var(--font-display)", color: "var(--color-text-primary)" }}
+                  >
+                    {language === "es" ? "Políticas de Reserva" : "Booking Policies"}
+                  </h3>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="p-3 rounded-xl" style={{ background: "var(--color-accent-subtle)", border: "1px solid var(--color-border-default)" }}>
+                    <p className="text-xs leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
+                      {language === "es"
+                        ? "• Debe notificar cualquier inasistencia a su cita con al menos 24 horas de anticipación para poder conceder el espacio a otro cliente."
+                        : "• You must notify any absence from your appointment at least 24 hours in advance so we can offer the space to another client."}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-xl" style={{ background: "var(--color-accent-subtle)", border: "1px solid var(--color-border-default)" }}>
+                    <p className="text-xs leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
+                      {language === "es"
+                        ? "• Para confirmar citas de color, debe realizar un abono de $100 un día previo a su reserva para confirmar la cita."
+                        : "• To confirm color appointments, a $100 deposit must be made one day prior to your reservation to confirm the appointment."}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-xl" style={{ background: "var(--color-accent-subtle)", border: "1px solid var(--color-border-default)" }}>
+                    <p className="text-xs leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
+                      {language === "es"
+                        ? "• En caso de no asistir y no notificar, automáticamente pierde el 50% del abono realizado."
+                        : "• If you do not attend and do not notify, you automatically forfeit 50% of the deposit made."}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setShowPolicyModal(false)}
+                    className="flex-1 py-3 rounded-xl font-medium text-sm"
+                    style={{
+                      background: "var(--color-bg-glass)",
+                      color: "var(--color-text-secondary)",
+                      border: "1px solid var(--color-border-default)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {language === "es" ? "Cancelar" : "Cancel"}
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleAcceptPolicy}
+                    className="flex-1 py-3 rounded-xl font-semibold text-sm"
+                    style={{
+                      background: "var(--gradient-accent)",
+                      color: "var(--color-text-inverse)",
+                      boxShadow: "var(--shadow-glow)",
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {language === "es" ? "Acepto, Continuar" : "I Accept, Continue"}
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }

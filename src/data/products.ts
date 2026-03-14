@@ -11,7 +11,7 @@ export const products: Product[] = [
     },
     price: 28,
     image:
-      "https://images.unsplash.com/photo-1535585209827-a15fcdbc4c2d?w=800&q=80",
+      "https://images.unsplash.com/photo-1631729371254-42c2892f0e6e?w=800&q=80",
     category: "hair-care",
     inStock: true,
     stockQuantity: 45,
@@ -28,7 +28,7 @@ export const products: Product[] = [
     },
     price: 32,
     image:
-      "https://images.unsplash.com/photo-1526947425960-945c6e72858f?w=800&q=80",
+      "https://images.unsplash.com/photo-1608248597279-f99d160bfcbc?w=800&q=80",
     category: "hair-care",
     inStock: true,
     stockQuantity: 38,
@@ -45,7 +45,7 @@ export const products: Product[] = [
     },
     price: 42,
     image:
-      "https://images.unsplash.com/photo-1608248597279-f99d160bfcbc?w=800&q=80",
+      "https://images.unsplash.com/photo-1615396899839-c99c121888b0?w=800&q=80",
     category: "hair-care",
     inStock: true,
     stockQuantity: 22,
@@ -62,7 +62,7 @@ export const products: Product[] = [
     },
     price: 58,
     image:
-      "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800&q=80",
+      "https://images.unsplash.com/photo-1570194065650-d99fb4a38718?w=800&q=80",
     category: "skin-care",
     inStock: true,
     stockQuantity: 30,
@@ -79,7 +79,7 @@ export const products: Product[] = [
     },
     price: 46,
     image:
-      "https://images.unsplash.com/photo-1611930022073-b7a4ba5fcccd?w=800&q=80",
+      "https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=800&q=80",
     category: "skin-care",
     inStock: true,
     stockQuantity: 25,
@@ -96,7 +96,7 @@ export const products: Product[] = [
     },
     price: 24,
     image:
-      "https://images.unsplash.com/photo-1585751119414-ef2636f8aede?w=800&q=80",
+      "https://images.unsplash.com/photo-1522338140-7f67603f3283?w=800&q=80",
     category: "styling",
     inStock: true,
     stockQuantity: 52,
@@ -113,7 +113,7 @@ export const products: Product[] = [
     },
     price: 22,
     image:
-      "https://images.unsplash.com/photo-1597354984706-fac992d9306f?w=800&q=80",
+      "https://images.unsplash.com/photo-1590439471364-192aa70c0b53?w=800&q=80",
     category: "styling",
     inStock: true,
     stockQuantity: 40,

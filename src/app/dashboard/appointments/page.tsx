@@ -14,12 +14,14 @@ import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, RefreshCw } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export default function AppointmentsPage() {
   const { language, t } = useLanguage();
   const { addToast } = useToast();
   const { allStylists } = useStaff();
+  const router = useRouter();
   const [appointments, setAppointments] = useState<Booking[]>([]);
 
   useEffect(() => {
@@ -82,6 +84,20 @@ export default function AppointmentsPage() {
       apptDate > now &&
       (appt.status === "pending" || appt.status === "confirmed")
     );
+  }
+
+  function handleReschedule(bookingId: string) {
+    // Cancel the current appointment and redirect to booking page
+    const updated = appointments.map((a) =>
+      a.id === bookingId ? { ...a, status: "cancelled" as BookingStatus } : a
+    );
+    setAppointments(updated);
+    setStoredData("mila-bookings", updated);
+    addToast(
+      language === "es" ? "Cita cancelada. Selecciona una nueva fecha." : "Appointment cancelled. Select a new date.",
+      "info"
+    );
+    router.push("/");
   }
 
   return (
@@ -147,13 +163,25 @@ export default function AppointmentsPage() {
                         {formatPrice(appt.totalPrice)}
                       </p>
                       {canCancel(appt) && (
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() => handleCancel(appt.id)}
-                        >
-                          {t("dashboard", "cancel")}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          {appt.status === "confirmed" && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => handleReschedule(appt.id)}
+                            >
+                              <RefreshCw size={12} className="mr-1 inline" />
+                              {language === "es" ? "Reagendar" : "Reschedule"}
+                            </Button>
+                          )}
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() => handleCancel(appt.id)}
+                          >
+                            {t("dashboard", "cancel")}
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </div>
