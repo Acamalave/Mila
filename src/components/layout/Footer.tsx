@@ -8,7 +8,7 @@ import { Instagram, MapPin, Phone, Clock, MessageCircle } from "lucide-react";
 const WAZE_LINK =
   "https://waze.com/ul?a=share_drive&locale=es-419&sd=p5m4EYaaJiC57uFqZg-sd&env=row&utm_source=waze_app&utm_campaign=share_drive";
 const WHATSAPP_LINK = "https://wa.me/50765830099";
-const INSTAGRAM_LINK = "https://www.instagram.com/milaconceptpty";
+const INSTAGRAM_LINK = "https://www.instagram.com/milaconcept";
 
 export default function Footer() {
   const { t, language } = useLanguage();
@@ -23,107 +23,6 @@ export default function Footer() {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
-          {/* Contact - moved before brand */}
-          <div>
-            <h4
-              className="text-sm font-semibold uppercase tracking-wider mb-4"
-              style={{
-                color: "var(--color-text-secondary)",
-                transition: "color 0.3s ease",
-              }}
-            >
-              {t("footer", "contact")}
-            </h4>
-            <ul className="space-y-3">
-              <li>
-                <a
-                  href={WAZE_LINK}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-start gap-2 text-sm transition-colors"
-                  style={{
-                    color: "var(--color-text-muted)",
-                    transition: "color 0.3s ease",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.color = "var(--color-accent)")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.color = "var(--color-text-muted)")
-                  }
-                >
-                  <MapPin
-                    size={14}
-                    className="flex-shrink-0 mt-0.5"
-                    style={{
-                      color: "var(--color-accent-dark)",
-                      transition: "color 0.3s ease",
-                    }}
-                  />
-                  <span>
-                    P.H. Balboa Office Center, Calle 27 Este, Piso 18, Oficina 18-C2, Panam&aacute;
-                  </span>
-                </a>
-              </li>
-              <li>
-                <a
-                  href={WHATSAPP_LINK}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm transition-colors"
-                  style={{
-                    color: "var(--color-text-muted)",
-                    transition: "color 0.3s ease",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.color = "#25d366")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.color = "var(--color-text-muted)")
-                  }
-                >
-                  <Phone
-                    size={14}
-                    className="flex-shrink-0"
-                    style={{
-                      color: "var(--color-accent-dark)",
-                      transition: "color 0.3s ease",
-                    }}
-                  />
-                  <span>+507 6583-0099</span>
-                </a>
-              </li>
-              <li>
-                <a
-                  href={INSTAGRAM_LINK}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm transition-colors"
-                  style={{
-                    color: "var(--color-text-muted)",
-                    transition: "color 0.3s ease",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.color = "var(--color-accent)")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.color = "var(--color-text-muted)")
-                  }
-                >
-                  <Instagram
-                    size={14}
-                    className="flex-shrink-0"
-                    style={{
-                      color: "var(--color-accent-dark)",
-                      transition: "color 0.3s ease",
-                    }}
-                  />
-                  <span>@milaconceptpty</span>
-                </a>
-              </li>
-            </ul>
-          </div>
-
           {/* Brand */}
           <div>
             <Image
@@ -224,6 +123,79 @@ export default function Footer() {
             </ul>
           </div>
 
+          {/* Contact */}
+          <div>
+            <h4
+              className="text-sm font-semibold uppercase tracking-wider mb-4"
+              style={{
+                color: "var(--color-text-secondary)",
+                transition: "color 0.3s ease",
+              }}
+            >
+              {t("footer", "contact")}
+            </h4>
+            <ul className="space-y-3">
+              <li>
+                <a
+                  href={WAZE_LINK}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-start gap-2 text-sm transition-colors"
+                  style={{
+                    color: "var(--color-text-muted)",
+                    transition: "color 0.3s ease",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.color = "var(--color-accent)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.color = "var(--color-text-muted)")
+                  }
+                >
+                  <MapPin
+                    size={14}
+                    className="flex-shrink-0 mt-0.5"
+                    style={{
+                      color: "var(--color-accent-dark)",
+                      transition: "color 0.3s ease",
+                    }}
+                  />
+                  <span>
+                    P.H. Balboa Office Center, Calle 27 Este, Panam&aacute;
+                  </span>
+                </a>
+              </li>
+              <li>
+                <a
+                  href={WHATSAPP_LINK}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-sm transition-colors"
+                  style={{
+                    color: "var(--color-text-muted)",
+                    transition: "color 0.3s ease",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.color = "#25d366")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.color = "var(--color-text-muted)")
+                  }
+                >
+                  <Phone
+                    size={14}
+                    className="flex-shrink-0"
+                    style={{
+                      color: "var(--color-accent-dark)",
+                      transition: "color 0.3s ease",
+                    }}
+                  />
+                  <span>+507 6583-0099</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+
           {/* Hours */}
           <div>
             <h4
@@ -253,8 +225,8 @@ export default function Footer() {
                 />
                 <span>
                   {language === "es"
-                    ? "Lunes a Sábado: 9AM - 7PM"
-                    : "Mon - Sat: 9AM - 7PM"}
+                    ? "Lunes a Sábado: 8AM - 7PM"
+                    : "Mon - Sat: 8AM - 7PM"}
                 </span>
               </li>
               <li className="flex items-center gap-2">
@@ -289,8 +261,8 @@ export default function Footer() {
                 }}
               >
                 {language === "es"
-                  ? "Beneficio especial % para clientes frecuentes"
-                  : "Special benefit % for frequent clients"}
+                  ? "Promo de apertura: 10%-15% clientes frecuentes"
+                  : "Opening promo: 10%-15% for frequent clients"}
               </p>
             </div>
           </div>
