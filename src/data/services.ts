@@ -71,6 +71,26 @@ export const serviceCategories: ServiceCategory[] = [
     image: "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800&q=80",
     icon: "Scissors",
   },
+  {
+    id: "cat-vip",
+    name: { en: "VIP Courses & Training", es: "Cursos VIP y Formación" },
+    description: {
+      en: "Exclusive VIP courses and professional training programs",
+      es: "Cursos VIP exclusivos y programas de formación profesional",
+    },
+    image: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&q=80",
+    icon: "GraduationCap",
+  },
+  {
+    id: "cat-consultation",
+    name: { en: "Consultation", es: "Consulta" },
+    description: {
+      en: "Free initial evaluation and personalized consultation",
+      es: "Evaluación inicial gratuita y consulta personalizada",
+    },
+    image: "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800&q=80",
+    icon: "ClipboardCheck",
+  },
 ];
 
 export const services: Service[] = [
@@ -438,5 +458,87 @@ export const services: Service[] = [
     durationMinutes: 15,
     price: 15,
     lucideIcon: "Eye",
+  },
+
+  // === MAKEUP (updated range) ===
+  {
+    id: "svc-makeup-standard",
+    categoryId: "cat-makeup",
+    name: { en: "Makeup", es: "Maquillaje" },
+    description: {
+      en: "Professional makeup service for any occasion",
+      es: "Servicio profesional de maquillaje para cualquier ocasión",
+    },
+    durationMinutes: 60,
+    price: 120,
+    priceMax: 150,
+    lucideIcon: "Palette",
+  },
+
+  // === BRIDE PACKAGE ===
+  {
+    id: "svc-bride-package",
+    categoryId: "cat-updo",
+    name: { en: "Bride Complete Package", es: "Paquete Novia Completo" },
+    description: {
+      en: "Complete bridal package including hairstyle, makeup, and trial",
+      es: "Paquete nupcial completo que incluye peinado, maquillaje y prueba previa",
+    },
+    durationMinutes: 180,
+    price: 600,
+    lucideIcon: "Crown",
+  },
+
+  // === VIP COURSES ===
+  {
+    id: "svc-curso-vip-basico",
+    categoryId: "cat-vip",
+    name: { en: "VIP Basic Course", es: "Curso VIP Básico" },
+    description: {
+      en: "Introductory VIP course on beauty fundamentals and techniques",
+      es: "Curso VIP introductorio sobre fundamentos y técnicas de belleza",
+    },
+    durationMinutes: 240,
+    price: 200,
+    lucideIcon: "GraduationCap",
+  },
+  {
+    id: "svc-curso-vip-intermedio",
+    categoryId: "cat-vip",
+    name: { en: "VIP Intermediate Course", es: "Curso VIP Intermedio" },
+    description: {
+      en: "Intermediate VIP course with advanced color and styling techniques",
+      es: "Curso VIP intermedio con técnicas avanzadas de color y estilismo",
+    },
+    durationMinutes: 360,
+    price: 500,
+    lucideIcon: "GraduationCap",
+  },
+  {
+    id: "svc-curso-vip-avanzado",
+    categoryId: "cat-vip",
+    name: { en: "VIP Advanced Course", es: "Curso VIP Avanzado" },
+    description: {
+      en: "Advanced VIP course: master-level training in balayage, creative color, and bridal styling",
+      es: "Curso VIP avanzado: formación nivel maestro en balayage, color creativo y estilismo nupcial",
+    },
+    durationMinutes: 480,
+    price: 800,
+    priceMax: 1300,
+    lucideIcon: "GraduationCap",
+  },
+
+  // === FREE CONSULTATION ===
+  {
+    id: "svc-evaluacion-gratuita",
+    categoryId: "cat-consultation",
+    name: { en: "Free Initial Evaluation", es: "Primera Evaluación Gratuita" },
+    description: {
+      en: "Complimentary first evaluation to assess your hair needs and recommend the best services",
+      es: "Primera evaluación sin costo para evaluar las necesidades de tu cabello y recomendar los mejores servicios",
+    },
+    durationMinutes: 30,
+    price: 0,
+    lucideIcon: "ClipboardCheck",
   },
 ];

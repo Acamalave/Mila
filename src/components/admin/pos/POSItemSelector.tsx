@@ -229,8 +229,8 @@ export default function POSItemSelector({
                       />
                       <span>{prod.name}</span>
                       {prod.discount && prod.discount > 0 && (
-                        <span className="text-[10px] font-bold text-red-500">
-                          -{prod.discount}%
+                        <span className="text-[10px] font-bold" style={{ color: "var(--color-accent)" }}>
+                          Beneficio {prod.discount}%
                         </span>
                       )}
                     </div>
