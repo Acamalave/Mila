@@ -101,7 +101,7 @@ export default function HomePage() {
     <>
       <Header />
 
-      <main className="relative" style={{ paddingTop: 56, background: "var(--color-bg-page)", minHeight: "100vh", transition: "background 0.3s ease" }}>
+      <main className="relative" style={{ background: "var(--color-bg-page)", minHeight: "100vh", transition: "background 0.3s ease" }}>
         {/* Animated gradient blobs for glass effect */}
         <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
           <div
