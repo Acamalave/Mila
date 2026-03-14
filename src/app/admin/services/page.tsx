@@ -103,7 +103,7 @@ export default function AdminServicesPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border-default">
+                <tbody className="divide-y divide-border-subtle">
                   {services.map((service) => {
                     const effectiveDuration = getEffectiveDuration(
                       service.id,

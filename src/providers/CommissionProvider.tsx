@@ -12,6 +12,7 @@ import {
 import type { CommissionRecord, Booking } from "@/types";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { useEventBus } from "@/providers/EventBusProvider";
+import { setDocument, onCollectionChange } from "@/lib/firestore";
 import { useStaff } from "@/providers/StaffProvider";
 import { services } from "@/data/services";
 
@@ -96,6 +97,10 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
           persist(next);
           return next;
         });
+        for (const rec of newRecords) {
+          const { id, ...data } = rec;
+          setDocument("commissions", id, data).catch(() => {});
+        }
       }
     },
     [allStylists, commissions, persist]
@@ -103,27 +108,33 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
 
   const markCommissionPaid = useCallback(
     (commissionId: string) => {
+      const paidAt = new Date().toISOString();
       setCommissions((prev) => {
         const next = prev.map((c) =>
           c.id === commissionId
-            ? { ...c, status: "paid" as const, paidAt: new Date().toISOString() }
+            ? { ...c, status: "paid" as const, paidAt }
             : c
         );
         persist(next);
         return next;
       });
+      setDocument("commissions", commissionId, { status: "paid", paidAt }).catch(() => {});
     },
     [persist]
   );
 
   const markAllPaidForStylist = useCallback(
     (stylistId: string) => {
+      const paidAt = new Date().toISOString();
       setCommissions((prev) => {
-        const next = prev.map((c) =>
-          c.stylistId === stylistId && c.status === "pending"
-            ? { ...c, status: "paid" as const, paidAt: new Date().toISOString() }
-            : c
-        );
+        const next = prev.map((c) => {
+          if (c.stylistId === stylistId && c.status === "pending") {
+            const updated = { ...c, status: "paid" as const, paidAt };
+            setDocument("commissions", c.id, { status: "paid", paidAt }).catch(() => {});
+            return updated;
+          }
+          return c;
+        });
         persist(next);
         return next;
       });
@@ -160,6 +171,23 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
     },
     [commissions]
   );
+
+  // Firestore real-time sync
+  useEffect(() => {
+    const unsub = onCollectionChange<CommissionRecord>("commissions", (firestoreCommissions) => {
+      if (firestoreCommissions.length > 0) {
+        setCommissions((prev) => {
+          const merged = new Map<string, CommissionRecord>();
+          for (const c of prev) merged.set(c.id, c);
+          for (const c of firestoreCommissions) merged.set(c.id, c);
+          const next = Array.from(merged.values());
+          persist(next);
+          return next;
+        });
+      }
+    });
+    return () => unsub();
+  }, [persist]);
 
   // Listen for booking updates to auto-generate commissions
   useEffect(() => {

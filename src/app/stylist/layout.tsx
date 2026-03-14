@@ -17,6 +17,7 @@ import {
   Users,
   Star,
   UserCircle,
+  LogOut,
 } from "lucide-react";
 
 export default function StylistLayout({
@@ -24,7 +25,7 @@ export default function StylistLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, isAuthenticated, hydrated } = useAuth();
+  const { user, isAuthenticated, hydrated, logout } = useAuth();
   const { t } = useLanguage();
   const router = useRouter();
   const pathname = usePathname();
@@ -100,6 +101,20 @@ export default function StylistLayout({
                 </Link>
               );
             })}
+
+            <div className="pt-4 mt-4 border-t border-white/[0.04]">
+              <button
+                onClick={() => {
+                  logout();
+                  router.push("/");
+                }}
+                className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-all duration-200 w-full text-left text-mila-taupe hover:bg-white/5"
+                style={{ color: "#9B4D4D" }}
+              >
+                <LogOut size={18} />
+                {t("nav", "logout")}
+              </button>
+            </div>
           </nav>
         </div>
       )}

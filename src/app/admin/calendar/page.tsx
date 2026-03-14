@@ -10,6 +10,7 @@ import {
   getStoredData,
   setStoredData,
 } from "@/lib/utils";
+import { setDocument, onCollectionChange } from "@/lib/firestore";
 import { formatTime } from "@/lib/date-utils";
 import { services } from "@/data/services";
 import { useStaff } from "@/providers/StaffProvider";
@@ -72,8 +73,26 @@ export default function AdminCalendarPage() {
     if (stored.length === 0) {
       stored = getInitialDemoAppointments();
       setStoredData("mila-bookings", stored);
+      for (const b of stored) {
+        const { id, ...data } = b;
+        setDocument("bookings", id, data).catch(() => {});
+      }
     }
     setBookings(stored);
+
+    const unsub = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
+      if (firestoreBookings.length > 0) {
+        setBookings((prev) => {
+          const merged = new Map<string, Booking>();
+          for (const b of prev) merged.set(b.id, b);
+          for (const b of firestoreBookings) merged.set(b.id, b);
+          const next = Array.from(merged.values());
+          setStoredData("mila-bookings", next);
+          return next;
+        });
+      }
+    });
+    return () => unsub();
   }, []);
 
   const weekDays = useMemo(() => {
@@ -109,6 +128,7 @@ export default function AdminCalendarPage() {
       );
       setBookings(updated);
       setStoredData("mila-bookings", updated);
+      setDocument("bookings", bookingId, { status: newStatus }).catch(() => {});
 
       const statusMessages: Record<BookingStatus, { en: string; es: string }> = {
         confirmed: { en: "Booking confirmed", es: "Reserva confirmada" },

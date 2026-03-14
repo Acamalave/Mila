@@ -13,6 +13,7 @@ import POSClientSelector from "@/components/admin/pos/POSClientSelector";
 import POSItemSelector from "@/components/admin/pos/POSItemSelector";
 import POSOrderReview from "@/components/admin/pos/POSOrderReview";
 import POSPaymentSelector from "@/components/admin/pos/POSPaymentSelector";
+import POSPendingView from "@/components/admin/pos/POSPendingView";
 import POSSuccessView from "@/components/admin/pos/POSSuccessView";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
 import {
@@ -28,7 +29,7 @@ import {
 import type { InvoiceItem } from "@/types";
 import type { POSClient } from "@/components/admin/pos/POSClientSelector";
 
-type Step = "client" | "items" | "review" | "payment" | "success";
+type Step = "client" | "items" | "review" | "payment" | "pending" | "success";
 
 const STEPS: Step[] = ["client", "items", "review", "payment"];
 
@@ -37,6 +38,7 @@ const STEP_ICONS: Record<Step, typeof User> = {
   items: ShoppingBag,
   review: Receipt,
   payment: CreditCard,
+  pending: CreditCard,
   success: Check,
 };
 
@@ -51,6 +53,7 @@ export default function POSPage() {
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastPaymentMethod, setLastPaymentMethod] = useState<"card" | "counter">("counter");
+  const [lastInvoiceId, setLastInvoiceId] = useState<string | null>(null);
 
   const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const currentStepIndex = STEPS.indexOf(step);
@@ -133,7 +136,7 @@ export default function POSPage() {
 
     // Create invoice as "sent" — this triggers NotificationProvider
     // to send a payment request to the client's dashboard
-    addInvoice({
+    const newInv = addInvoice({
       clientId: client.id,
       clientName: client.name,
       amount: total,
@@ -151,6 +154,8 @@ export default function POSPage() {
           : "Point of sale transaction",
     });
 
+    setLastInvoiceId(newInv.id);
+
     addToast(
       language === "es"
         ? "Solicitud de pago enviada al cliente"
@@ -159,7 +164,7 @@ export default function POSPage() {
     );
 
     setLastPaymentMethod("card");
-    setStep("success");
+    setStep("pending");
   };
 
   const handleNewSale = () => {
@@ -211,7 +216,7 @@ export default function POSPage() {
       </motion.div>
 
       {/* Step indicator */}
-      {step !== "success" && (
+      {step !== "pending" && step !== "success" && (
         <motion.div variants={fadeInUp}>
           <div className="flex items-center gap-1">
             {STEPS.map((s, i) => {
@@ -335,6 +340,27 @@ export default function POSPage() {
                 />
               )}
 
+              {step === "pending" && (
+                <motion.div
+                  key="pending"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <POSPendingView
+                    invoiceId={lastInvoiceId || ""}
+                    amount={total}
+                    clientName={client?.name || ""}
+                    language={language}
+                    onNewSale={handleNewSale}
+                    onPaid={() => {
+                      setStep("success");
+                    }}
+                  />
+                </motion.div>
+              )}
+
               {step === "success" && client && (
                 <POSSuccessView
                   total={total}
@@ -349,7 +375,7 @@ export default function POSPage() {
       </motion.div>
 
       {/* Navigation buttons */}
-      {step !== "success" && step !== "payment" && (
+      {step !== "pending" && step !== "success" && step !== "payment" && (
         <motion.div
           variants={fadeInUp}
           className="flex items-center justify-between"

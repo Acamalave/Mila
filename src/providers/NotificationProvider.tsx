@@ -13,6 +13,7 @@ import type { AppNotification, Invoice } from "@/types";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
 import { useEventBus } from "@/providers/EventBusProvider";
+import { setDocument, deleteDocument, onCollectionChange } from "@/lib/firestore";
 
 interface NotificationContextValue {
   notifications: AppNotification[];
@@ -65,6 +66,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         persist(next);
         return next;
       });
+      const { id, ...notifData } = newNotif;
+      setDocument("notifications", id, notifData).catch(() => {});
       emit("notification:created", newNotif);
     },
     [emit, persist]
@@ -79,6 +82,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         persist(next);
         return next;
       });
+      setDocument("notifications", notificationId, { read: true }).catch(() => {});
       emit("notification:read", notificationId);
     },
     [emit, persist]
@@ -102,9 +106,27 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         persist(next);
         return next;
       });
+      deleteDocument("notifications", notificationId).catch(() => {});
     },
     [persist]
   );
+
+  // Firestore real-time sync
+  useEffect(() => {
+    const unsub = onCollectionChange<AppNotification>("notifications", (firestoreNotifs) => {
+      if (firestoreNotifs.length > 0) {
+        setAllNotifications((prev) => {
+          const merged = new Map<string, AppNotification>();
+          for (const n of prev) merged.set(n.id, n);
+          for (const n of firestoreNotifs) merged.set(n.id, n);
+          const next = Array.from(merged.values());
+          persist(next);
+          return next;
+        });
+      }
+    });
+    return () => unsub();
+  }, [persist]);
 
   // Auto-create notifications from events
   useEffect(() => {
@@ -133,12 +155,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             persist(next);
             return next;
           });
+          const { id, ...notifData } = newNotif;
+          setDocument("notifications", id, notifData).catch(() => {});
         }
       }),
       on("invoice:paid", (payload) => {
         const invoice = payload as Invoice;
         if (invoice) {
-          // Notify admin
           const adminNotif: AppNotification = {
             id: `notif-${generateId()}`,
             userId: "user-admin",
@@ -155,7 +178,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             createdAt: new Date().toISOString(),
             invoiceId: invoice.id,
           };
-          // Notify client
           const clientNotif: AppNotification = {
             id: `notif-${generateId()}`,
             userId: invoice.clientId,
@@ -177,6 +199,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             persist(next);
             return next;
           });
+          const { id: adminId, ...adminData } = adminNotif;
+          const { id: clientId, ...clientData } = clientNotif;
+          setDocument("notifications", adminId, adminData).catch(() => {});
+          setDocument("notifications", clientId, clientData).catch(() => {});
         }
       }),
       on("notification:created", () => {

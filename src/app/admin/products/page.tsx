@@ -289,7 +289,7 @@ export default function AdminProductsPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border-default">
+              <tbody className="divide-y divide-border-subtle">
                 {allProducts.map((product) => (
                   <tr
                     key={product.id}

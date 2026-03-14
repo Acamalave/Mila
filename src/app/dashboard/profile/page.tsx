@@ -6,8 +6,6 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useToast } from "@/providers/ToastProvider";
 import { usePayment, detectCardBrand } from "@/providers/PaymentProvider";
-import { setStoredData } from "@/lib/utils";
-import type { User } from "@/types";
 import CreditCardForm, { type CardFormData } from "@/components/payment/CreditCardForm";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
@@ -32,7 +30,7 @@ const BRAND_DISPLAY: Record<string, string> = {
 };
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const { language, t } = useLanguage();
   const { addToast } = useToast();
   const { savedCards, addCard, removeCard, setDefaultCard } = usePayment();
@@ -56,14 +54,11 @@ export default function ProfilePage() {
 
     if (!user) return;
 
-    const updatedUser: User = {
-      ...user,
+    updateProfile({
       name: name.trim(),
       phone: phone.trim(),
       email: email.trim() || undefined,
-    };
-
-    setStoredData("mila-auth", updatedUser);
+    });
 
     addToast(
       language === "es"
@@ -123,9 +118,9 @@ export default function ProfilePage() {
       className="space-y-6 max-w-2xl"
     >
       {/* Header */}
-      <motion.div variants={fadeInUp} className="flex items-center gap-3">
-        <UserCircle size={24} className="text-mila-gold" />
-        <h1 className="text-2xl font-bold font-[family-name:var(--font-display)] text-text-primary">
+      <motion.div variants={fadeInUp}>
+        <div style={{ width: 32, height: 1, background: "var(--gradient-accent-h)", marginBottom: 12 }} />
+        <h1 style={{ fontFamily: "var(--font-accent)", fontSize: "clamp(28px, 6vw, 40px)", fontWeight: 300, fontStyle: "italic", color: "var(--color-text-primary)", lineHeight: 1.1, textTransform: "none", letterSpacing: "normal" }}>
           {t("dashboard", "profile")}
         </h1>
       </motion.div>
@@ -134,11 +129,13 @@ export default function ProfilePage() {
         <Card>
           {/* Avatar */}
           <div className="flex justify-center mb-6">
-            <Avatar
-              src={user?.avatar}
-              alt={user?.name ?? "User"}
-              size="xl"
-            />
+            <div style={{ padding: 3, borderRadius: "50%", background: "var(--gradient-ring)" }}>
+              <Avatar
+                src={user?.avatar}
+                alt={user?.name ?? "User"}
+                size="xl"
+              />
+            </div>
           </div>
 
           {/* Form */}
@@ -182,8 +179,8 @@ export default function ProfilePage() {
           {/* Section header */}
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
-              <CreditCard size={20} className="text-mila-gold" />
-              <h2 className="text-lg font-semibold font-[family-name:var(--font-display)] text-text-primary">
+              <CreditCard size={20} style={{ color: "var(--color-accent)" }} />
+              <h2 style={{ fontFamily: "var(--font-accent)", fontSize: 22, fontWeight: 300, fontStyle: "italic", color: "var(--color-text-primary)", textTransform: "none", letterSpacing: "normal" }}>
                 {t("dashboard", "paymentMethods")}
               </h2>
             </div>

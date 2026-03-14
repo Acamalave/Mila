@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { services } from "@/data/services";
 import { formatServicePrice } from "@/lib/utils";
+import { Upload, X, ImageIcon } from "lucide-react";
 import type { Stylist, StylistSchedule, ServiceCommission } from "@/types";
 
 interface StaffFormModalProps {
@@ -51,6 +52,8 @@ export default function StaffFormModal({
   const [serviceCommissionOverrides, setServiceCommissionOverrides] = useState<Record<string, number>>({});
   const [schedule, setSchedule] = useState<StylistSchedule[]>(getDefaultSchedule());
   const [errors, setErrors] = useState<{ name?: string; services?: string }>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Reset form when modal opens or stylist changes
   useEffect(() => {
@@ -112,6 +115,35 @@ export default function StaffFormModal({
     },
     []
   );
+
+  const handleFileSelect = useCallback((file: File) => {
+    if (!file.type.startsWith("image/")) return;
+    // Limit to 2MB
+    if (file.size > 2 * 1024 * 1024) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      // Resize to max 256px for localStorage efficiency
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const maxSize = 256;
+        let w = img.width;
+        let h = img.height;
+        if (w > h) { h = (h / w) * maxSize; w = maxSize; }
+        else { w = (w / h) * maxSize; h = maxSize; }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, w, h);
+          setAvatar(canvas.toDataURL("image/jpeg", 0.85));
+        }
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  }, []);
 
   const handleSubmit = () => {
     const newErrors: { name?: string; services?: string } = {};
@@ -339,40 +371,131 @@ export default function StaffFormModal({
           )}
         </div>
 
-        {/* Avatar URL + Preview */}
+        {/* Avatar Upload */}
         <div>
-          <Input
-            label={t("admin", "staffAvatar")}
-            value={avatar}
-            onChange={(e) => setAvatar(e.target.value)}
-            placeholder="https://images.unsplash.com/..."
+          <label
+            className="block text-sm font-medium mb-2"
+            style={{ color: "var(--color-text-secondary)", transition: "color 0.3s ease" }}
+          >
+            {t("admin", "staffAvatar")}
+          </label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleFileSelect(file);
+              e.target.value = "";
+            }}
           />
-          {avatar.trim() && (
-            <div className="mt-2 flex items-center gap-3">
+
+          {avatar.trim() ? (
+            /* Preview with change/remove */
+            <div className="flex items-center gap-4">
               <div
-                className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0"
+                className="relative w-16 h-16 rounded-full overflow-hidden flex-shrink-0 group"
                 style={{
-                  border: "2px solid var(--color-border-default)",
+                  border: "2px solid var(--color-border-accent)",
                   background: "var(--color-bg-glass)",
-                  transition: "all 0.3s ease",
+                  boxShadow: "var(--shadow-card)",
                 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={avatar}
-                  alt="Avatar preview"
+                  alt="Avatar"
                   className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                 />
               </div>
-              <span
-                className="text-xs"
-                style={{ color: "var(--color-text-muted)", transition: "color 0.3s ease" }}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                  style={{
+                    color: "var(--color-accent)",
+                    border: "1px solid var(--color-border-default)",
+                    background: "transparent",
+                    cursor: "pointer",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "var(--color-accent)";
+                    e.currentTarget.style.background = "var(--color-accent-subtle)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "var(--color-border-default)";
+                    e.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  <Upload size={12} />
+                  {language === "en" ? "Change" : "Cambiar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAvatar("")}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                  style={{
+                    color: "var(--color-text-muted)",
+                    border: "1px solid var(--color-border-default)",
+                    background: "transparent",
+                    cursor: "pointer",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = "#9B4D4D";
+                    e.currentTarget.style.borderColor = "#9B4D4D";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = "var(--color-text-muted)";
+                    e.currentTarget.style.borderColor = "var(--color-border-default)";
+                  }}
+                >
+                  <X size={12} />
+                  {language === "en" ? "Remove" : "Eliminar"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Upload drop zone */
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => fileInputRef.current?.click()}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") fileInputRef.current?.click(); }}
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                const file = e.dataTransfer.files?.[0];
+                if (file) handleFileSelect(file);
+              }}
+              className="flex flex-col items-center justify-center gap-2 py-6 px-4 rounded-xl cursor-pointer transition-all"
+              style={{
+                border: isDragging ? "2px dashed var(--color-accent)" : "2px dashed var(--color-border-default)",
+                background: isDragging ? "var(--color-accent-subtle)" : "var(--color-bg-input)",
+                transition: "all 0.25s ease",
+              }}
+            >
+              <div
+                className="flex items-center justify-center rounded-full"
+                style={{
+                  width: 40,
+                  height: 40,
+                  background: "var(--color-bg-glass)",
+                  border: "1px solid var(--color-border-default)",
+                }}
               >
-                {language === "en" ? "Preview" : "Vista previa"}
-              </span>
+                <ImageIcon size={18} style={{ color: "var(--color-text-muted)" }} />
+              </div>
+              <p className="text-xs font-medium" style={{ color: "var(--color-text-secondary)" }}>
+                {language === "en" ? "Upload photo" : "Subir foto"}
+              </p>
+              <p className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>
+                {language === "en" ? "Drag & drop or click to browse · Max 2MB" : "Arrastra o haz clic para buscar · Máx 2MB"}
+              </p>
             </div>
           )}
         </div>

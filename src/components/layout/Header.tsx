@@ -84,11 +84,11 @@ export default function Header() {
             {/* Logo */}
             <Link href="/" className="flex-shrink-0">
               <Image
-                src="/logo-mila.png"
-                alt="Mila Concept"
-                width={160}
-                height={64}
-                className="h-10 sm:h-14 w-auto object-contain"
+                src="/logo-mila-brand.png"
+                alt="Milà Concept"
+                width={120}
+                height={48}
+                className="h-8 sm:h-10 w-auto object-contain"
                 priority
               />
             </Link>
@@ -208,17 +208,20 @@ export default function Header() {
               ) : (
                 <Link href="/login">
                   <motion.span
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
-                    className="inline-block px-5 py-2 rounded-full text-sm font-medium"
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.92 }}
+                    className="inline-flex items-center justify-center"
                     style={{
-                      background: "var(--gradient-accent)",
-                      color: "var(--color-text-inverse)",
-                      boxShadow: "var(--shadow-glow)",
+                      width: 36,
+                      height: 36,
+                      borderRadius: "50%",
+                      background: "rgba(255,255,255,0.06)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      color: "var(--color-text-secondary)",
                       transition: "all 0.3s ease",
                     }}
                   >
-                    {t("nav", "login")}
+                    <User size={16} />
                   </motion.span>
                 </Link>
               )}

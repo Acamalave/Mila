@@ -11,10 +11,11 @@ import {
 import type { Invoice } from "@/types";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { useEventBus } from "@/providers/EventBusProvider";
+import { setDocument, deleteDocument, onCollectionChange } from "@/lib/firestore";
 
 interface InvoiceContextValue {
   invoices: Invoice[];
-  addInvoice: (invoice: Omit<Invoice, "id" | "createdAt">) => void;
+  addInvoice: (invoice: Omit<Invoice, "id" | "createdAt">) => Invoice;
   updateInvoice: (id: string, updates: Partial<Invoice>) => void;
   sendInvoice: (invoiceId: string) => void;
   markAsPaid: (invoiceId: string, transactionId: string) => void;
@@ -36,7 +37,7 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
     setStoredData("mila-invoices", next);
   }, []);
 
-  const addInvoice = useCallback((data: Omit<Invoice, "id" | "createdAt">) => {
+  const addInvoice = useCallback((data: Omit<Invoice, "id" | "createdAt">): Invoice => {
     const newInvoice: Invoice = {
       ...data,
       id: `inv-${generateId()}`,
@@ -47,7 +48,10 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
       persist(next);
       return next;
     });
+    const { id, ...invoiceData } = newInvoice;
+    setDocument("invoices", id, invoiceData).catch(() => {});
     emit("invoice:created", newInvoice);
+    return newInvoice;
   }, [emit, persist]);
 
   const updateInvoice = useCallback((id: string, updates: Partial<Invoice>) => {
@@ -56,14 +60,16 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
       persist(next);
       return next;
     });
+    setDocument("invoices", id, updates as Record<string, unknown>).catch(() => {});
     emit("invoice:updated", { id, updates });
   }, [emit, persist]);
 
   const sendInvoice = useCallback((invoiceId: string) => {
+    const sentAt = new Date().toISOString();
     setInvoices((prev) => {
       const next = prev.map((inv) =>
         inv.id === invoiceId
-          ? { ...inv, status: "sent" as const, sentAt: new Date().toISOString() }
+          ? { ...inv, status: "sent" as const, sentAt }
           : inv
       );
       persist(next);
@@ -73,16 +79,18 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
       }
       return next;
     });
+    setDocument("invoices", invoiceId, { status: "sent", sentAt }).catch(() => {});
   }, [emit, persist]);
 
   const markAsPaid = useCallback((invoiceId: string, transactionId: string) => {
+    const paidAt = new Date().toISOString();
     setInvoices((prev) => {
       const next = prev.map((inv) =>
         inv.id === invoiceId
           ? {
               ...inv,
               status: "paid" as const,
-              paidAt: new Date().toISOString(),
+              paidAt,
               paymentTransactionId: transactionId,
             }
           : inv
@@ -94,6 +102,7 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
       }
       return next;
     });
+    setDocument("invoices", invoiceId, { status: "paid", paidAt, paymentTransactionId: transactionId }).catch(() => {});
   }, [emit, persist]);
 
   const deleteInvoice = useCallback((invoiceId: string) => {
@@ -102,6 +111,7 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
       persist(next);
       return next;
     });
+    deleteDocument("invoices", invoiceId).catch(() => {});
   }, [persist]);
 
   const getInvoicesForClient = useCallback(
@@ -124,12 +134,31 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
         persist(next);
         return next;
       });
+      const { id, ...invoiceData } = newInvoice;
+      setDocument("invoices", id, invoiceData).catch(() => {});
       emit("invoice:created", newInvoice);
       emit("invoice:paid", newInvoice);
       return newInvoice;
     },
     [emit, persist]
   );
+
+  // Firestore real-time sync
+  useEffect(() => {
+    const unsub = onCollectionChange<Invoice>("invoices", (firestoreInvoices) => {
+      if (firestoreInvoices.length > 0) {
+        setInvoices((prev) => {
+          const merged = new Map<string, Invoice>();
+          for (const inv of prev) merged.set(inv.id, inv);
+          for (const inv of firestoreInvoices) merged.set(inv.id, inv);
+          const next = Array.from(merged.values());
+          persist(next);
+          return next;
+        });
+      }
+    });
+    return () => unsub();
+  }, [persist]);
 
   useEffect(() => {
     const unsubs = [

@@ -3,7 +3,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
-import { cn, formatPrice, getStoredData } from "@/lib/utils";
+import { cn, formatPrice, getStoredData, setStoredData } from "@/lib/utils";
+import { onCollectionChange } from "@/lib/firestore";
 import { formatShortDate, formatTime } from "@/lib/date-utils";
 import { services } from "@/data/services";
 import { useStaff } from "@/providers/StaffProvider";
@@ -26,6 +27,20 @@ export default function AdminOverviewPage() {
       stored = getInitialDemoAppointments();
     }
     setBookings(stored);
+
+    const unsub = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
+      if (firestoreBookings.length > 0) {
+        setBookings((prev) => {
+          const merged = new Map<string, Booking>();
+          for (const b of prev) merged.set(b.id, b);
+          for (const b of firestoreBookings) merged.set(b.id, b);
+          const next = Array.from(merged.values());
+          setStoredData("mila-bookings", next);
+          return next;
+        });
+      }
+    });
+    return () => unsub();
   }, []);
 
   const stats = useMemo(() => {
@@ -201,7 +216,7 @@ export default function AdminOverviewPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border-default">
+              <tbody className="divide-y divide-border-subtle">
                 {recentBookings.length === 0 ? (
                   <tr>
                     <td

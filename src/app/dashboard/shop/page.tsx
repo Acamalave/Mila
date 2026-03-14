@@ -123,9 +123,9 @@ export default function ShopPage() {
       className="space-y-6 pb-24"
     >
       {/* Header */}
-      <motion.div variants={fadeInUp} className="flex items-center gap-3">
-        <ShoppingBag size={24} className="text-mila-gold" />
-        <h1 className="text-2xl font-bold font-[family-name:var(--font-display)] text-text-primary">
+      <motion.div variants={fadeInUp}>
+        <div style={{ width: 32, height: 1, background: "var(--gradient-accent-h)", marginBottom: 12 }} />
+        <h1 style={{ fontFamily: "var(--font-accent)", fontSize: "clamp(28px, 6vw, 40px)", fontWeight: 300, fontStyle: "italic", color: "var(--color-text-primary)", lineHeight: 1.1, textTransform: "none", letterSpacing: "normal" }}>
           {t("dashboard", "shop")}
         </h1>
       </motion.div>
@@ -136,12 +136,15 @@ export default function ShopPage() {
           <button
             key={cat.value}
             onClick={() => setActiveCategory(cat.value)}
-            className={cn(
-              "px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200",
-              activeCategory === cat.value
-                ? "bg-mila-gold text-white"
-                : "bg-white/5 text-text-secondary hover:bg-mila-gold/10 hover:text-mila-gold"
-            )}
+            className="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200"
+            style={{
+              background: activeCategory === cat.value ? "var(--gradient-accent)" : "var(--color-bg-glass)",
+              color: activeCategory === cat.value ? "var(--color-text-inverse)" : "var(--color-text-secondary)",
+              border: activeCategory === cat.value ? "1px solid var(--color-accent)" : "1px solid var(--color-border-default)",
+              cursor: "pointer",
+              fontFamily: "var(--font-display)",
+              letterSpacing: "0.06em",
+            }}
           >
             {language === "es" ? cat.labelEs : cat.labelEn}
           </button>
@@ -178,10 +181,10 @@ export default function ShopPage() {
 
               {/* Info */}
               <div className="p-4 flex-1 flex flex-col">
-                <p className="text-xs text-text-muted uppercase tracking-wider">
+                <p style={{ fontSize: 10, fontFamily: "var(--font-display)", textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--color-text-muted)" }}>
                   {product.brand}
                 </p>
-                <p className="font-semibold text-sm text-text-primary mt-1 line-clamp-2 flex-1">
+                <p className="font-semibold mt-1 line-clamp-2 flex-1" style={{ fontSize: 13, color: "var(--color-text-primary)" }}>
                   {product.name}
                 </p>
                 <StarRating rating={product.rating} size={12} className="mt-2" />
@@ -196,7 +199,7 @@ export default function ShopPage() {
                       </span>
                     </div>
                   ) : (
-                    <p className="text-lg font-bold text-mila-gold">
+                    <p className="text-lg font-bold" style={{ color: "var(--color-accent)" }}>
                       {formatPrice(product.price)}
                     </p>
                   )}
@@ -230,20 +233,28 @@ export default function ShopPage() {
             <div className="max-w-2xl mx-auto">
               <button
                 onClick={() => setCartOpen(true)}
-                className="w-full bg-mila-espresso text-white rounded-xl px-6 py-4 flex items-center justify-between shadow-[0_-4px_20px_rgba(0,0,0,0.15)] hover:bg-mila-charcoal transition-colors"
+                className="w-full rounded-xl px-6 py-4 flex items-center justify-between"
+                style={{
+                  background: "rgba(5,5,5,0.85)",
+                  backdropFilter: "blur(20px)",
+                  border: "1px solid var(--color-border-accent)",
+                  boxShadow: "var(--shadow-float)",
+                  cursor: "pointer",
+                  color: "var(--color-text-primary)",
+                }}
               >
                 <div className="flex items-center gap-3">
                   <div className="relative">
-                    <ShoppingCart size={20} />
-                    <span className="absolute -top-2 -right-2 w-5 h-5 bg-mila-gold rounded-full text-xs flex items-center justify-center font-bold">
+                    <ShoppingCart size={20} style={{ color: "var(--color-accent)" }} />
+                    <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full text-xs flex items-center justify-center font-bold" style={{ background: "var(--gradient-accent)", color: "var(--color-text-inverse)" }}>
                       {totalItems}
                     </span>
                   </div>
-                  <span className="font-medium">
+                  <span className="font-medium" style={{ fontFamily: "var(--font-display)", letterSpacing: "0.06em" }}>
                     {t("dashboard", "cart")}
                   </span>
                 </div>
-                <span className="font-bold text-lg">
+                <span className="font-bold text-lg" style={{ color: "var(--color-accent)" }}>
                   {formatPrice(totalPrice)}
                 </span>
               </button>

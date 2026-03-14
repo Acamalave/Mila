@@ -78,11 +78,15 @@ export default function Modal({
                 }}
               >
                 <h3
-                  className="text-xl font-semibold"
                   style={{
-                    fontFamily: "var(--font-display)",
+                    fontFamily: "var(--font-accent)",
+                    fontSize: "clamp(20px, 4vw, 24px)",
+                    fontWeight: 400,
+                    fontStyle: "italic",
                     color: "var(--color-text-primary)",
                     transition: "color 0.3s ease",
+                    letterSpacing: "-0.01em",
+                    lineHeight: 1.2,
                   }}
                 >
                   {title}

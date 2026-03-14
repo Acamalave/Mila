@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useToast } from "@/providers/ToastProvider";
 import { getStoredData, setStoredData, formatPrice } from "@/lib/utils";
+import { setDocument, onCollectionChange } from "@/lib/firestore";
 import { formatShortDate, formatTime } from "@/lib/date-utils";
 import { services } from "@/data/services";
 import { useStaff } from "@/providers/StaffProvider";
@@ -27,8 +28,26 @@ export default function AppointmentsPage() {
     if (stored.length === 0) {
       stored = getInitialDemoAppointments();
       setStoredData("mila-bookings", stored);
+      for (const b of stored) {
+        const { id, ...data } = b;
+        setDocument("bookings", id, data).catch(() => {});
+      }
     }
     setAppointments(stored);
+
+    const unsub = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
+      if (firestoreBookings.length > 0) {
+        setAppointments((prev) => {
+          const merged = new Map<string, Booking>();
+          for (const b of prev) merged.set(b.id, b);
+          for (const b of firestoreBookings) merged.set(b.id, b);
+          const next = Array.from(merged.values());
+          setStoredData("mila-bookings", next);
+          return next;
+        });
+      }
+    });
+    return () => unsub();
   }, []);
 
   const now = new Date();
@@ -70,6 +89,7 @@ export default function AppointmentsPage() {
     );
     setAppointments(updated);
     setStoredData("mila-bookings", updated);
+    setDocument("bookings", bookingId, { status: "cancelled" }).catch(() => {});
     addToast(
       language === "es" ? "Cita cancelada" : "Appointment cancelled",
       "info"
@@ -91,9 +111,9 @@ export default function AppointmentsPage() {
       animate="visible"
       className="space-y-6"
     >
-      <motion.div variants={fadeInUp} className="flex items-center gap-3">
-        <CalendarDays size={24} className="text-mila-gold" />
-        <h1 className="text-2xl font-bold font-[family-name:var(--font-display)] text-text-primary">
+      <motion.div variants={fadeInUp}>
+        <div style={{ width: 32, height: 1, background: "var(--gradient-accent-h)", marginBottom: 12 }} />
+        <h1 style={{ fontFamily: "var(--font-accent)", fontSize: "clamp(28px, 6vw, 40px)", fontWeight: 300, fontStyle: "italic", color: "var(--color-text-primary)", lineHeight: 1.1, textTransform: "none", letterSpacing: "normal" }}>
           {t("dashboard", "appointments")}
         </h1>
       </motion.div>
@@ -116,15 +136,16 @@ export default function AppointmentsPage() {
             return (
               <motion.div
                 key={appt.id}
-                variants={fadeInUp}
-                custom={i}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.06, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
               >
                 <Card className={isPast ? "opacity-70" : ""}>
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     {/* Left: service info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <p className="font-semibold text-text-primary truncate">
+                        <p className="truncate" style={{ fontFamily: "var(--font-accent)", fontSize: 16, fontWeight: 400, fontStyle: "italic", color: "var(--color-text-primary)" }}>
                           {getServiceNames(appt)}
                         </p>
                         <Badge variant={statusVariant(appt.status)}>
@@ -135,7 +156,7 @@ export default function AppointmentsPage() {
                         {stylist?.name ?? appt.stylistId} &middot;{" "}
                         {stylist?.role[language]}
                       </p>
-                      <p className="text-sm text-text-muted mt-1">
+                      <p className="mt-1" style={{ fontFamily: "var(--font-display)", fontSize: 11, color: "var(--color-text-muted)", letterSpacing: "0.06em" }}>
                         {formatShortDate(appt.date, language)} &middot;{" "}
                         {formatTime(appt.startTime)} - {formatTime(appt.endTime)}
                       </p>
@@ -143,7 +164,7 @@ export default function AppointmentsPage() {
 
                     {/* Right: price and actions */}
                     <div className="flex items-center gap-4 flex-shrink-0">
-                      <p className="text-lg font-semibold text-mila-gold">
+                      <p style={{ fontFamily: "var(--font-accent)", fontSize: 20, fontWeight: 400, color: "var(--color-accent)" }}>
                         {formatPrice(appt.totalPrice)}
                       </p>
                       {canCancel(appt) && (

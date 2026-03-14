@@ -20,55 +20,61 @@
   --color-error: #9B4D4D;
   --color-info: #6B7B8D;
 
+  /* Border tokens — registered here so Tailwind generates
+     border-border-default / divide-border-default etc. */
+  --color-border-default: rgba(255, 255, 255, 0.04);
+  --color-border-subtle: rgba(255, 255, 255, 0.02);
+  --color-border-accent: rgba(196, 169, 106, 0.12);
+
   --font-display: "Montserrat", -apple-system, sans-serif;
   --font-body: "Inter", -apple-system, sans-serif;
   --font-accent: "Cormorant Garamond", Georgia, serif;
 }
 
 /* ───────────────────────────────────────────────
-   Dark Theme (default)
+   Dark Theme (default) — Refined Premium
    ─────────────────────────────────────────────── */
 :root,
 [data-theme="dark"] {
-  --color-bg-page: #060608;
-  --color-bg-card: #141414;
-  --color-bg-glass: rgba(255, 255, 255, 0.03);
-  --color-bg-glass-hover: rgba(255, 255, 255, 0.06);
-  --color-bg-glass-selected: rgba(142, 123, 84, 0.12);
-  --color-bg-input: rgba(255, 255, 255, 0.08);
-  --color-bg-overlay: rgba(0, 0, 0, 0.7);
+  --color-bg-page: #050505;
+  --color-bg-card: #111111;
+  --color-bg-glass: rgba(255, 255, 255, 0.025);
+  --color-bg-glass-hover: rgba(255, 255, 255, 0.05);
+  --color-bg-glass-selected: rgba(196, 169, 106, 0.08);
+  --color-bg-input: rgba(255, 255, 255, 0.06);
+  --color-bg-overlay: rgba(0, 0, 0, 0.75);
 
-  --color-text-primary: #FAF8F5;
+  --color-text-primary: #F5F0EB;
   --color-text-secondary: #ABA595;
-  --color-text-muted: #6B6560;
-  --color-text-inverse: #110D09;
+  --color-text-muted: #5C5750;
+  --color-text-inverse: #0a0a0a;
 
   --color-accent: #C4A96A;
   --color-accent-dark: #8E7B54;
-  --color-accent-glow: rgba(142, 123, 84, 0.4);
-  --color-accent-subtle: rgba(142, 123, 84, 0.15);
+  --color-accent-glow: rgba(196, 169, 106, 0.25);
+  --color-accent-subtle: rgba(196, 169, 106, 0.08);
 
-  --color-border-default: rgba(255, 255, 255, 0.06);
-  --color-border-subtle: rgba(255, 255, 255, 0.03);
-  --color-border-accent: rgba(196, 169, 106, 0.5);
+  --color-border-default: rgba(255, 255, 255, 0.04);
+  --color-border-subtle: rgba(255, 255, 255, 0.02);
+  --color-border-accent: rgba(196, 169, 106, 0.12);
 
   --gradient-accent: linear-gradient(135deg, #8E7B54, #C4A96A);
   --gradient-accent-h: linear-gradient(90deg, #8E7B54, #C4A96A);
   --gradient-ring: conic-gradient(from 0deg, #8E7B54, #C4A96A, #D4C5A0, #8E7B54);
 
-  --shadow-card: 0 2px 10px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.03);
-  --shadow-card-hover: 0 8px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  --shadow-card-selected: 0 0 30px rgba(142, 123, 84, 0.25), 0 0 60px rgba(142, 123, 84, 0.1);
-  --shadow-glow: 0 0 20px rgba(142, 123, 84, 0.3);
+  --shadow-card: 0 1px 8px rgba(0, 0, 0, 0.25);
+  --shadow-card-hover: 0 4px 20px rgba(0, 0, 0, 0.35);
+  --shadow-card-selected: 0 0 20px rgba(196, 169, 106, 0.15), 0 0 40px rgba(196, 169, 106, 0.05);
+  --shadow-glow: 0 0 15px rgba(196, 169, 106, 0.2);
   --shadow-float: 0 8px 30px rgba(0, 0, 0, 0.5);
 
-  --blob-color-1: rgba(142, 123, 84, 0.12);
-  --blob-color-2: rgba(100, 120, 140, 0.08);
-  --blob-color-3: rgba(196, 169, 106, 0.06);
+  --blob-color-1: rgba(196, 169, 106, 0.06);
+  --blob-color-2: rgba(100, 120, 140, 0.04);
+  --blob-color-3: rgba(196, 169, 106, 0.03);
 
   --scrollbar-track: #0A0A0A;
-  --scrollbar-thumb: #333;
-  --scrollbar-thumb-hover: #444;
+  --scrollbar-thumb: #222;
+  --scrollbar-thumb-hover: #333;
 }
 
 
@@ -102,14 +108,14 @@
   }
 
   ::-webkit-scrollbar {
-    width: 6px;
+    width: 4px;
   }
   ::-webkit-scrollbar-track {
     background: var(--scrollbar-track);
   }
   ::-webkit-scrollbar-thumb {
     background: var(--scrollbar-thumb);
-    border-radius: 3px;
+    border-radius: 2px;
   }
   ::-webkit-scrollbar-thumb:hover {
     background: var(--scrollbar-thumb-hover);

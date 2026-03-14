@@ -2,9 +2,8 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Check, CreditCard, ArrowLeft } from "lucide-react";
+import { Check, CreditCard, ArrowLeft, Plus, X } from "lucide-react";
 import Modal from "@/components/ui/Modal";
-import SavedCardSelector from "@/components/payment/SavedCardSelector";
 import CreditCardForm, { type CardFormData } from "@/components/payment/CreditCardForm";
 import { usePayment, detectCardBrand } from "@/providers/PaymentProvider";
 import { useInvoices } from "@/providers/InvoiceProvider";
@@ -19,15 +18,33 @@ interface PaymentModalProps {
   onClose: () => void;
   invoice: Invoice | null;
   onPaymentComplete?: () => void;
+  onDecline?: () => void;
 }
 
-type PaymentStep = "select" | "new-card" | "processing" | "success";
+type PaymentStep = "invoice" | "new-card" | "processing" | "success";
+
+const BRAND_COLORS: Record<string, string> = {
+  visa: "#1A1F71",
+  mastercard: "#EB001B",
+  amex: "#006FCF",
+  discover: "#FF6600",
+  unknown: "var(--color-text-muted)",
+};
+
+const BRAND_LABELS: Record<string, string> = {
+  visa: "VISA",
+  mastercard: "MC",
+  amex: "AMEX",
+  discover: "DISC",
+  unknown: "CARD",
+};
 
 export default function PaymentModal({
   isOpen,
   onClose,
   invoice,
   onPaymentComplete,
+  onDecline,
 }: PaymentModalProps) {
   const { savedCards, addCard, removeCard, processPayment } = usePayment();
   const { markAsPaid } = useInvoices();
@@ -35,9 +52,10 @@ export default function PaymentModal({
   const { language, t } = useLanguage();
   const { addToast } = useToast();
 
-  const [step, setStep] = useState<PaymentStep>("select");
+  const [step, setStep] = useState<PaymentStep>("invoice");
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [wantsNewCard, setWantsNewCard] = useState(false);
   const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Reset state when modal opens/closes
@@ -45,8 +63,9 @@ export default function PaymentModal({
     if (isOpen) {
       const defaultCard = savedCards.find((c) => c.isDefault);
       setSelectedCardId(defaultCard?.id ?? savedCards[0]?.id ?? null);
-      setStep(savedCards.length > 0 ? "select" : "new-card");
+      setStep("invoice");
       setIsProcessing(false);
+      setWantsNewCard(false);
     }
     return () => {
       if (autoCloseTimerRef.current) {
@@ -62,11 +81,9 @@ export default function PaymentModal({
       setStep("processing");
       setIsProcessing(true);
 
-      // Simulated processing delay
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
       try {
-        // If saving a new card, add it first
         if (saveCardData?.saveCard) {
           addCard({
             userId: user.id,
@@ -86,12 +103,11 @@ export default function PaymentModal({
         addToast(t("payment", "paymentSuccessful"), "success");
         onPaymentComplete?.();
 
-        // Auto-close after 2s
         autoCloseTimerRef.current = setTimeout(() => {
           onClose();
         }, 2000);
       } catch {
-        setStep("select");
+        setStep("invoice");
         setIsProcessing(false);
         addToast(t("payment", "paymentFailed"), "error");
       }
@@ -99,19 +115,27 @@ export default function PaymentModal({
     [invoice, user, savedCards.length, addCard, processPayment, markAsPaid, addToast, t, onPaymentComplete, onClose]
   );
 
-  const handleSavedCardPay = useCallback(() => {
+  const handlePayFromInvoice = useCallback(() => {
+    if (wantsNewCard || savedCards.length === 0) {
+      setStep("new-card");
+      return;
+    }
     if (!selectedCardId) return;
     handleProcessPayment(selectedCardId);
-  }, [selectedCardId, handleProcessPayment]);
+  }, [wantsNewCard, savedCards.length, selectedCardId, handleProcessPayment]);
 
   const handleNewCardSubmit = useCallback(
     (data: CardFormData) => {
-      // Use a temporary card ID for new-card payment
       const tempCardId = `temp-${Date.now()}`;
       handleProcessPayment(tempCardId, data);
     },
     [handleProcessPayment]
   );
+
+  const handleDecline = useCallback(() => {
+    onDecline?.();
+    onClose();
+  }, [onDecline, onClose]);
 
   if (!invoice) return null;
 
@@ -126,11 +150,501 @@ export default function PaymentModal({
     <Modal
       isOpen={isOpen}
       onClose={step === "processing" ? () => {} : onClose}
-      title={step === "success" ? undefined : t("payment", "checkoutTitle")}
       size="md"
     >
       <AnimatePresence mode="wait">
-        {/* Processing State */}
+        {/* ═══════════════════════════════════════════
+            INVOICE DETAIL SCREEN
+            ═══════════════════════════════════════════ */}
+        {step === "invoice" && (
+          <motion.div
+            key="invoice"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+          >
+            {/* Editorial header */}
+            <div className="text-center mb-6">
+              <div
+                style={{
+                  width: 40,
+                  height: 1,
+                  background: "var(--gradient-accent-h)",
+                  margin: "0 auto 16px",
+                }}
+              />
+              <h2
+                style={{
+                  fontFamily: "var(--font-accent)",
+                  fontSize: "clamp(28px, 6vw, 38px)",
+                  fontWeight: 400,
+                  fontStyle: "italic",
+                  color: "var(--color-text-primary)",
+                  lineHeight: 1.1,
+                  letterSpacing: "-0.01em",
+                  margin: 0,
+                }}
+              >
+                {language === "es" ? "Detalle de Factura" : "Invoice Detail"}
+              </h2>
+              <p
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: 11,
+                  fontWeight: 500,
+                  color: "var(--color-text-muted)",
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  marginTop: 8,
+                }}
+              >
+                {invoice.id}
+              </p>
+            </div>
+
+            {/* Line-item breakdown */}
+            <div
+              style={{
+                background: "var(--color-bg-glass)",
+                border: "1px solid var(--color-border-default)",
+                borderRadius: 16,
+                padding: "20px",
+                marginBottom: 20,
+              }}
+            >
+              {invoice.items && invoice.items.length > 0 ? (
+                <>
+                  {/* Items header */}
+                  <p
+                    style={{
+                      fontFamily: "var(--font-display)",
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: "var(--color-text-muted)",
+                      letterSpacing: "0.14em",
+                      textTransform: "uppercase",
+                      marginBottom: 12,
+                    }}
+                  >
+                    {language === "es" ? "Servicios / Productos" : "Services / Products"}
+                  </p>
+
+                  {/* Item rows */}
+                  {invoice.items.map((item, i) => (
+                    <div
+                      key={item.id || i}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        padding: "10px 0",
+                        borderBottom:
+                          i < invoice.items!.length - 1
+                            ? "1px solid var(--color-border-subtle)"
+                            : "none",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span
+                          style={{
+                            fontFamily: "var(--font-body)",
+                            fontSize: 14,
+                            color: "var(--color-text-primary)",
+                          }}
+                        >
+                          {typeof item.name === "object" ? (item.name as Record<string, string>)[language] || (item.name as Record<string, string>).en : item.name}
+                        </span>
+                        {item.quantity > 1 && (
+                          <span
+                            style={{
+                              fontFamily: "var(--font-display)",
+                              fontSize: 10,
+                              fontWeight: 600,
+                              color: "var(--color-accent)",
+                              background: "var(--color-accent-subtle)",
+                              padding: "2px 8px",
+                              borderRadius: 10,
+                              letterSpacing: "0.05em",
+                            }}
+                          >
+                            x{item.quantity}
+                          </span>
+                        )}
+                      </div>
+                      <span
+                        style={{
+                          fontFamily: "var(--font-display)",
+                          fontSize: 14,
+                          fontWeight: 500,
+                          color: "var(--color-accent)",
+                        }}
+                      >
+                        {formatPrice(item.price * item.quantity)}
+                      </span>
+                    </div>
+                  ))}
+
+                  {/* Subtotal / Tax */}
+                  {(invoice.subtotal || invoice.taxAmount) && (
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--color-border-subtle)" }}>
+                      {invoice.subtotal && (
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                          <span style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
+                            Subtotal
+                          </span>
+                          <span style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>
+                            {formatPrice(invoice.subtotal)}
+                          </span>
+                        </div>
+                      )}
+                      {invoice.taxAmount && invoice.taxAmount > 0 && (
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                          <span style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
+                            {language === "es" ? "Impuesto" : "Tax"}
+                            {invoice.taxRate ? ` (${invoice.taxRate}%)` : ""}
+                          </span>
+                          <span style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>
+                            {formatPrice(invoice.taxAmount)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Dashed divider */}
+                  <div
+                    style={{
+                      borderTop: "2px dashed var(--color-border-default)",
+                      margin: "16px 0",
+                    }}
+                  />
+
+                  {/* Total */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-display)",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: "var(--color-text-muted)",
+                        letterSpacing: "0.1em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Total
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-accent)",
+                        fontSize: 32,
+                        fontWeight: 400,
+                        color: "var(--color-text-primary)",
+                        lineHeight: 1,
+                      }}
+                    >
+                      {formatPrice(invoice.amount)}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                /* Fallback for invoices without items */
+                <>
+                  {descriptionText && (
+                    <p
+                      style={{
+                        fontFamily: "var(--font-body)",
+                        fontSize: 14,
+                        color: "var(--color-text-secondary)",
+                        marginBottom: 12,
+                      }}
+                    >
+                      {descriptionText}
+                    </p>
+                  )}
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-end",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 12,
+                        color: "var(--color-text-muted)",
+                      }}
+                    >
+                      {new Date(invoice.date).toLocaleDateString(
+                        language === "es" ? "es-ES" : "en-US",
+                        { year: "numeric", month: "long", day: "numeric" }
+                      )}
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-accent)",
+                        fontSize: 32,
+                        fontWeight: 400,
+                        color: "var(--color-text-primary)",
+                        lineHeight: 1,
+                      }}
+                    >
+                      {formatPrice(invoice.amount)}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Payment method section */}
+            {savedCards.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <p
+                  style={{
+                    fontFamily: "var(--font-display)",
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: "var(--color-text-muted)",
+                    letterSpacing: "0.14em",
+                    textTransform: "uppercase",
+                    marginBottom: 10,
+                  }}
+                >
+                  {language === "es" ? "Método de Pago" : "Payment Method"}
+                </p>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {savedCards.map((card) => {
+                    const isSelected = !wantsNewCard && selectedCardId === card.id;
+                    return (
+                      <motion.button
+                        key={card.id}
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
+                        onClick={() => {
+                          setSelectedCardId(card.id);
+                          setWantsNewCard(false);
+                        }}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          padding: isSelected ? "11px 14px" : "12px 15px",
+                          borderRadius: 12,
+                          background: isSelected ? "var(--color-bg-glass-selected)" : "var(--color-bg-glass)",
+                          border: isSelected ? "2px solid var(--color-accent)" : "1px solid var(--color-border-default)",
+                          boxShadow: isSelected ? "var(--shadow-glow)" : "none",
+                          cursor: "pointer",
+                          transition: "all 0.3s ease",
+                          width: "100%",
+                          textAlign: "left",
+                        }}
+                      >
+                        {/* Brand badge */}
+                        <span
+                          style={{
+                            fontFamily: "var(--font-display)",
+                            fontSize: 9,
+                            fontWeight: 700,
+                            color: BRAND_COLORS[card.cardBrand] || BRAND_COLORS.unknown,
+                            background: "var(--color-bg-glass-hover)",
+                            padding: "4px 8px",
+                            borderRadius: 6,
+                            letterSpacing: "0.05em",
+                            minWidth: 40,
+                            textAlign: "center",
+                          }}
+                        >
+                          {BRAND_LABELS[card.cardBrand] || BRAND_LABELS.unknown}
+                        </span>
+
+                        {/* Card info */}
+                        <span
+                          style={{
+                            fontFamily: "monospace",
+                            fontSize: 13,
+                            color: "var(--color-text-primary)",
+                            flex: 1,
+                          }}
+                        >
+                          ···· {card.lastFourDigits}
+                        </span>
+
+                        {/* Expiry */}
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: "var(--color-text-muted)",
+                          }}
+                        >
+                          {card.expiryMonth}/{card.expiryYear}
+                        </span>
+
+                        {/* Selection indicator */}
+                        {isSelected && (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                          >
+                            <Check size={14} style={{ color: "var(--color-accent)" }} />
+                          </motion.div>
+                        )}
+                      </motion.button>
+                    );
+                  })}
+
+                  {/* Add new method pill */}
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    onClick={() => setWantsNewCard(true)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                      padding: wantsNewCard ? "11px 14px" : "12px 15px",
+                      borderRadius: 12,
+                      background: wantsNewCard ? "var(--color-bg-glass-selected)" : "transparent",
+                      border: wantsNewCard
+                        ? "2px solid var(--color-accent)"
+                        : "2px dashed var(--color-border-default)",
+                      boxShadow: wantsNewCard ? "var(--shadow-glow)" : "none",
+                      cursor: "pointer",
+                      transition: "all 0.3s ease",
+                      width: "100%",
+                    }}
+                  >
+                    <Plus size={14} style={{ color: wantsNewCard ? "var(--color-accent)" : "var(--color-text-muted)" }} />
+                    <span
+                      style={{
+                        fontFamily: "var(--font-display)",
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: wantsNewCard ? "var(--color-accent)" : "var(--color-text-muted)",
+                        letterSpacing: "0.06em",
+                      }}
+                    >
+                      {language === "es" ? "Agregar método de pago" : "Add payment method"}
+                    </span>
+                  </motion.button>
+                </div>
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {/* Pay button */}
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handlePayFromInvoice}
+                disabled={!wantsNewCard && !selectedCardId && savedCards.length > 0}
+                style={{
+                  width: "100%",
+                  height: 52,
+                  borderRadius: 12,
+                  background: "var(--gradient-accent)",
+                  boxShadow: "var(--shadow-glow)",
+                  border: "none",
+                  color: "var(--color-text-inverse)",
+                  fontFamily: "var(--font-display)",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase" as const,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  transition: "all 0.3s ease",
+                  opacity: (!wantsNewCard && !selectedCardId && savedCards.length > 0) ? 0.5 : 1,
+                }}
+              >
+                <CreditCard size={16} />
+                {t("payment", "payAmount")} {formatPrice(invoice.amount)}
+              </motion.button>
+
+              {/* Decline button */}
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleDecline}
+                style={{
+                  width: "100%",
+                  height: 44,
+                  borderRadius: 12,
+                  background: "transparent",
+                  border: "1px solid var(--color-border-default)",
+                  color: "var(--color-text-muted)",
+                  fontFamily: "var(--font-display)",
+                  fontSize: 12,
+                  fontWeight: 500,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase" as const,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  transition: "all 0.3s ease",
+                }}
+              >
+                <X size={14} />
+                {language === "es" ? "Rechazar" : "Decline"}
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ═══════════════════════════════════════════
+            NEW CARD FORM
+            ═══════════════════════════════════════════ */}
+        {step === "new-card" && (
+          <motion.div
+            key="new-card"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          >
+            {/* Back button */}
+            <motion.button
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              onClick={() => setStep("invoice")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                marginBottom: 16,
+                background: "none",
+                border: "none",
+                color: "var(--color-accent)",
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 500,
+                fontFamily: "var(--font-display)",
+              }}
+            >
+              <ArrowLeft size={14} />
+              {language === "es" ? "Volver al detalle" : "Back to invoice"}
+            </motion.button>
+
+            <CreditCardForm
+              onSubmit={handleNewCardSubmit}
+              onCancel={() => setStep("invoice")}
+              isProcessing={isProcessing}
+              showSaveOption={true}
+            />
+          </motion.div>
+        )}
+
+        {/* ═══════════════════════════════════════════
+            PROCESSING STATE
+            ═══════════════════════════════════════════ */}
         {step === "processing" && (
           <motion.div
             key="processing"
@@ -138,10 +652,9 @@ export default function PaymentModal({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.3 }}
-            className="flex flex-col items-center justify-center py-12"
+            className="flex flex-col items-center justify-center py-16"
           >
-            {/* Spinner */}
-            <div className="relative mb-6">
+            <div className="relative mb-8">
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
@@ -153,28 +666,42 @@ export default function PaymentModal({
                   borderTopColor: "var(--color-accent)",
                 }}
               />
-              <div
-                className="absolute inset-0 flex items-center justify-center"
-              >
+              <div className="absolute inset-0 flex items-center justify-center">
                 <CreditCard size={20} style={{ color: "var(--color-accent)" }} />
               </div>
             </div>
             <p
-              className="text-base font-medium"
-              style={{ color: "var(--color-text-primary)" }}
+              style={{
+                fontFamily: "var(--font-accent)",
+                fontSize: "clamp(20px, 4vw, 26px)",
+                fontWeight: 400,
+                fontStyle: "italic",
+                color: "var(--color-text-primary)",
+                lineHeight: 1.2,
+                textAlign: "center",
+              }}
             >
-              {t("payment", "processing")}
+              {language === "es" ? "Procesando tu pago" : "Processing your payment"}
             </p>
             <p
-              className="text-sm mt-1"
-              style={{ color: "var(--color-text-muted)" }}
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: 11,
+                fontWeight: 500,
+                color: "var(--color-text-muted)",
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                marginTop: 8,
+              }}
             >
               {formatPrice(invoice.amount)}
             </p>
           </motion.div>
         )}
 
-        {/* Success State */}
+        {/* ═══════════════════════════════════════════
+            SUCCESS STATE
+            ═══════════════════════════════════════════ */}
         {step === "success" && (
           <motion.div
             key="success"
@@ -182,7 +709,7 @@ export default function PaymentModal({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
             transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            className="flex flex-col items-center justify-center py-12"
+            className="flex flex-col items-center justify-center py-16"
           >
             {/* Success checkmark */}
             <motion.div
@@ -217,25 +744,36 @@ export default function PaymentModal({
               </motion.div>
             </motion.div>
 
+            {/* Label */}
             <motion.p
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
-              className="text-xl font-semibold"
               style={{
                 fontFamily: "var(--font-display)",
-                color: "var(--color-text-primary)",
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                color: "var(--color-text-muted)",
               }}
             >
               {t("payment", "paymentSuccessful")}
             </motion.p>
 
+            {/* Amount in editorial style */}
             <motion.p
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
-              className="text-2xl font-bold mt-2"
-              style={{ color: "#22c55e" }}
+              style={{
+                fontFamily: "var(--font-accent)",
+                fontSize: 36,
+                fontWeight: 400,
+                color: "#22c55e",
+                marginTop: 4,
+                lineHeight: 1.1,
+              }}
             >
               {formatPrice(invoice.amount)}
             </motion.p>
@@ -255,132 +793,6 @@ export default function PaymentModal({
                 pointerEvents: "none",
               }}
             />
-          </motion.div>
-        )}
-
-        {/* Select / New Card States */}
-        {(step === "select" || step === "new-card") && (
-          <motion.div
-            key="form"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            {/* Invoice summary */}
-            <div
-              className="rounded-xl p-4 mb-5"
-              style={{
-                background: "var(--color-bg-glass)",
-                border: "1px solid var(--color-border-default)",
-              }}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span
-                  className="text-xs uppercase tracking-wider font-medium"
-                  style={{ color: "var(--color-text-muted)" }}
-                >
-                  {t("payment", "orderSummary")}
-                </span>
-                <span
-                  className="text-xs"
-                  style={{ color: "var(--color-text-muted)" }}
-                >
-                  {invoice.id}
-                </span>
-              </div>
-              {descriptionText && (
-                <p
-                  className="text-sm mb-2"
-                  style={{ color: "var(--color-text-secondary)" }}
-                >
-                  {descriptionText}
-                </p>
-              )}
-              <div className="flex items-end justify-between">
-                <span
-                  className="text-xs"
-                  style={{ color: "var(--color-text-muted)" }}
-                >
-                  {new Date(invoice.date).toLocaleDateString(
-                    language === "es" ? "es-ES" : "en-US",
-                    { year: "numeric", month: "long", day: "numeric" }
-                  )}
-                </span>
-                <span
-                  className="text-2xl font-bold"
-                  style={{
-                    fontFamily: "var(--font-display)",
-                    color: "var(--color-text-primary)",
-                  }}
-                >
-                  {formatPrice(invoice.amount)}
-                </span>
-              </div>
-            </div>
-
-            {/* Card Selection / New Card form */}
-            {step === "select" && savedCards.length > 0 ? (
-              <>
-                <SavedCardSelector
-                  cards={savedCards}
-                  selectedCardId={selectedCardId}
-                  onSelect={setSelectedCardId}
-                  onAddNew={() => setStep("new-card")}
-                  onRemoveCard={removeCard}
-                />
-
-                {/* Pay button */}
-                <motion.button
-                  whileHover={!selectedCardId ? {} : { scale: 1.02 }}
-                  whileTap={!selectedCardId ? {} : { scale: 0.98 }}
-                  onClick={handleSavedCardPay}
-                  disabled={!selectedCardId}
-                  className="w-full py-3.5 rounded-xl font-semibold text-sm mt-5 flex items-center justify-center gap-2"
-                  style={{
-                    background: selectedCardId ? "var(--gradient-accent)" : "var(--color-bg-glass)",
-                    color: selectedCardId ? "var(--color-text-inverse)" : "var(--color-text-muted)",
-                    boxShadow: selectedCardId ? "var(--shadow-glow)" : "none",
-                    border: selectedCardId ? "none" : "1px solid var(--color-border-default)",
-                    cursor: selectedCardId ? "pointer" : "not-allowed",
-                    transition: "all 0.3s ease",
-                  }}
-                >
-                  <CreditCard size={16} />
-                  {t("payment", "payAmount")} {formatPrice(invoice.amount)}
-                </motion.button>
-              </>
-            ) : (
-              <>
-                {/* Back to saved cards button (if there are saved cards) */}
-                {savedCards.length > 0 && step === "new-card" && (
-                  <motion.button
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    onClick={() => setStep("select")}
-                    className="flex items-center gap-2 mb-4"
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "var(--color-accent)",
-                      cursor: "pointer",
-                      fontSize: 13,
-                      fontWeight: 500,
-                    }}
-                  >
-                    <ArrowLeft size={14} />
-                    {t("payment", "useSavedCard")}
-                  </motion.button>
-                )}
-
-                <CreditCardForm
-                  onSubmit={handleNewCardSubmit}
-                  onCancel={savedCards.length > 0 ? () => setStep("select") : onClose}
-                  isProcessing={isProcessing}
-                  showSaveOption={true}
-                />
-              </>
-            )}
           </motion.div>
         )}
       </AnimatePresence>

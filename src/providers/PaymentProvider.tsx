@@ -13,6 +13,7 @@ import type { CreditCard, PaymentTransaction, CardBrand } from "@/types";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
 import { useEventBus } from "@/providers/EventBusProvider";
+import { setDocument, deleteDocument, onCollectionChange } from "@/lib/firestore";
 
 interface PaymentContextValue {
   savedCards: CreditCard[];
@@ -77,6 +78,8 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
         setStoredData("mila-payment-methods", next);
         return next;
       });
+      const { id, ...cardData } = newCard;
+      setDocument("payment-methods", id, cardData).catch(() => {});
     },
     []
   );
@@ -87,6 +90,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
       setStoredData("mila-payment-methods", next);
       return next;
     });
+    deleteDocument("payment-methods", cardId).catch(() => {});
   }, []);
 
   const setDefaultCard = useCallback(
@@ -125,6 +129,8 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
         return next;
       });
 
+      const { id, ...txnData } = transaction;
+      setDocument("payments", id, txnData).catch(() => {});
       emit("payment:completed", transaction);
       return transaction;
     },
@@ -151,6 +157,8 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
         return next;
       });
 
+      const { id, ...txnData } = transaction;
+      setDocument("payments", id, txnData).catch(() => {});
       emit("payment:completed", transaction);
       return transaction;
     },
@@ -163,6 +171,37 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
     },
     [allCards]
   );
+
+  // Firestore real-time sync
+  useEffect(() => {
+    const unsubs = [
+      onCollectionChange<PaymentTransaction>("payments", (firestoreTxns) => {
+        if (firestoreTxns.length > 0) {
+          setAllTransactions((prev) => {
+            const merged = new Map<string, PaymentTransaction>();
+            for (const t of prev) merged.set(t.id, t);
+            for (const t of firestoreTxns) merged.set(t.id, t);
+            const next = Array.from(merged.values());
+            setStoredData("mila-payment-transactions", next);
+            return next;
+          });
+        }
+      }),
+      onCollectionChange<CreditCard>("payment-methods", (firestoreCards) => {
+        if (firestoreCards.length > 0) {
+          setAllCards((prev) => {
+            const merged = new Map<string, CreditCard>();
+            for (const c of prev) merged.set(c.id, c);
+            for (const c of firestoreCards) merged.set(c.id, c);
+            const next = Array.from(merged.values());
+            setStoredData("mila-payment-methods", next);
+            return next;
+          });
+        }
+      }),
+    ];
+    return () => unsubs.forEach((u) => u());
+  }, []);
 
   useEffect(() => {
     const unsubs = [

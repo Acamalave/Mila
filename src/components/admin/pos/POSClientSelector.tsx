@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useInvoices } from "@/providers/InvoiceProvider";
 import { getStoredData } from "@/lib/utils";
+import { onCollectionChange } from "@/lib/firestore";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { Search, UserPlus, Check, Phone } from "lucide-react";
-import type { Booking } from "@/types";
+import type { Booking, User } from "@/types";
 
 export interface POSClient {
   id: string;
@@ -31,12 +32,44 @@ export default function POSClientSelector({
   const [showNewForm, setShowNewForm] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
+  const [firestoreUsers, setFirestoreUsers] = useState<User[]>([]);
 
-  // Build client list from bookings + invoices
+  // Subscribe to Firestore users in real-time
+  useEffect(() => {
+    const unsub = onCollectionChange<User>("users", (users) => {
+      setFirestoreUsers(users);
+    });
+    return () => unsub();
+  }, []);
+
+  // Build client list from user registry + Firestore + bookings + invoices
   const clients = useMemo(() => {
     const map = new Map<string, POSClient>();
 
-    // From bookings
+    // Primary source: user registry (all registered users)
+    const registry = getStoredData<User[]>("mila-users", []);
+    for (const u of registry) {
+      if (u.id && !map.has(u.id)) {
+        map.set(u.id, {
+          id: u.id,
+          name: u.name,
+          phone: u.phone,
+        });
+      }
+    }
+
+    // Firestore users (cross-device registrations)
+    for (const u of firestoreUsers) {
+      if (u.id && !map.has(u.id)) {
+        map.set(u.id, {
+          id: u.id,
+          name: u.name,
+          phone: u.phone,
+        });
+      }
+    }
+
+    // From bookings (may include guests not in registry)
     const bookings = getStoredData<Booking[]>("mila-bookings", []);
     for (const b of bookings) {
       if (b.clientId && !map.has(b.clientId)) {
@@ -58,26 +91,10 @@ export default function POSClientSelector({
       }
     }
 
-    // Mock users
-    if (!map.has("user-sofia")) {
-      map.set("user-sofia", {
-        id: "user-sofia",
-        name: "Sofia Chen",
-        phone: "5553004000",
-      });
-    }
-    if (!map.has("user-admin")) {
-      map.set("user-admin", {
-        id: "user-admin",
-        name: "Isabella Martinez",
-        phone: "5551002000",
-      });
-    }
-
     return Array.from(map.values()).sort((a, b) =>
       a.name.localeCompare(b.name)
     );
-  }, [invoices]);
+  }, [invoices, firestoreUsers]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return clients;

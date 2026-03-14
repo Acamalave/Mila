@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useBooking } from "@/providers/BookingProvider";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
+import { setDocument } from "@/lib/firestore";
 import type { Booking } from "@/types";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -53,7 +54,7 @@ export default function HomePage() {
     scrollToSection(calendarRef);
   }, [dispatch, scrollToSection]);
 
-  // Handle booking confirmation — save and go straight to dashboard
+  // Handle booking confirmation
   const handleBook = useCallback(() => {
     const booking: Booking = {
       id: generateId(),
@@ -71,6 +72,8 @@ export default function HomePage() {
 
     const existing = getStoredData<Booking[]>("mila-bookings", []);
     setStoredData("mila-bookings", [...existing, booking]);
+    const { id, ...bookingData } = booking;
+    setDocument("bookings", id, bookingData).catch(() => {});
 
     resetBooking();
     router.push("/dashboard");
@@ -101,51 +104,8 @@ export default function HomePage() {
     <>
       <Header />
 
-      <main className="relative" style={{ paddingTop: 56, background: "var(--color-bg-page)", minHeight: "100vh", transition: "background 0.3s ease" }}>
-        {/* Animated gradient blobs for glass effect */}
-        <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
-          <div
-            className="absolute animate-blob-1"
-            style={{
-              top: "10%",
-              left: "15%",
-              width: "clamp(300px, 40vw, 600px)",
-              height: "clamp(300px, 40vw, 600px)",
-              borderRadius: "50%",
-              background: "radial-gradient(circle, var(--blob-color-1) 0%, transparent 70%)",
-              filter: "blur(60px)",
-            }}
-          />
-          <div
-            className="absolute animate-blob-2"
-            style={{
-              bottom: "20%",
-              right: "10%",
-              width: "clamp(250px, 35vw, 500px)",
-              height: "clamp(250px, 35vw, 500px)",
-              borderRadius: "50%",
-              background: "radial-gradient(circle, var(--blob-color-2) 0%, transparent 70%)",
-              filter: "blur(60px)",
-            }}
-          />
-          <div
-            className="absolute animate-blob-3"
-            style={{
-              top: "50%",
-              left: "50%",
-              width: "clamp(200px, 30vw, 450px)",
-              height: "clamp(200px, 30vw, 450px)",
-              borderRadius: "50%",
-              background: "radial-gradient(circle, var(--blob-color-3) 0%, transparent 70%)",
-              filter: "blur(80px)",
-              transform: "translate(-50%, -50%)",
-            }}
-          />
-        </div>
-
-        {/* Content layers above gradient */}
-        <div className="relative" style={{ zIndex: 1 }}>
-        {/* Step 1: Specialist Selection - directly, no hero */}
+      <main className="relative" style={{ background: "var(--color-bg-page)", minHeight: "100vh" }}>
+        {/* Step 1: Specialist Selection - Full screen editorial */}
         <SpecialistSlider onSelect={handleSpecialistSelect} />
 
         {/* Step 2: Service Selection */}
@@ -183,7 +143,6 @@ export default function HomePage() {
             </motion.div>
           )}
         </AnimatePresence>
-        </div>
       </main>
 
       <Footer />

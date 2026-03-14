@@ -13,6 +13,7 @@ import type { Product } from "@/types";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { products as seedProducts } from "@/data/products";
 import { useEventBus } from "@/providers/EventBusProvider";
+import { setDocument, deleteDocument, onCollectionChange, syncArrayToDoc, onDocumentChange } from "@/lib/firestore";
 
 interface ProductContextValue {
   allProducts: Product[];
@@ -77,6 +78,8 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       setStoredData("mila-products-custom", next);
       return next;
     });
+    const { id, ...productData } = newProduct;
+    setDocument("products", id, productData).catch(() => {});
     emit("product:created", newProduct);
   }, [emit]);
 
@@ -88,12 +91,13 @@ export function ProductProvider({ children }: { children: ReactNode }) {
         setStoredData("mila-products-custom", next);
         return next;
       });
+      setDocument("products", id, updates as Record<string, unknown>).catch(() => {});
     } else {
-      // Seed product — save field overrides
       setSeedOverrides((prev) => {
         const existing = prev[id] ?? {};
         const next = { ...prev, [id]: { ...existing, ...updates } };
         setStoredData("mila-products-seed-overrides", next);
+        setDocument("products-config", "seed-overrides", next).catch(() => {});
         return next;
       });
     }
@@ -101,6 +105,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       setStockOverrides((prev) => {
         const next = { ...prev, [id]: updates.stockQuantity as number };
         setStoredData("mila-stock-overrides", next);
+        setDocument("products-config", "stock-overrides", next).catch(() => {});
         return next;
       });
     }
@@ -115,10 +120,12 @@ export function ProductProvider({ children }: { children: ReactNode }) {
         setStoredData("mila-products-custom", next);
         return next;
       });
+      deleteDocument("products", id).catch(() => {});
     } else {
       setDeletedIds((prev) => {
         const next = [...prev, id];
         setStoredData("mila-products-deleted", next);
+        setDocument("products-config", "deleted", { ids: next }).catch(() => {});
         return next;
       });
     }
@@ -129,6 +136,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     setStockOverrides((prev) => {
       const next = { ...prev, [id]: quantity };
       setStoredData("mila-stock-overrides", next);
+      setDocument("products-config", "stock-overrides", next).catch(() => {});
       return next;
     });
     const isCustom = customProducts.some((p) => p.id === id);
@@ -140,9 +148,51 @@ export function ProductProvider({ children }: { children: ReactNode }) {
         setStoredData("mila-products-custom", next);
         return next;
       });
+      setDocument("products", id, { stockQuantity: quantity, inStock: quantity > 0 }).catch(() => {});
     }
     emit("product:updated", { id, stockQuantity: quantity });
   }, [customProducts, emit]);
+
+  // Firestore real-time sync
+  useEffect(() => {
+    const unsubs = [
+      onCollectionChange<Product>("products", (firestoreProducts) => {
+        if (firestoreProducts.length > 0) {
+          setCustomProducts((prev) => {
+            const merged = new Map<string, Product>();
+            for (const p of prev) merged.set(p.id, p);
+            for (const p of firestoreProducts) merged.set(p.id, p);
+            const next = Array.from(merged.values());
+            setStoredData("mila-products-custom", next);
+            return next;
+          });
+        }
+      }),
+      onDocumentChange<Record<string, number>>("products-config", "stock-overrides", (data) => {
+        if (data) {
+          const overrides = { ...data } as Record<string, number>;
+          delete (overrides as Record<string, unknown>)["id"];
+          setStockOverrides(overrides);
+          setStoredData("mila-stock-overrides", overrides);
+        }
+      }),
+      onDocumentChange<Record<string, Partial<Product>>>("products-config", "seed-overrides", (data) => {
+        if (data) {
+          const overrides = { ...data } as Record<string, Partial<Product>>;
+          delete (overrides as Record<string, unknown>)["id"];
+          setSeedOverrides(overrides);
+          setStoredData("mila-products-seed-overrides", overrides);
+        }
+      }),
+      onDocumentChange<{ ids?: string[] }>("products-config", "deleted", (data) => {
+        if (data && data.ids) {
+          setDeletedIds(data.ids);
+          setStoredData("mila-products-deleted", data.ids);
+        }
+      }),
+    ];
+    return () => unsubs.forEach((u) => u());
+  }, []);
 
   useEffect(() => {
     const unsubs = [

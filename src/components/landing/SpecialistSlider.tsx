@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
-import { ChevronLeft, ChevronRight, Star } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useStaff } from "@/providers/StaffProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useBooking } from "@/providers/BookingProvider";
@@ -12,392 +12,259 @@ interface SpecialistSliderProps {
   onSelect?: (stylistId: string) => void;
 }
 
-const rotatingRingStyle = (size: number): React.CSSProperties => ({
-  position: "absolute",
-  top: -8,
-  left: -8,
-  width: size + 16,
-  height: size + 16,
-  borderRadius: "50%",
-  background: "var(--gradient-ring)",
-  filter: "blur(8px)",
-  opacity: 0.6,
-  zIndex: 0,
-});
-
 export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
   const { language, t } = useLanguage();
   const { state, dispatch } = useBooking();
   const { allStylists } = useStaff();
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [direction, setDirection] = useState(0);
 
   const selectedId = state.selectedStylistId;
 
-  const goTo = (index: number) => {
+  const goTo = useCallback((index: number, dir: number) => {
     const wrapped = ((index % allStylists.length) + allStylists.length) % allStylists.length;
+    setDirection(dir);
     setCurrentIndex(wrapped);
-  };
+  }, [allStylists.length]);
 
-  const handleSelect = (id: string) => {
+  const handleSelect = useCallback((id: string) => {
     dispatch({ type: "SET_STYLIST", payload: id });
     onSelect?.(id);
-  };
+  }, [dispatch, onSelect]);
 
-  // Get visible stylists (for desktop: show 3 at a time)
-  const getVisibleIndices = () => {
-    const total = allStylists.length;
-    const prev = ((currentIndex - 1) + total) % total;
-    const next = (currentIndex + 1) % total;
-    return [prev, currentIndex, next];
-  };
-
-  const visibleIndices = getVisibleIndices();
   const currentStylist = allStylists[currentIndex];
 
-  const ringStyle = (isSelected: boolean, isCenter: boolean): React.CSSProperties => ({
-    width: isCenter ? 240 : 180,
-    height: isCenter ? 240 : 180,
-    borderRadius: "50%",
-    border: isSelected ? "3px solid var(--color-accent)" : "3px solid transparent",
-    boxShadow: isSelected
-      ? "var(--shadow-card-selected)"
-      : "0 8px 30px rgba(0, 0, 0, 0.5)",
-    transition: "all 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
-    cursor: "pointer",
-    overflow: "hidden",
-    position: "relative" as const,
-    flexShrink: 0,
-  });
+  const variants = {
+    enter: (dir: number) => ({
+      opacity: 0,
+      x: dir > 0 ? 80 : -80,
+      scale: 1.02,
+    }),
+    center: {
+      opacity: 1,
+      x: 0,
+      scale: 1,
+    },
+    exit: (dir: number) => ({
+      opacity: 0,
+      x: dir > 0 ? -80 : 80,
+      scale: 0.98,
+    }),
+  };
+
+  // Split first name and last name for editorial display
+  const nameParts = currentStylist.name.split(" ");
+  const firstName = nameParts[0];
+  const lastName = nameParts.slice(1).join(" ");
 
   return (
-    <section className="py-12 sm:py-20 px-4 relative">
-      <div className="max-w-5xl mx-auto">
-        {/* Section Title */}
+    <section className="relative w-full" style={{ minHeight: "100svh" }}>
+      {/* Full-screen editorial image */}
+      <AnimatePresence initial={false} custom={direction} mode="wait">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-10 sm:mb-14"
+          key={currentIndex}
+          custom={direction}
+          variants={variants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{ duration: 0.6, ease: [0.32, 0.72, 0, 1] }}
+          className="absolute inset-0"
         >
-          <h2
-            className="text-2xl sm:text-4xl font-bold mb-3"
+          <Image
+            src={currentStylist.avatar}
+            alt={currentStylist.name}
+            fill
+            className="object-cover object-top"
+            sizes="100vw"
+            priority
+          />
+          {/* Gradient overlays for editorial feel + text contrast */}
+          <div
+            className="absolute inset-0"
             style={{
-              fontFamily: "var(--font-display)",
-              color: "var(--color-text-primary)",
-              letterSpacing: "0.02em",
+              background: "linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.35) 35%, rgba(0,0,0,0.3) 55%, rgba(0,0,0,0.8) 100%)",
             }}
-          >
-            {t("home", "selectSpecialist")}
-          </h2>
-          <div style={{ width: 50, height: 2, background: "var(--gradient-accent-h)", margin: "0 auto", borderRadius: 2 }} />
+          />
+          <div
+            className="absolute inset-0"
+            style={{
+              background: "linear-gradient(to right, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0) 60%)",
+            }}
+          />
         </motion.div>
+      </AnimatePresence>
 
-        {/* Desktop Slider (3 visible) */}
-        <div className="hidden md:block">
-          <div className="flex items-center justify-center gap-8">
-            {/* Left Arrow */}
-            <motion.button
-              whileHover={{ scale: 1.1, x: -2 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={() => goTo(currentIndex - 1)}
-              className="flex-shrink-0 flex items-center justify-center"
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: "50%",
-                background: "var(--color-bg-glass-hover)",
-                border: "1px solid var(--color-border-default)",
-                color: "var(--color-accent)",
-                cursor: "pointer",
-                transition: "all 0.3s ease",
-              }}
-            >
-              <ChevronLeft size={22} />
-            </motion.button>
-
-            {/* Stylists */}
-            <div className="flex items-center justify-center gap-10">
-              {visibleIndices.map((idx, i) => {
-                const stylist = allStylists[idx];
-                const isCenter = i === 1;
-                const isSelected = stylist.id === selectedId;
-                const photoSize = isCenter ? 240 : 180;
-
-                return (
-                  <motion.div
-                    key={stylist.id}
-                    layout
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{
-                      opacity: isCenter ? 1 : 0.65,
-                      scale: isCenter ? 1 : 0.78,
-                    }}
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    className="flex flex-col items-center"
-                    onClick={() => {
-                      if (isCenter) {
-                        handleSelect(stylist.id);
-                      } else {
-                        goTo(idx);
-                      }
-                    }}
-                  >
-                    {/* Photo container with rotating ring */}
-                    <div style={{ position: "relative" }}>
-                      {isCenter && (
-                        <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
-                          style={rotatingRingStyle(photoSize)}
-                        />
-                      )}
-                      <motion.div
-                        whileHover={{ scale: isCenter ? 1.05 : 0.83 }}
-                        style={{ ...ringStyle(isSelected, isCenter), position: "relative", zIndex: 1 }}
-                      >
-                        <Image
-                          src={stylist.avatar}
-                          alt={stylist.name}
-                          fill
-                          className="object-cover"
-                          sizes={isCenter ? "240px" : "180px"}
-                        />
-                      </motion.div>
-                    </div>
-                    <motion.div
-                      className="mt-4 text-center"
-                      animate={{ opacity: isCenter ? 1 : 0.5 }}
-                    >
-                      <p
-                        className="font-semibold"
-                        style={{
-                          fontFamily: "var(--font-display)",
-                          fontSize: isCenter ? 18 : 14,
-                          color: "var(--color-text-primary)",
-                        }}
-                      >
-                        {stylist.name}
-                      </p>
-                      <p
-                        className="mt-0.5"
-                        style={{
-                          fontSize: isCenter ? 13 : 11,
-                          color: "var(--color-text-secondary)",
-                        }}
-                      >
-                        {stylist.role[language]}
-                      </p>
-                      {isCenter && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 5 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="flex items-center justify-center gap-1 mt-2"
-                        >
-                          <Star size={14} fill="var(--color-accent)" color="var(--color-accent)" />
-                          <span style={{ fontSize: 13, color: "var(--color-accent)", fontWeight: 600 }}>
-                            {stylist.rating}
-                          </span>
-                          <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-                            ({stylist.reviewCount})
-                          </span>
-                        </motion.div>
-                      )}
-                    </motion.div>
-                  </motion.div>
-                );
-              })}
-            </div>
-
-            {/* Right Arrow */}
-            <motion.button
-              whileHover={{ scale: 1.1, x: 2 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={() => goTo(currentIndex + 1)}
-              className="flex-shrink-0 flex items-center justify-center"
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: "50%",
-                background: "var(--color-bg-glass-hover)",
-                border: "1px solid var(--color-border-default)",
-                color: "var(--color-accent)",
-                cursor: "pointer",
-              }}
-            >
-              <ChevronRight size={22} />
-            </motion.button>
-          </div>
-        </div>
-
-        {/* Mobile Slider (1 visible) — Photo top, info overlay from middle */}
-        <div className="md:hidden">
-          <AnimatePresence mode="wait">
+      {/* Editorial name overlay - large typography */}
+      <div className="absolute inset-0 flex flex-col justify-between pointer-events-none" style={{ zIndex: 2 }}>
+        {/* Top: Large editorial name */}
+        <div className="flex-1 flex items-center justify-center px-6 pt-20">
+          <AnimatePresence initial={true} mode="wait">
             <motion.div
-              key={currentIndex}
-              initial={{ opacity: 0, x: 40 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -40 }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="relative mx-auto"
-              style={{ maxWidth: 320 }}
-              onClick={() => handleSelect(currentStylist.id)}
+              key={`name-${currentIndex}`}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              className="text-center"
             >
-              {/* Large photo at top */}
-              <div className="relative mx-auto" style={{ width: 240, height: 240 }}>
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
-                  style={rotatingRingStyle(240)}
-                />
-                <div
+              <h1
+                style={{
+                  fontFamily: "var(--font-accent)",
+                  fontSize: "clamp(3.5rem, 12vw, 9rem)",
+                  fontWeight: 300,
+                  color: "rgba(255, 255, 255, 0.95)",
+                  lineHeight: 0.9,
+                  letterSpacing: "-0.02em",
+                  textTransform: "uppercase",
+                  textShadow: "0 2px 40px rgba(0,0,0,0.5), 0 0 80px rgba(0,0,0,0.3)",
+                }}
+              >
+                {firstName}
+              </h1>
+              {lastName && (
+                <p
                   style={{
-                    width: 240,
-                    height: 240,
-                    borderRadius: "50%",
-                    border: currentStylist.id === selectedId
-                      ? "3px solid var(--color-accent)"
-                      : "3px solid var(--color-border-default)",
-                    boxShadow: currentStylist.id === selectedId
-                      ? "var(--shadow-card-selected)"
-                      : "0 10px 40px rgba(0, 0, 0, 0.5)",
-                    overflow: "hidden",
-                    position: "relative",
-                    zIndex: 1,
+                    fontFamily: "var(--font-display)",
+                    fontSize: "clamp(0.7rem, 2vw, 1rem)",
+                    fontWeight: 300,
+                    color: "rgba(255, 255, 255, 0.6)",
+                    letterSpacing: "0.35em",
+                    textTransform: "uppercase",
+                    marginTop: "0.75rem",
                   }}
                 >
-                  <Image
-                    src={currentStylist.avatar}
-                    alt={currentStylist.name}
-                    fill
-                    className="object-cover"
-                    sizes="240px"
-                  />
-                </div>
-              </div>
-
-              {/* Glass info card overlapping from middle of photo */}
-              <div
-                className="relative mx-4 px-5 pb-5 pt-14 text-center"
+                  {lastName}
+                </p>
+              )}
+              <p
                 style={{
-                  marginTop: -48,
-                  background: "var(--color-bg-glass)",
-                  backdropFilter: "blur(20px)",
-                  WebkitBackdropFilter: "blur(20px)",
-                  border: "1px solid var(--color-border-default)",
-                  borderRadius: 20,
-                  boxShadow: "var(--shadow-card)",
-                  zIndex: 2,
-                  transition: "all 0.3s ease",
+                  fontFamily: "var(--font-accent)",
+                  fontSize: "clamp(0.85rem, 2vw, 1.1rem)",
+                  fontWeight: 300,
+                  fontStyle: "italic",
+                  color: "var(--color-accent)",
+                  letterSpacing: "0.05em",
+                  marginTop: "0.5rem",
                 }}
               >
-                <p
-                  className="font-bold text-xl"
-                  style={{ fontFamily: "var(--font-display)", color: "var(--color-text-primary)" }}
-                >
-                  {currentStylist.name}
-                </p>
-                <p style={{ fontSize: 13, color: "var(--color-text-secondary)", marginTop: 4 }}>
-                  {currentStylist.role[language]}
-                </p>
-                <div className="flex items-center justify-center gap-1.5 mt-3">
-                  <Star size={15} fill="var(--color-accent)" color="var(--color-accent)" />
-                  <span style={{ fontSize: 14, color: "var(--color-accent)", fontWeight: 700 }}>
-                    {currentStylist.rating}
-                  </span>
-                  <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-                    ({currentStylist.reviewCount})
-                  </span>
-                </div>
-              </div>
+                {currentStylist.role[language]}
+              </p>
             </motion.div>
           </AnimatePresence>
-
-          {/* Mobile navigation arrows */}
-          <div className="flex items-center justify-center gap-6 mt-5">
-            <motion.button
-              whileTap={{ scale: 0.85 }}
-              onClick={(e) => { e.stopPropagation(); goTo(currentIndex - 1); }}
-              className="flex-shrink-0 flex items-center justify-center"
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: "50%",
-                background: "var(--color-bg-glass-hover)",
-                border: "1px solid var(--color-border-default)",
-                color: "var(--color-accent)",
-                cursor: "pointer",
-              }}
-            >
-              <ChevronLeft size={20} />
-            </motion.button>
-            <motion.button
-              whileTap={{ scale: 0.85 }}
-              onClick={(e) => { e.stopPropagation(); goTo(currentIndex + 1); }}
-              className="flex-shrink-0 flex items-center justify-center"
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: "50%",
-                background: "var(--color-bg-glass-hover)",
-                border: "1px solid var(--color-border-default)",
-                color: "var(--color-accent)",
-                cursor: "pointer",
-              }}
-            >
-              <ChevronRight size={20} />
-            </motion.button>
-          </div>
         </div>
 
-        {/* Dot Indicators */}
-        <div className="flex items-center justify-center gap-2 mt-8">
-          {allStylists.map((s, i) => (
-            <motion.button
-              key={s.id}
-              onClick={() => goTo(i)}
-              whileHover={{ scale: 1.3 }}
-              className="rounded-full"
-              style={{
-                width: i === currentIndex ? 24 : 8,
-                height: 8,
-                borderRadius: 4,
-                background: i === currentIndex
-                  ? "var(--gradient-accent-h)"
-                  : "var(--color-border-default)",
-                transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
-                cursor: "pointer",
-                border: "none",
-              }}
-            />
-          ))}
-        </div>
+        {/* Bottom: Selector controls */}
+        <div className="pointer-events-auto px-4 sm:px-8 pb-8 sm:pb-12">
+          {/* Navigation + Select button */}
+          <div className="max-w-lg mx-auto">
+            {/* Dot indicators with names */}
+            <div className="flex items-center justify-center gap-3 sm:gap-5 mb-5">
+              {allStylists.map((s, i) => (
+                <motion.button
+                  key={s.id}
+                  onClick={() => goTo(i, i > currentIndex ? 1 : -1)}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="flex flex-col items-center gap-1.5"
+                >
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontFamily: "var(--font-display)",
+                      fontWeight: i === currentIndex ? 500 : 300,
+                      color: i === currentIndex ? "#fff" : "rgba(255,255,255,0.4)",
+                      letterSpacing: "0.1em",
+                      textTransform: "uppercase",
+                      transition: "all 0.4s ease",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {s.name.split(" ")[0]}
+                  </span>
+                  <div
+                    style={{
+                      width: i === currentIndex ? 24 : 12,
+                      height: 2,
+                      borderRadius: 1,
+                      background: i === currentIndex ? "#fff" : "rgba(255,255,255,0.2)",
+                      transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
+                    }}
+                  />
+                </motion.button>
+              ))}
+            </div>
 
-        {/* Selected indicator */}
-        <AnimatePresence>
-          {selectedId && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              className="text-center mt-6"
-            >
-              <span
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full"
+            {/* Arrow nav + Choose button */}
+            <div className="flex items-center justify-center gap-4">
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => goTo(currentIndex - 1, -1)}
+                className="flex items-center justify-center"
                 style={{
-                  background: "var(--color-accent-subtle)",
-                  border: "1px solid var(--color-border-accent)",
-                  color: "var(--color-accent)",
-                  fontSize: 14,
-                  fontWeight: 500,
-                  transition: "all 0.3s ease",
+                  width: 44,
+                  height: 44,
+                  borderRadius: "50%",
+                  background: "rgba(255,255,255,0.08)",
+                  backdropFilter: "blur(10px)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  color: "#fff",
+                  cursor: "pointer",
                 }}
               >
-                {allStylists.find(s => s.id === selectedId)?.name}
-              </span>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                <ChevronLeft size={18} />
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => handleSelect(currentStylist.id)}
+                className="flex-1 max-w-[220px] py-3.5 rounded-full text-center"
+                style={{
+                  background: selectedId === currentStylist.id
+                    ? "rgba(255,255,255,0.95)"
+                    : "rgba(255,255,255,0.1)",
+                  backdropFilter: "blur(20px)",
+                  border: selectedId === currentStylist.id
+                    ? "1px solid rgba(255,255,255,1)"
+                    : "1px solid rgba(255,255,255,0.2)",
+                  color: selectedId === currentStylist.id ? "#0a0a0a" : "#fff",
+                  fontFamily: "var(--font-display)",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  letterSpacing: "0.15em",
+                  textTransform: "uppercase" as const,
+                  cursor: "pointer",
+                  transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
+                }}
+              >
+                {selectedId === currentStylist.id
+                  ? (language === "es" ? "Seleccionada" : "Selected")
+                  : (language === "es" ? "Elegir" : "Choose")}
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => goTo(currentIndex + 1, 1)}
+                className="flex items-center justify-center"
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: "50%",
+                  background: "rgba(255,255,255,0.08)",
+                  backdropFilter: "blur(10px)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  color: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                <ChevronRight size={18} />
+              </motion.button>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );

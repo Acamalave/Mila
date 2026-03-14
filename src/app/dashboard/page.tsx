@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { getStoredData, setStoredData, formatPrice, generateId } from "@/lib/utils";
+import { setDocument, onCollectionChange } from "@/lib/firestore";
 import { formatShortDate, formatTime } from "@/lib/date-utils";
 import { services } from "@/data/services";
 import { reviews as mockReviews } from "@/data/reviews";
@@ -17,7 +18,7 @@ import { useProducts } from "@/providers/ProductProvider";
 import { useInvoices } from "@/providers/InvoiceProvider";
 import { usePayment, detectCardBrand } from "@/providers/PaymentProvider";
 import { getInitialDemoAppointments } from "@/data/appointments";
-import type { Booking, BookingStatus, Invoice, Review, User } from "@/types";
+import type { Booking, BookingStatus, Invoice, Review } from "@/types";
 import type { CardFormData } from "@/components/payment/CreditCardForm";
 import type { Variants } from "motion/react";
 import Badge from "@/components/ui/Badge";
@@ -52,7 +53,7 @@ const glassCard: React.CSSProperties = {
   backdropFilter: "blur(20px)",
   WebkitBackdropFilter: "blur(20px)",
   border: "1px solid var(--color-border-default)",
-  borderRadius: 20,
+  borderRadius: 24,
   boxShadow: "var(--shadow-card)",
   transition: "all 0.3s ease",
 };
@@ -115,7 +116,7 @@ const BRAND_DISPLAY: Record<string, string> = {
 
 /* ── Component ──────────────────────────────────────────────────── */
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const { language, t } = useLanguage();
   const { allStylists } = useStaff();
   const { items, addItem, removeItem, updateQuantity, clearCart, totalItems, totalPrice: cartTotal } = useCart();
@@ -148,8 +149,25 @@ export default function DashboardPage() {
     if (stored.length === 0) {
       stored = getInitialDemoAppointments();
       setStoredData("mila-bookings", stored);
+      for (const b of stored) {
+        const { id, ...data } = b;
+        setDocument("bookings", id, data).catch(() => {});
+      }
     }
     setAppointments(stored);
+
+    const unsub = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
+      if (firestoreBookings.length > 0) {
+        setAppointments((prev) => {
+          const merged = new Map<string, Booking>();
+          for (const b of prev) merged.set(b.id, b);
+          for (const b of firestoreBookings) merged.set(b.id, b);
+          const next = Array.from(merged.values());
+          setStoredData("mila-bookings", next);
+          return next;
+        });
+      }
+    });
 
     const storedReviews = getStoredData<Review[]>("mila-reviews", []);
     if (storedReviews.length === 0) {
@@ -158,6 +176,8 @@ export default function DashboardPage() {
     } else {
       setReviews(storedReviews);
     }
+
+    return () => unsub();
   }, []);
 
   useEffect(() => {
@@ -272,6 +292,7 @@ export default function DashboardPage() {
     );
     setAppointments(updated);
     setStoredData("mila-bookings", updated);
+    setDocument("bookings", bookingId, { status: "cancelled" }).catch(() => {});
     addToast(language === "es" ? "Cita cancelada" : "Appointment cancelled", "info");
   }
 
@@ -333,8 +354,11 @@ export default function DashboardPage() {
   function handleProfileSubmit(e: FormEvent) {
     e.preventDefault();
     if (!user) return;
-    const updatedUser: User = { ...user, name: profileName.trim(), phone: profilePhone.trim(), email: profileEmail.trim() || undefined };
-    setStoredData("mila-auth", updatedUser);
+    updateProfile({
+      name: profileName.trim(),
+      phone: profilePhone.trim(),
+      email: profileEmail.trim() || undefined,
+    });
     addToast(language === "es" ? "Perfil actualizado" : "Profile updated successfully", "success");
   }
 
@@ -377,10 +401,29 @@ export default function DashboardPage() {
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6 pb-24">
       {/* ─── Welcome ──────────────────────────────────────── */}
       <motion.div variants={itemVariants} className="pt-1">
-        <h1 className="text-2xl sm:text-3xl font-bold font-[family-name:var(--font-display)]" style={{ color: colors.primary }}>
+        <div
+          style={{
+            width: 32,
+            height: 1,
+            background: "var(--gradient-accent-h)",
+            marginBottom: 12,
+          }}
+        />
+        <h1
+          style={{
+            fontFamily: "var(--font-accent)",
+            fontSize: "clamp(36px, 8vw, 52px)",
+            fontWeight: 400,
+            fontStyle: "italic",
+            color: colors.primary,
+            lineHeight: 1.1,
+            letterSpacing: "-0.01em",
+            textTransform: "none",
+          }}
+        >
           {user?.name}
         </h1>
-        <p className="mt-1 text-sm" style={{ color: colors.secondary }}>
+        <p className="mt-2 text-sm" style={{ color: colors.secondary }}>
           {language === "es" ? "Qué bueno que estás aquí" : "So glad you're here"}
         </p>
       </motion.div>
@@ -395,50 +438,77 @@ export default function DashboardPage() {
       </motion.section>
 
       {/* ─── Navigation Grid ──────────────────────────────── */}
+      {/* ─── Compact Navigation Row ────────────────────────── */}
       <motion.section variants={itemVariants}>
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+        <div className="flex items-center justify-between gap-2 px-2">
           {navCards.map((card, i) => {
             const Icon = card.icon;
             const isActive = card.tab ? activeTab === card.tab : false;
+            const isAccent = !!card.href;
+
+            const iconStyle: React.CSSProperties = {
+              width: 46,
+              height: 46,
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: isAccent
+                ? "var(--gradient-accent)"
+                : isActive
+                  ? "var(--color-accent-subtle)"
+                  : "var(--color-bg-glass)",
+              border: isActive
+                ? "1.5px solid var(--color-accent)"
+                : isAccent
+                  ? "none"
+                  : "1px solid var(--color-border-subtle)",
+              boxShadow: isActive ? "var(--shadow-glow)" : "none",
+              transition: "all 0.3s ease",
+            };
+
+            const labelColor = isAccent
+              ? colors.gold
+              : isActive
+                ? colors.gold
+                : colors.muted;
 
             if (card.href) {
               return (
-                <Link key={card.href} href={card.href}>
+                <Link key={card.href} href={card.href} className="flex flex-col items-center gap-1">
                   <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 + i * 0.06, duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-                    whileHover={cardSpring.whileHover}
-                    whileTap={cardSpring.whileTap}
-                    className="flex flex-col items-center justify-center gap-2 p-4"
-                    style={{ ...glassCardHover, background: "var(--color-bg-glass-selected)", border: "1px solid var(--color-border-accent)" }}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.15 + i * 0.05, duration: 0.4, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.92 }}
+                    style={iconStyle}
                   >
-                    <div className="flex items-center justify-center" style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--color-accent-subtle)", border: "1px solid var(--color-border-accent)" }}>
-                      <Icon size={20} style={{ color: colors.gold }} />
-                    </div>
-                    <span className="text-[11px] font-medium text-center leading-tight" style={{ color: colors.gold }}>{card.label}</span>
+                    <Icon size={20} style={{ color: isAccent ? "#fff" : colors.gold }} />
                   </motion.div>
+                  <span style={{ fontSize: 9, color: labelColor, fontFamily: "var(--font-display)", letterSpacing: "0.06em", lineHeight: 1 }}>{card.label.split(" ")[0]}</span>
                 </Link>
               );
             }
 
             return (
-              <motion.button
+              <button
                 key={card.tab}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 + i * 0.06, duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-                whileHover={cardSpring.whileHover}
-                whileTap={cardSpring.whileTap}
                 onClick={() => card.tab && setActiveTab(card.tab)}
-                className="flex flex-col items-center justify-center gap-2 p-4"
-                style={isActive ? { ...glassCardHover, background: "var(--color-bg-glass-selected)", border: "2px solid var(--color-accent)", boxShadow: "var(--shadow-glow)" } : glassCardHover}
+                className="flex flex-col items-center gap-1"
               >
-                <div className="flex items-center justify-center" style={{ width: 40, height: 40, borderRadius: "50%", background: isActive ? "var(--color-accent-subtle)" : "var(--color-bg-glass)", border: isActive ? "1px solid var(--color-border-accent)" : "1px solid var(--color-border-subtle)" }}>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.15 + i * 0.05, duration: 0.4, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.92 }}
+                  style={iconStyle}
+                >
                   <Icon size={20} style={{ color: isActive ? colors.gold : colors.secondary }} />
-                </div>
-                <span className="text-[11px] font-medium text-center leading-tight" style={{ color: isActive ? colors.gold : colors.primary }}>{card.label}</span>
-              </motion.button>
+                </motion.div>
+                <span style={{ fontSize: 9, color: labelColor, fontFamily: "var(--font-display)", letterSpacing: "0.06em", lineHeight: 1 }}>{card.label.split(" ")[0]}</span>
+              </button>
             );
           })}
         </div>
@@ -473,8 +543,8 @@ export default function DashboardPage() {
                         )}
                       </div>
                       <div className="p-3 flex-1 flex flex-col">
-                        <p className="text-[10px] uppercase tracking-wider" style={{ color: colors.muted }}>{product.brand}</p>
-                        <p className="font-semibold text-xs mt-1 line-clamp-2 flex-1" style={{ color: colors.primary }}>{product.name}</p>
+                        <p style={{ fontSize: 10, fontFamily: "var(--font-display)", textTransform: "uppercase", letterSpacing: "0.14em", color: colors.muted }}>{product.brand}</p>
+                        <p className="font-semibold mt-1 line-clamp-2 flex-1" style={{ fontSize: 13, color: colors.primary }}>{product.name}</p>
                         <StarRating rating={product.rating} size={10} className="mt-1.5" />
                         <div className="flex items-center justify-between mt-2">
                           {product.discount && product.discount > 0 ? (
@@ -512,11 +582,11 @@ export default function DashboardPage() {
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <p className="font-semibold truncate" style={{ color: colors.primary }}>{getServiceNames(appt)}</p>
+                              <p className="truncate" style={{ fontFamily: "var(--font-accent)", fontSize: 16, fontWeight: 400, fontStyle: "italic", color: colors.primary }}>{getServiceNames(appt)}</p>
                               <Badge variant={statusVariant(appt.status)}>{statusLabel(appt.status)}</Badge>
                             </div>
                             <p className="text-sm" style={{ color: colors.secondary }}>{stylist?.name ?? appt.stylistId} &middot; {stylist?.role[language]}</p>
-                            <p className="text-sm mt-1" style={{ color: colors.muted }}>{formatShortDate(appt.date, language)} &middot; {formatTime(appt.startTime)} - {formatTime(appt.endTime)}</p>
+                            <p className="mt-1" style={{ fontFamily: "var(--font-display)", fontSize: 11, color: colors.muted, letterSpacing: "0.06em" }}>{formatShortDate(appt.date, language)} &middot; {formatTime(appt.startTime)} - {formatTime(appt.endTime)}</p>
                           </div>
                           <div className="flex items-center gap-4 flex-shrink-0">
                             <p className="text-lg font-semibold" style={{ color: colors.gold }}>{formatPrice(appt.totalPrice)}</p>
@@ -536,7 +606,7 @@ export default function DashboardPage() {
           {activeTab === "reviews" && (
             <motion.div key="reviews" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.25 }} className="space-y-6">
               <Card>
-                <h2 className="text-lg font-semibold font-[family-name:var(--font-display)] mb-4" style={{ color: colors.primary }}>{t("dashboard", "leaveReview")}</h2>
+                <h2 style={{ fontFamily: "var(--font-accent)", fontSize: 24, fontWeight: 300, fontStyle: "italic", color: colors.primary, marginBottom: 16, textTransform: "none", letterSpacing: "normal" }}>{t("dashboard", "leaveReview")}</h2>
                 {completedOptions.length === 0 ? (
                   <p className="text-sm py-4" style={{ color: colors.muted }}>{language === "es" ? "No tienes citas completadas para reseña" : "No completed appointments to review"}</p>
                 ) : (
@@ -556,7 +626,7 @@ export default function DashboardPage() {
               </Card>
 
               <div>
-                <h2 className="text-lg font-semibold font-[family-name:var(--font-display)] mb-4 flex items-center gap-2" style={{ color: colors.primary }}>
+                <h2 className="flex items-center gap-2" style={{ fontFamily: "var(--font-accent)", fontSize: 22, fontWeight: 300, fontStyle: "italic", color: colors.primary, marginBottom: 16, textTransform: "none", letterSpacing: "normal" }}>
                   <MessageSquare size={18} style={{ color: colors.gold }} />
                   {language === "es" ? "Tus Reseñas" : "Your Reviews"}
                 </h2>
@@ -572,7 +642,7 @@ export default function DashboardPage() {
                           <Card>
                             <div className="flex items-start justify-between gap-3 mb-2">
                               <div>
-                                <p className="font-semibold" style={{ color: colors.primary }}>{service?.name[language] ?? review.serviceId}</p>
+                                <p style={{ fontFamily: "var(--font-accent)", fontSize: 16, fontWeight: 400, fontStyle: "italic", color: colors.primary }}>{service?.name[language] ?? review.serviceId}</p>
                                 <p className="text-sm" style={{ color: colors.secondary }}>{stylist?.name ?? review.stylistId}</p>
                               </div>
                               <p className="text-xs flex-shrink-0" style={{ color: colors.muted }}>{formatShortDate(review.createdAt.split("T")[0], language)}</p>
@@ -594,7 +664,9 @@ export default function DashboardPage() {
             <motion.div key="profile" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.25 }} className="space-y-6">
               <Card>
                 <div className="flex justify-center mb-6">
-                  <Avatar src={user?.avatar} alt={user?.name ?? "User"} size="xl" />
+                  <div style={{ padding: 3, borderRadius: "50%", background: "var(--gradient-ring)" }}>
+                    <Avatar src={user?.avatar} alt={user?.name ?? "User"} size="xl" />
+                  </div>
                 </div>
                 <form onSubmit={handleProfileSubmit} className="space-y-5">
                   <Input label={t("auth", "name")} type="text" value={profileName} onChange={(e) => setProfileName(e.target.value)} placeholder="Sofia Chen" />
@@ -608,7 +680,7 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-3">
                     <CreditCard size={20} style={{ color: colors.gold }} />
-                    <h2 className="text-lg font-semibold font-[family-name:var(--font-display)]" style={{ color: colors.primary }}>{t("dashboard", "paymentMethods")}</h2>
+                    <h2 style={{ fontFamily: "var(--font-accent)", fontSize: 22, fontWeight: 300, fontStyle: "italic", color: colors.primary, textTransform: "none", letterSpacing: "normal" }}>{t("dashboard", "paymentMethods")}</h2>
                   </div>
                   {!showCardForm && (
                     <Button size="sm" variant="outline" onClick={() => setShowCardForm(true)}>
@@ -751,24 +823,24 @@ function ReservationHeroCard({ appointment, language, getServiceNames, statusVar
   const stylist = allStylists.find((s) => s.id === appointment.stylistId);
 
   return (
-    <div className="relative overflow-hidden p-5 sm:p-6" style={{ ...glassCard, borderLeft: "3px solid var(--color-accent)", background: "var(--color-bg-glass-selected)" }}>
-      <div className="absolute -top-20 -right-20 pointer-events-none" style={{ width: 160, height: 160, borderRadius: "50%", background: "radial-gradient(circle, var(--color-accent-subtle) 0%, transparent 70%)" }} />
-      <div className="flex items-center gap-2 mb-4">
-        <Sparkles size={14} style={{ color: colors.gold }} />
-        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: colors.gold }}>{language === "es" ? "Reserva Actual" : "Current Reservation"}</span>
+    <div className="relative overflow-hidden px-4 py-3" style={{ ...glassCard, borderRadius: 16, borderLeft: "2px solid var(--color-accent)", background: "var(--color-bg-glass-selected)" }}>
+      <div className="absolute -top-16 -right-16 pointer-events-none" style={{ width: 100, height: 100, borderRadius: "50%", background: "radial-gradient(circle, var(--color-accent-subtle) 0%, transparent 70%)" }} />
+      <div className="flex items-center gap-1.5 mb-2">
+        <Sparkles size={11} style={{ color: colors.gold }} />
+        <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: colors.gold }}>{language === "es" ? "Reserva Actual" : "Current Reservation"}</span>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         {stylist?.avatar && (
-          <div className="flex-shrink-0 overflow-hidden" style={{ width: 56, height: 56, borderRadius: "50%", border: "2px solid var(--color-border-accent)", boxShadow: "var(--shadow-card)" }}>
-            <Image src={stylist.avatar} alt={stylist.name} width={56} height={56} className="object-cover" style={{ width: 56, height: 56 }} />
+          <div className="flex-shrink-0 overflow-hidden" style={{ width: 40, height: 40, borderRadius: "50%", border: "1.5px solid var(--color-border-accent)", boxShadow: "var(--shadow-card)" }}>
+            <Image src={stylist.avatar} alt={stylist.name} width={40} height={40} className="object-cover" style={{ width: 40, height: 40 }} />
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <p className="text-sm sm:text-base font-semibold truncate" style={{ color: colors.primary }}>{getServiceNames(appointment)}</p>
-          <p className="text-xs mt-1" style={{ color: colors.muted }}>{formatShortDate(appointment.date, language)}</p>
+          <p className="truncate" style={{ fontFamily: "var(--font-accent)", fontSize: "clamp(13px, 2.8vw, 16px)", fontWeight: 400, fontStyle: "italic", color: colors.primary }}>{getServiceNames(appointment)}</p>
+          <p className="text-[10px] mt-0.5" style={{ color: colors.muted }}>{formatShortDate(appointment.date, language)}</p>
         </div>
-        <div className="flex flex-col items-end gap-2 flex-shrink-0">
-          <span className="text-lg font-bold tabular-nums" style={{ color: colors.gold, letterSpacing: "0.02em" }}>{formatTime(appointment.startTime)}</span>
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <span style={{ fontFamily: "var(--font-accent)", fontSize: 18, fontWeight: 400, color: colors.gold, letterSpacing: "0.02em" }}>{formatTime(appointment.startTime)}</span>
           <Badge variant={statusVariant(appointment.status)}>{statusLabel(appointment.status)}</Badge>
         </div>
       </div>
@@ -778,14 +850,14 @@ function ReservationHeroCard({ appointment, language, getServiceNames, statusVar
 
 function EmptyReservationCard({ language }: { language: "en" | "es" }) {
   return (
-    <div className="flex flex-col items-center justify-center py-10 px-6 text-center" style={glassCard}>
-      <div className="flex items-center justify-center mb-4" style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--color-accent-subtle)", border: "1px solid var(--color-border-accent)" }}>
-        <CalendarPlus size={24} style={{ color: colors.gold }} />
+    <div className="flex flex-col items-center justify-center py-6 px-4 text-center" style={{ ...glassCard, borderRadius: 16 }}>
+      <div className="flex items-center justify-center mb-3" style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--color-accent-subtle)", border: "1px solid var(--color-border-accent)" }}>
+        <CalendarPlus size={18} style={{ color: colors.gold }} />
       </div>
-      <p className="text-sm font-medium mb-1" style={{ color: colors.primary }}>{language === "es" ? "No tienes reservas" : "No reservations"}</p>
-      <p className="text-xs mb-5" style={{ color: colors.muted }}>{language === "es" ? "Agenda tu próxima experiencia" : "Schedule your next experience"}</p>
+      <p className="text-xs font-medium mb-0.5" style={{ color: colors.primary }}>{language === "es" ? "No tienes reservas" : "No reservations"}</p>
+      <p className="text-[10px] mb-4" style={{ color: colors.muted }}>{language === "es" ? "Agenda tu próxima experiencia" : "Schedule your next experience"}</p>
       <Link href="/">
-        <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }} className="px-6 py-2.5 text-sm font-semibold" style={{ background: "var(--gradient-accent)", color: "var(--color-text-inverse)", borderRadius: 12, border: "none", cursor: "pointer" }}>
+        <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }} className="px-5 py-2 text-xs font-semibold" style={{ background: "var(--gradient-accent)", color: "var(--color-text-inverse)", borderRadius: 10, border: "none", cursor: "pointer" }}>
           {language === "es" ? "Reservar Ahora" : "Book Now"}
         </motion.button>
       </Link>

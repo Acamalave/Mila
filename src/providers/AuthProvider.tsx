@@ -11,6 +11,7 @@ import {
 import type { User } from "@/types";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { stylists as seedStylists } from "@/data/stylists";
+import { setDocument } from "@/lib/firestore";
 
 interface AuthContextValue {
   user: User | null;
@@ -18,6 +19,7 @@ interface AuthContextValue {
   hydrated: boolean;
   loginByPhone: (phone: string, countryCode: string, name?: string) => void;
   register: (name: string, phone: string, countryCode: string) => void;
+  updateProfile: (updates: Partial<Pick<User, "name" | "phone" | "email">>) => void;
   logout: () => void;
 }
 
@@ -28,6 +30,53 @@ const MOCK_USERS: Record<string, { name: string; role: "admin" | "client" | "sty
   "5552003000": { name: "Camila Reyes", role: "stylist", id: "user-camila" },
   "5553004000": { name: "Sofia Chen", role: "client", id: "user-sofia" },
 };
+
+/* ── User registry: localStorage + Firestore sync ── */
+function addToUserRegistry(user: User): void {
+  const registry = getStoredData<User[]>("mila-users", []);
+  const exists = registry.some(
+    (u) => u.phone === user.phone && u.countryCode === user.countryCode
+  );
+  if (!exists) {
+    registry.push(user);
+    setStoredData("mila-users", registry);
+  } else {
+    const idx = registry.findIndex(
+      (u) => u.phone === user.phone && u.countryCode === user.countryCode
+    );
+    if (idx !== -1 && (registry[idx].name !== user.name || registry[idx].email !== user.email)) {
+      registry[idx] = { ...registry[idx], name: user.name, email: user.email };
+      setStoredData("mila-users", registry);
+    }
+  }
+
+  // Sync to Firestore (fire-and-forget)
+  const { id, ...userData } = user;
+  setDocument("users", id, userData).catch(() => {});
+}
+
+function seedMockUsersToRegistry(): void {
+  const registry = getStoredData<User[]>("mila-users", []);
+  let changed = false;
+  for (const [phone, mock] of Object.entries(MOCK_USERS)) {
+    if (!registry.some((u) => u.phone === phone)) {
+      const mockUser: User = {
+        id: mock.id,
+        name: mock.name,
+        phone,
+        countryCode: "+507",
+        role: mock.role,
+        createdAt: new Date().toISOString(),
+      };
+      registry.push(mockUser);
+      changed = true;
+      // Sync mock user to Firestore
+      const { id, ...data } = mockUser;
+      setDocument("users", id, data).catch(() => {});
+    }
+  }
+  if (changed) setStoredData("mila-users", registry);
+}
 
 function createUserFromPhone(phone: string, countryCode: string, providedName?: string): User {
   const mock = MOCK_USERS[phone];
@@ -42,7 +91,6 @@ function createUserFromPhone(phone: string, countryCode: string, providedName?: 
     };
   }
 
-  // Check if phone is linked to a stylist in seed data or custom staff
   const allStaffCustom = getStoredData<Array<{ linkedPhone?: string; name: string }>>("mila-staff-custom", []);
   const linkedStylist =
     seedStylists.find((s) => s.linkedPhone === phone) ||
@@ -75,7 +123,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const stored = getStoredData<User | null>("mila-auth", null);
-    if (stored) setUser(stored);
+    if (stored) {
+      setUser(stored);
+      addToUserRegistry(stored);
+    }
+    seedMockUsersToRegistry();
     setHydrated(true);
   }, []);
 
@@ -83,6 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const newUser = createUserFromPhone(phone, countryCode, name);
     setUser(newUser);
     setStoredData("mila-auth", newUser);
+    addToUserRegistry(newUser);
   }, []);
 
   const register = useCallback((name: string, phone: string, countryCode: string) => {
@@ -96,7 +149,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     setUser(newUser);
     setStoredData("mila-auth", newUser);
+    addToUserRegistry(newUser);
   }, []);
+
+  const updateProfile = useCallback(
+    (updates: Partial<Pick<User, "name" | "phone" | "email">>) => {
+      setUser((prev) => {
+        if (!prev) return prev;
+        const updated: User = { ...prev, ...updates };
+        setStoredData("mila-auth", updated);
+        addToUserRegistry(updated);
+        return updated;
+      });
+    },
+    []
+  );
 
   const logout = useCallback(() => {
     setUser(null);
@@ -105,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, isAuthenticated: !!user, hydrated, loginByPhone, register, logout }}
+      value={{ user, isAuthenticated: !!user, hydrated, loginByPhone, register, updateProfile, logout }}
     >
       {children}
     </AuthContext.Provider>

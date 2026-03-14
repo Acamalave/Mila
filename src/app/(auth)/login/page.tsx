@@ -7,7 +7,7 @@ import { motion } from "motion/react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useStaff } from "@/providers/StaffProvider";
-import { Phone, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
 const countryCodes = [
   { code: "+507", flag: "\u{1F1F5}\u{1F1E6}", name: "PA" },
@@ -54,7 +54,6 @@ export default function LoginPage() {
 
     loginByPhone(cleanPhone, selectedCountry.code);
 
-    // Route based on role
     if (cleanPhone === "5551002000") {
       router.push("/admin");
     } else if (cleanPhone === "5552003000" || getStylistByPhone(cleanPhone)) {
@@ -66,56 +65,81 @@ export default function LoginPage() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center px-4"
+      className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden"
       style={{
-        background: "#0A0A0A",
+        background: "var(--color-bg-page)",
       }}
     >
+      {/* Subtle gold gradient blob */}
+      <div
+        className="fixed inset-0 pointer-events-none"
+        style={{
+          background: "radial-gradient(ellipse at 50% 30%, rgba(196, 169, 106, 0.06) 0%, transparent 60%)",
+        }}
+      />
+
       <motion.div
-        initial={{ opacity: 0, y: 30, scale: 0.96 }}
+        initial={{ opacity: 0, y: 20, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-md"
+        transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full max-w-md relative z-10"
       >
         <div
           className="p-8 sm:p-10"
           style={{
-            background: "#141414",
-            borderRadius: 24,
-            boxShadow: "0 20px 60px rgba(0, 0, 0, 0.5)",
+            background: "var(--color-bg-card)",
+            borderRadius: 20,
+            boxShadow: "var(--shadow-float)",
+            border: "1px solid var(--color-border-default)",
+            backdropFilter: "blur(20px)",
           }}
         >
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
               <Image
-                src="/logo-mila.png"
-                alt="Mila Concept"
-                width={140}
-                height={56}
-                className="h-12 w-auto object-contain"
+                src="/logo-mila-brand.png"
+                alt="Milà Concept"
+                width={120}
+                height={48}
+                className="h-10 w-auto object-contain"
                 priority
               />
             </div>
             <div
               style={{
                 width: 40,
-                height: 2,
-                background: "linear-gradient(90deg, #8E7B54, #C4A96A)",
-                margin: "0 auto 16px",
-                borderRadius: 2,
+                height: 1,
+                background: "var(--gradient-accent-h)",
+                margin: "0 auto 20px",
+                borderRadius: 1,
               }}
             />
             <h2
-              className="text-xl"
               style={{
-                fontFamily: "var(--font-display)",
-                color: "#ABA595",
+                fontFamily: "var(--font-accent)",
+                fontSize: "clamp(32px, 8vw, 42px)",
+                fontWeight: 400,
+                fontStyle: "italic",
+                color: "var(--color-text-primary)",
+                lineHeight: 1.1,
+                letterSpacing: "-0.01em",
+                margin: 0,
               }}
             >
               {t("auth", "loginTitle")}
             </h2>
-            <p className="mt-1" style={{ fontSize: 14, color: "#ABA595" }}>
+            <p
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: 11,
+                fontWeight: 500,
+                color: "var(--color-text-muted)",
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                marginTop: 10,
+              }}
+            >
               {t("auth", "enterPhone")}
             </p>
           </div>
@@ -124,8 +148,15 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label
-                className="block text-sm font-medium mb-1.5"
-                style={{ color: "#ABA595" }}
+                className="block mb-1.5"
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: 11,
+                  fontWeight: 500,
+                  color: "var(--color-text-secondary)",
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                }}
               >
                 {t("auth", "phone")}
               </label>
@@ -137,17 +168,18 @@ export default function LoginPage() {
                     onClick={() => setShowCountries(!showCountries)}
                     className="flex items-center gap-1 px-3 py-3 rounded-lg"
                     style={{
-                      background: "#1A1A1A",
-                      border: "1px solid rgba(255, 255, 255, 0.1)",
-                      color: "#FAF8F5",
+                      background: "var(--color-bg-input)",
+                      border: "1px solid var(--color-border-default)",
+                      color: "var(--color-text-primary)",
                       fontSize: 14,
                       cursor: "pointer",
                       minWidth: 90,
+                      transition: "all 0.3s ease",
                     }}
                   >
                     <span className="text-lg">{selectedCountry.flag}</span>
                     <span style={{ fontSize: 13 }}>{selectedCountry.code}</span>
-                    <ChevronDown size={14} style={{ color: "#ABA595" }} />
+                    <ChevronDown size={14} style={{ color: "var(--color-text-muted)" }} />
                   </button>
 
                   {showCountries && (
@@ -156,9 +188,9 @@ export default function LoginPage() {
                       animate={{ opacity: 1, y: 0 }}
                       className="absolute top-full left-0 mt-1 w-48 rounded-xl overflow-hidden z-50"
                       style={{
-                        background: "#1E1E1E",
-                        boxShadow: "0 10px 40px rgba(0, 0, 0, 0.5)",
-                        border: "1px solid rgba(255, 255, 255, 0.08)",
+                        background: "var(--color-bg-card)",
+                        boxShadow: "var(--shadow-float)",
+                        border: "1px solid var(--color-border-default)",
                         maxHeight: 240,
                         overflowY: "auto" as const,
                       }}
@@ -173,17 +205,17 @@ export default function LoginPage() {
                           }}
                           className="w-full flex items-center gap-2 px-3 py-2.5 text-sm"
                           style={{
-                            color: "#FAF8F5",
+                            color: "var(--color-text-primary)",
                             cursor: "pointer",
                             background: "transparent",
-                            borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
+                            borderBottom: "1px solid var(--color-border-subtle)",
                           }}
-                          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(142, 123, 84, 0.1)")}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-accent-subtle)")}
                           onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                         >
                           <span className="text-lg">{country.flag}</span>
                           <span>{country.name}</span>
-                          <span style={{ color: "#ABA595", marginLeft: "auto" }}>{country.code}</span>
+                          <span style={{ color: "var(--color-text-muted)", marginLeft: "auto" }}>{country.code}</span>
                         </button>
                       ))}
                     </motion.div>
@@ -198,19 +230,20 @@ export default function LoginPage() {
                   placeholder="555 100 2000"
                   className="flex-1 px-4 py-3 rounded-lg"
                   style={{
-                    background: "#1A1A1A",
-                    border: error ? "1px solid #9B4D4D" : "1px solid rgba(255, 255, 255, 0.1)",
-                    color: "#FAF8F5",
+                    background: "var(--color-bg-input)",
+                    border: error ? "1px solid #9B4D4D" : "1px solid var(--color-border-default)",
+                    color: "var(--color-text-primary)",
                     fontSize: 15,
                     outline: "none",
                     letterSpacing: "0.05em",
+                    transition: "all 0.3s ease",
                   }}
                   onFocus={(e) => {
-                    if (!error) e.currentTarget.style.borderColor = "#C4A96A";
-                    e.currentTarget.style.boxShadow = "0 0 0 2px rgba(142, 123, 84, 0.4)";
+                    if (!error) e.currentTarget.style.borderColor = "var(--color-accent)";
+                    e.currentTarget.style.boxShadow = "0 0 0 2px var(--color-accent-glow)";
                   }}
                   onBlur={(e) => {
-                    if (!error) e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.1)";
+                    if (!error) e.currentTarget.style.borderColor = "var(--color-border-default)";
                     e.currentTarget.style.boxShadow = "none";
                   }}
                 />
@@ -224,14 +257,18 @@ export default function LoginPage() {
               type="submit"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="w-full py-3.5 rounded-xl font-semibold"
+              className="w-full py-3.5 rounded-xl"
               style={{
-                background: "linear-gradient(135deg, #8E7B54, #C4A96A)",
-                color: "#FAF8F5",
-                boxShadow: "0 4px 15px rgba(142, 123, 84, 0.3)",
+                background: "var(--gradient-accent)",
+                color: "var(--color-text-inverse)",
+                boxShadow: "var(--shadow-glow)",
                 border: "none",
                 cursor: "pointer",
-                fontSize: 15,
+                fontFamily: "var(--font-display)",
+                fontSize: 14,
+                fontWeight: 600,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase" as const,
               }}
             >
               {t("auth", "loginButton")}
@@ -244,9 +281,12 @@ export default function LoginPage() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4 }}
             className="mt-6 p-3 rounded-lg"
-            style={{ background: "rgba(142, 123, 84, 0.05)" }}
+            style={{
+              background: "var(--color-accent-subtle)",
+              border: "1px solid var(--color-border-accent)",
+            }}
           >
-            <p className="text-xs text-center" style={{ color: "#ABA595", lineHeight: 1.5 }}>
+            <p className="text-xs text-center" style={{ color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
               {t("auth", "demoHint")}
             </p>
           </motion.div>

@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useLanguage } from "@/providers/LanguageProvider";
+import { useAuth } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -12,11 +14,14 @@ import {
   Star,
   UserCircle,
   ChevronLeft,
+  LogOut,
 } from "lucide-react";
 
 export default function StylistSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { t } = useLanguage();
+  const { logout } = useAuth();
 
   const links = [
     { href: "/stylist", icon: LayoutDashboard, label: t("stylistDash", "overview") },
@@ -28,7 +33,7 @@ export default function StylistSidebar() {
   ];
 
   return (
-    <aside className="w-64 bg-mila-espresso min-h-screen p-6 hidden lg:block">
+    <aside className="w-64 bg-mila-espresso min-h-screen p-6 hidden lg:flex lg:flex-col">
       <Link
         href="/"
         className="flex items-center gap-2 text-sm text-mila-taupe hover:text-mila-gold transition-colors mb-8"
@@ -46,7 +51,7 @@ export default function StylistSidebar() {
         </p>
       </div>
 
-      <nav className="space-y-1">
+      <nav className="space-y-1 flex-1">
         {links.map((link) => {
           const isActive = pathname === link.href;
           const Icon = link.icon;
@@ -67,6 +72,20 @@ export default function StylistSidebar() {
           );
         })}
       </nav>
+
+      <div className="pt-6 mt-6 border-t border-white/[0.04]">
+        <button
+          onClick={() => {
+            logout();
+            router.push("/");
+          }}
+          className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-all duration-200 w-full text-left text-mila-taupe hover:bg-white/5"
+          style={{ color: "#9B4D4D" }}
+        >
+          <LogOut size={18} />
+          {t("nav", "logout")}
+        </button>
+      </div>
     </aside>
   );
 }

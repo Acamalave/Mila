@@ -289,7 +289,7 @@ export default function AdminAnalyticsPage() {
                       {formatPrice(cat.revenue)}
                     </span>
                   </div>
-                  <div className="h-3 bg-white/10 rounded-full overflow-hidden">
+                  <div className="h-3 bg-white/[0.05] rounded-full overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${cat.percent}%` }}
@@ -327,7 +327,7 @@ export default function AdminAnalyticsPage() {
                   <span className="text-xs font-medium text-text-primary">
                     {day.count}
                   </span>
-                  <div className="w-full bg-white/10 rounded-t-lg overflow-hidden flex-1 flex items-end">
+                  <div className="w-full bg-white/[0.05] rounded-t-lg overflow-hidden flex-1 flex items-end">
                     <motion.div
                       initial={{ height: 0 }}
                       animate={{ height: `${Math.max(day.percent, 5)}%` }}
@@ -423,7 +423,7 @@ export default function AdminAnalyticsPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border-default">
+              <tbody className="divide-y divide-border-subtle">
                 {commissionByStylist.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-6 py-12 text-center text-text-muted">

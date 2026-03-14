@@ -126,9 +126,9 @@ export default function ReviewsPage() {
       className="space-y-8"
     >
       {/* Header */}
-      <motion.div variants={fadeInUp} className="flex items-center gap-3">
-        <Star size={24} className="text-mila-gold" />
-        <h1 className="text-2xl font-bold font-[family-name:var(--font-display)] text-text-primary">
+      <motion.div variants={fadeInUp}>
+        <div style={{ width: 32, height: 1, background: "var(--gradient-accent-h)", marginBottom: 12 }} />
+        <h1 style={{ fontFamily: "var(--font-accent)", fontSize: "clamp(28px, 6vw, 40px)", fontWeight: 300, fontStyle: "italic", color: "var(--color-text-primary)", lineHeight: 1.1, textTransform: "none", letterSpacing: "normal" }}>
           {t("dashboard", "reviews")}
         </h1>
       </motion.div>
@@ -136,7 +136,7 @@ export default function ReviewsPage() {
       {/* Leave a review section */}
       <motion.section variants={fadeInUp}>
         <Card>
-          <h2 className="text-lg font-semibold font-[family-name:var(--font-display)] text-text-primary mb-4">
+          <h2 style={{ fontFamily: "var(--font-accent)", fontSize: 24, fontWeight: 300, fontStyle: "italic", color: "var(--color-text-primary)", marginBottom: 16, textTransform: "none", letterSpacing: "normal" }}>
             {t("dashboard", "leaveReview")}
           </h2>
 
@@ -198,8 +198,8 @@ export default function ReviewsPage() {
 
       {/* Your reviews */}
       <motion.section variants={fadeInUp}>
-        <h2 className="text-lg font-semibold font-[family-name:var(--font-display)] text-text-primary mb-4 flex items-center gap-2">
-          <MessageSquare size={18} className="text-mila-gold" />
+        <h2 className="flex items-center gap-2" style={{ fontFamily: "var(--font-accent)", fontSize: 22, fontWeight: 300, fontStyle: "italic", color: "var(--color-text-primary)", marginBottom: 16, textTransform: "none", letterSpacing: "normal" }}>
+          <MessageSquare size={18} style={{ color: "var(--color-accent)" }} />
           {language === "es" ? "Tus Resenas" : "Your Reviews"}
         </h2>
 
@@ -237,7 +237,7 @@ export default function ReviewsPage() {
                     <Card>
                       <div className="flex items-start justify-between gap-3 mb-2">
                         <div>
-                          <p className="font-semibold text-text-primary">
+                          <p style={{ fontFamily: "var(--font-accent)", fontSize: 16, fontWeight: 400, fontStyle: "italic", color: "var(--color-text-primary)" }}>
                             {service?.name[language] ?? review.serviceId}
                           </p>
                           <p className="text-sm text-text-secondary">

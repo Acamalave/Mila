@@ -332,7 +332,7 @@ export default function AdminBillingPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border-default">
+              <tbody className="divide-y divide-border-subtle">
                 {filteredInvoices.length === 0 ? (
                   <tr>
                     <td
@@ -502,7 +502,7 @@ export default function AdminBillingPage() {
                       <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider text-center">{language === "es" ? "Acciones" : "Actions"}</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border-default">
+                  <tbody className="divide-y divide-border-subtle">
                     {filteredCommissions.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="px-6 py-12 text-center text-text-muted">

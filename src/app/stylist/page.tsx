@@ -6,7 +6,8 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useStaff } from "@/providers/StaffProvider";
 import { useCommissions } from "@/providers/CommissionProvider";
-import { cn, formatPrice, getStoredData } from "@/lib/utils";
+import { cn, formatPrice, getStoredData, setStoredData } from "@/lib/utils";
+import { onCollectionChange } from "@/lib/firestore";
 import { formatShortDate, formatTime } from "@/lib/date-utils";
 import { services } from "@/data/services";
 import { getInitialDemoAppointments } from "@/data/appointments";
@@ -32,6 +33,20 @@ export default function StylistOverviewPage() {
       stored = getInitialDemoAppointments();
     }
     setBookings(stored);
+
+    const unsub = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
+      if (firestoreBookings.length > 0) {
+        setBookings((prev) => {
+          const merged = new Map<string, Booking>();
+          for (const b of prev) merged.set(b.id, b);
+          for (const b of firestoreBookings) merged.set(b.id, b);
+          const next = Array.from(merged.values());
+          setStoredData("mila-bookings", next);
+          return next;
+        });
+      }
+    });
+    return () => unsub();
   }, []);
 
   const myBookings = useMemo(

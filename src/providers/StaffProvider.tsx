@@ -13,6 +13,7 @@ import type { Stylist, StylistSchedule } from "@/types";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { stylists as seedStylists } from "@/data/stylists";
 import { useEventBus } from "@/providers/EventBusProvider";
+import { setDocument, deleteDocument, onCollectionChange, syncArrayToDoc, onDocumentChange } from "@/lib/firestore";
 
 interface StaffContextValue {
   allStylists: Stylist[];
@@ -82,6 +83,8 @@ export function StaffProvider({ children }: { children: ReactNode }) {
       setStoredData("mila-staff-custom", next);
       return next;
     });
+    const { id, ...stylistData } = newStylist;
+    setDocument("staff", id, stylistData).catch(() => {});
     emit("staff:created", newStylist);
   }, [emit]);
 
@@ -93,10 +96,12 @@ export function StaffProvider({ children }: { children: ReactNode }) {
         setStoredData("mila-staff-custom", next);
         return next;
       });
+      setDocument("staff", id, updates as Record<string, unknown>).catch(() => {});
     } else {
       setDetailOverrides((prev) => {
         const next = { ...prev, [id]: { ...(prev[id] || {}), ...updates } };
         setStoredData("mila-staff-detail-overrides", next);
+        syncArrayToDoc("staff-config", "detail-overrides", Object.entries(next).map(([k, v]) => ({ id: k, ...v }))).catch(() => {});
         return next;
       });
     }
@@ -111,10 +116,12 @@ export function StaffProvider({ children }: { children: ReactNode }) {
         setStoredData("mila-staff-custom", next);
         return next;
       });
+      deleteDocument("staff", id).catch(() => {});
     } else {
       setDeletedIds((prev) => {
         const next = [...prev, id];
         setStoredData("mila-staff-deleted", next);
+        setDocument("staff-config", "deleted", { ids: next }).catch(() => {});
         return next;
       });
     }
@@ -125,6 +132,7 @@ export function StaffProvider({ children }: { children: ReactNode }) {
     setScheduleOverrides((prev) => {
       const next = { ...prev, [stylistId]: schedule };
       setStoredData("mila-staff-schedules", next);
+      setDocument("staff-config", "schedules", next).catch(() => {});
       return next;
     });
     emit("staff:updated", { id: stylistId, schedule });
@@ -139,6 +147,41 @@ export function StaffProvider({ children }: { children: ReactNode }) {
     (userId: string) => allStylists.find((s) => s.linkedUserId === userId),
     [allStylists]
   );
+
+  // Firestore real-time sync
+  useEffect(() => {
+    const unsubs = [
+      onCollectionChange<Stylist>("staff", (firestoreStaff) => {
+        if (firestoreStaff.length > 0) {
+          setCustomStylists((prev) => {
+            const merged = new Map<string, Stylist>();
+            for (const s of prev) merged.set(s.id, s);
+            for (const s of firestoreStaff) merged.set(s.id, s);
+            const next = Array.from(merged.values());
+            setStoredData("mila-staff-custom", next);
+            return next;
+          });
+        }
+      }),
+      onDocumentChange<{ schedules?: Record<string, StylistSchedule[]> }>("staff-config", "schedules", (data) => {
+        if (data) {
+          const schedules = (data as unknown as Record<string, StylistSchedule[]>);
+          delete (schedules as Record<string, unknown>)["id"];
+          if (Object.keys(schedules).length > 0) {
+            setScheduleOverrides(schedules);
+            setStoredData("mila-staff-schedules", schedules);
+          }
+        }
+      }),
+      onDocumentChange<{ ids?: string[] }>("staff-config", "deleted", (data) => {
+        if (data && data.ids) {
+          setDeletedIds(data.ids);
+          setStoredData("mila-staff-deleted", data.ids);
+        }
+      }),
+    ];
+    return () => unsubs.forEach((u) => u());
+  }, []);
 
   // Listen for cross-tab events
   useEffect(() => {

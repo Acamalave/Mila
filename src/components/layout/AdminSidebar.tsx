@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useLanguage } from "@/providers/LanguageProvider";
+import { useAuth } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -14,11 +16,15 @@ import {
   ChevronLeft,
   Scissors,
   ShoppingCart,
+  UserCheck,
+  LogOut,
 } from "lucide-react";
 
 export default function AdminSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { t } = useLanguage();
+  const { logout } = useAuth();
 
   const links = [
     { href: "/admin", icon: LayoutDashboard, label: t("admin", "overview") },
@@ -26,13 +32,14 @@ export default function AdminSidebar() {
     { href: "/admin/calendar", icon: CalendarDays, label: t("admin", "calendar") },
     { href: "/admin/billing", icon: Receipt, label: t("admin", "billing") },
     { href: "/admin/staff", icon: Users, label: t("admin", "staff") },
+    { href: "/admin/clients", icon: UserCheck, label: t("admin", "clients") },
     { href: "/admin/services", icon: Scissors, label: t("admin", "services") },
     { href: "/admin/products", icon: Package, label: t("admin", "products") },
     { href: "/admin/analytics", icon: BarChart3, label: t("admin", "analytics") },
   ];
 
   return (
-    <aside className="w-64 bg-mila-espresso min-h-screen p-6 hidden lg:block">
+    <aside className="w-64 bg-mila-espresso min-h-screen p-6 hidden lg:flex lg:flex-col">
       {/* Back to home */}
       <Link
         href="/"
@@ -43,7 +50,7 @@ export default function AdminSidebar() {
       </Link>
 
       {/* Brand */}
-      <div className="mb-8 pb-6 border-b border-white/10">
+      <div className="mb-8 pb-6 border-b border-white/[0.04]">
         <h2 className="text-lg font-bold tracking-[0.2em] text-mila-ivory font-[family-name:var(--font-display)]">
           MILA
         </h2>
@@ -53,7 +60,7 @@ export default function AdminSidebar() {
       </div>
 
       {/* Nav links */}
-      <nav className="space-y-1">
+      <nav className="space-y-1 flex-1">
         {links.map((link) => {
           const isActive = pathname === link.href;
           const Icon = link.icon;
@@ -74,6 +81,21 @@ export default function AdminSidebar() {
           );
         })}
       </nav>
+
+      {/* Logout */}
+      <div className="pt-6 mt-6 border-t border-white/[0.04]">
+        <button
+          onClick={() => {
+            logout();
+            router.push("/");
+          }}
+          className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-all duration-200 w-full text-left text-mila-taupe hover:bg-white/5"
+          style={{ color: "#9B4D4D" }}
+        >
+          <LogOut size={18} />
+          {t("nav", "logout")}
+        </button>
+      </div>
     </aside>
   );
 }

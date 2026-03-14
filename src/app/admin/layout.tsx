@@ -19,6 +19,8 @@ import {
   BarChart3,
   Scissors,
   ShoppingCart,
+  LogOut,
+  UserCheck,
 } from "lucide-react";
 
 export default function AdminLayout({
@@ -26,7 +28,7 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, isAuthenticated, hydrated } = useAuth();
+  const { user, isAuthenticated, hydrated, logout } = useAuth();
   const { t } = useLanguage();
   const router = useRouter();
   const pathname = usePathname();
@@ -52,6 +54,7 @@ export default function AdminLayout({
     { href: "/admin/calendar", icon: CalendarDays, label: t("admin", "calendar") },
     { href: "/admin/billing", icon: Receipt, label: t("admin", "billing") },
     { href: "/admin/staff", icon: Users, label: t("admin", "staff") },
+    { href: "/admin/clients", icon: UserCheck, label: t("admin", "clients") },
     { href: "/admin/services", icon: Scissors, label: t("admin", "services") },
     { href: "/admin/products", icon: Package, label: t("admin", "products") },
     { href: "/admin/analytics", icon: BarChart3, label: t("admin", "analytics") },
@@ -87,7 +90,7 @@ export default function AdminLayout({
             className="absolute inset-0 bg-mila-espresso/60 backdrop-blur-sm"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <nav className="absolute top-14 left-0 right-0 bg-mila-espresso border-t border-white/10 p-4 space-y-1">
+          <nav className="absolute top-14 left-0 right-0 bg-mila-espresso border-t border-white/[0.04] p-4 space-y-1">
             {mobileLinks.map((link) => {
               const isActive = pathname === link.href;
               const Icon = link.icon;
@@ -107,12 +110,26 @@ export default function AdminLayout({
                 </Link>
               );
             })}
+            {/* Divider + Logout */}
+            <div className="my-2 border-t border-white/[0.04]" />
+            <button
+              onClick={() => {
+                logout();
+                router.push("/");
+                setMobileMenuOpen(false);
+              }}
+              className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-all duration-200 w-full text-left"
+              style={{ color: "#9B4D4D" }}
+            >
+              <LogOut size={18} />
+              {t("nav", "logout")}
+            </button>
           </nav>
         </div>
       )}
 
       {/* Main content */}
-      <main className="flex-1 bg-surface-primary min-h-screen overflow-y-auto pt-16 lg:pt-0 p-6 lg:p-8">
+      <main className="flex-1 bg-surface-primary min-h-screen overflow-y-auto pt-20 p-6 lg:p-10 lg:pt-10">
         {children}
       </main>
     </div>
