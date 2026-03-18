@@ -487,13 +487,14 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
               className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-4 sm:pb-6"
             >
               <div
-                className="max-w-2xl mx-auto flex items-center justify-between px-5 py-3.5"
+                className="max-w-2xl mx-auto flex items-center justify-between px-5 py-4"
                 style={{
-                  background: "rgba(20, 20, 20, 0.92)",
-                  backdropFilter: "blur(20px)",
-                  borderRadius: 14,
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  boxShadow: "0 -4px 30px rgba(0,0,0,0.5)",
+                  background: "linear-gradient(135deg, rgba(142, 123, 84, 0.25), rgba(196, 169, 106, 0.15))",
+                  backdropFilter: "blur(24px)",
+                  WebkitBackdropFilter: "blur(24px)",
+                  borderRadius: 16,
+                  border: "1px solid rgba(196, 169, 106, 0.35)",
+                  boxShadow: "0 -4px 30px rgba(0,0,0,0.5), 0 0 20px rgba(196, 169, 106, 0.08)",
                 }}
               >
                 <div>
@@ -501,9 +502,9 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                     <>
                       <div className="flex items-center gap-3">
                         <p style={{
-                          color: "var(--color-accent)",
-                          fontSize: 18,
-                          fontWeight: 600,
+                          color: "var(--color-text-primary)",
+                          fontSize: 20,
+                          fontWeight: 700,
                           fontFamily: "var(--font-display)",
                         }}>
                           {formatPrice(totalPrice)}
@@ -511,35 +512,39 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                         <div
                           style={{
                             width: 1,
-                            height: 14,
-                            background: "rgba(255,255,255,0.12)",
+                            height: 16,
+                            background: "rgba(196, 169, 106, 0.4)",
                           }}
                         />
-                        <div className="flex items-center gap-1">
-                          <Clock size={12} style={{ color: "var(--color-text-muted)" }} />
+                        <div className="flex items-center gap-1.5">
+                          <Clock size={13} style={{ color: "var(--color-accent)" }} />
                           <span style={{
-                            fontSize: 12,
-                            color: "var(--color-text-muted)",
+                            fontSize: 13,
+                            fontWeight: 500,
+                            color: "var(--color-text-secondary)",
                           }}>
-                            ~{totalDuration} min
+                            {totalDuration >= 60
+                              ? `${Math.floor(totalDuration / 60)}h ${totalDuration % 60 > 0 ? `${totalDuration % 60}min` : ""}`
+                              : `${totalDuration} min`}
                           </span>
                         </div>
                       </div>
                       <p style={{
-                        color: "var(--color-text-muted)",
+                        color: "var(--color-accent)",
                         fontSize: 11,
-                        marginTop: 2,
+                        marginTop: 3,
                         fontFamily: "var(--font-display)",
-                        letterSpacing: "0.05em",
+                        fontWeight: 500,
+                        letterSpacing: "0.08em",
                       }}>
                         {selectedIds.length} {t("home", "totalSelected")}
                       </p>
                     </>
                   ) : (
                     <p style={{
-                      color: "var(--color-accent)",
-                      fontSize: 13,
-                      fontWeight: 500,
+                      color: "var(--color-text-primary)",
+                      fontSize: 14,
+                      fontWeight: 600,
                       fontFamily: "var(--font-display)",
                       letterSpacing: "0.05em",
                     }}>
@@ -557,11 +562,12 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                     color: "var(--color-text-inverse)",
                     fontFamily: "var(--font-display)",
                     fontSize: 12,
-                    fontWeight: 500,
+                    fontWeight: 600,
                     letterSpacing: "0.12em",
                     textTransform: "uppercase" as const,
                     cursor: "pointer",
                     border: "none",
+                    boxShadow: "0 2px 12px rgba(196, 169, 106, 0.3)",
                   }}
                 >
                   {t("home", "continueToDate")}
