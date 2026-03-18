@@ -147,6 +147,12 @@ export default function DashboardPage() {
   const [profileEmail, setProfileEmail] = useState(user?.email ?? "");
   const [showCardForm, setShowCardForm] = useState(false);
 
+  // Appointment detail modal state
+  const [selectedAppt, setSelectedAppt] = useState<Booking | null>(null);
+  const [rescheduleMode, setRescheduleMode] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState("");
+  const [rescheduleTime, setRescheduleTime] = useState("");
+
   useEffect(() => {
     let stored = getStoredData<Booking[]>("mila-bookings", []);
     if (stored.length === 0) {
@@ -302,6 +308,79 @@ export default function DashboardPage() {
   function canCancel(appt: Booking): boolean {
     const apptDate = new Date(`${appt.date}T${appt.startTime}`);
     return apptDate > now && (appt.status === "pending" || appt.status === "confirmed");
+  }
+
+  function canReschedule(appt: Booking): boolean {
+    const apptDate = new Date(`${appt.date}T${appt.startTime}`);
+    return apptDate > now && appt.status === "confirmed";
+  }
+
+  function openApptDetail(appt: Booking) {
+    setSelectedAppt(appt);
+    setRescheduleMode(false);
+    setRescheduleDate("");
+    setRescheduleTime("");
+  }
+
+  function getAvailableDates(): string[] {
+    if (!selectedAppt) return [];
+    const stylist = allStylists.find((s) => s.id === selectedAppt.stylistId);
+    if (!stylist) return [];
+    const dates: string[] = [];
+    for (let i = 1; i <= 21; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      const dow = d.getDay();
+      const schedule = stylist.schedule?.find((s) => s.dayOfWeek === dow);
+      if (schedule?.isAvailable) {
+        dates.push(d.toISOString().split("T")[0]);
+      }
+    }
+    return dates;
+  }
+
+  function getRescheduleSlots(): string[] {
+    if (!selectedAppt || !rescheduleDate) return [];
+    const stylist = allStylists.find((s) => s.id === selectedAppt.stylistId);
+    if (!stylist) return [];
+    const d = new Date(rescheduleDate + "T12:00:00");
+    const dow = d.getDay();
+    const schedule = stylist.schedule?.find((s) => s.dayOfWeek === dow);
+    if (!schedule?.isAvailable) return [];
+    const [sh, sm] = schedule.startTime.split(":").map(Number);
+    const [eh, em] = schedule.endTime.split(":").map(Number);
+    const startMins = sh * 60 + sm;
+    const endMins = eh * 60 + em;
+    const totalDur = (selectedAppt.serviceIds ?? []).reduce((sum, id) => {
+      const svc = services.find((s) => s.id === id);
+      return sum + (svc?.durationMinutes ?? 30);
+    }, 0) || 30;
+    const slots: string[] = [];
+    for (let m = startMins; m + totalDur <= endMins; m += 30) {
+      const h = Math.floor(m / 60);
+      const min = m % 60;
+      slots.push(`${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`);
+    }
+    return slots;
+  }
+
+  function handleReschedule() {
+    if (!selectedAppt || !rescheduleDate || !rescheduleTime) return;
+    const totalDur = (selectedAppt.serviceIds ?? []).reduce((sum, id) => {
+      const svc = services.find((s) => s.id === id);
+      return sum + (svc?.durationMinutes ?? 30);
+    }, 0) || 30;
+    const [h, m] = rescheduleTime.split(":").map(Number);
+    const endMins = h * 60 + m + totalDur;
+    const endTime = `${String(Math.floor(endMins / 60)).padStart(2, "0")}:${String(endMins % 60).padStart(2, "0")}`;
+    const updated = appointments.map((a) =>
+      a.id === selectedAppt.id ? { ...a, date: rescheduleDate, startTime: rescheduleTime, endTime } : a
+    );
+    setAppointments(updated);
+    setStoredData("mila-bookings", updated);
+    setDocument("bookings", selectedAppt.id, { date: rescheduleDate, startTime: rescheduleTime, endTime }).catch(() => {});
+    addToast(language === "es" ? "Cita reprogramada" : "Appointment rescheduled", "success");
+    setSelectedAppt(null);
   }
 
   /* ── Reviews helpers ──────────────────────────────────────────── */
@@ -473,7 +552,9 @@ export default function DashboardPage() {
       {/* ─── Hero Reservation Card ────────────────────────── */}
       <motion.section variants={itemVariants}>
         {nextAppointment ? (
-          <ReservationHeroCard appointment={nextAppointment} language={language} getServiceNames={getServiceNames} statusVariant={statusVariant} statusLabel={statusLabel} />
+          <div onClick={() => openApptDetail(nextAppointment)} className="cursor-pointer">
+            <ReservationHeroCard appointment={nextAppointment} language={language} getServiceNames={getServiceNames} statusVariant={statusVariant} statusLabel={statusLabel} />
+          </div>
         ) : (
           <EmptyReservationCard language={language} />
         )}
@@ -620,7 +701,7 @@ export default function DashboardPage() {
                   const isFuture = new Date(`${appt.date}T${appt.startTime}`) > now;
                   return (
                     <motion.div key={appt.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04, duration: 0.4 }}>
-                      <Card className={!isFuture ? "opacity-70" : ""}>
+                      <Card className={`${!isFuture ? "opacity-70" : ""} cursor-pointer`} onClick={() => openApptDetail(appt)}>
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
@@ -632,7 +713,6 @@ export default function DashboardPage() {
                           </div>
                           <div className="flex items-center gap-4 flex-shrink-0">
                             <p className="text-lg font-semibold" style={{ color: colors.gold }}>{formatPrice(appt.totalPrice)}</p>
-                            {canCancel(appt) && <Button variant="danger" size="sm" onClick={() => handleCancel(appt.id)}>{t("dashboard", "cancel")}</Button>}
                           </div>
                         </div>
                         {appt.notes && <p className="text-xs mt-3 pt-3" style={{ color: colors.muted, borderTop: "1px solid var(--color-border-default)" }}>{appt.notes}</p>}
@@ -844,6 +924,118 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* ─── Appointment Detail Modal ───────────────────── */}
+      <Modal isOpen={!!selectedAppt} onClose={() => setSelectedAppt(null)} title={language === "es" ? "Detalle de Cita" : "Appointment Detail"}>
+        {selectedAppt && (() => {
+          const stylist = allStylists.find((s) => s.id === selectedAppt.stylistId);
+          const availDates = getAvailableDates();
+          const timeSlots = getRescheduleSlots();
+          return (
+            <div className="space-y-5">
+              {/* Info */}
+              <div className="flex items-center gap-3">
+                {stylist?.avatar && (
+                  <div className="flex-shrink-0 overflow-hidden" style={{ width: 48, height: 48, borderRadius: "50%", border: "1.5px solid var(--color-border-accent)" }}>
+                    <Image src={stylist.avatar} alt={stylist.name} width={48} height={48} className="object-cover" style={{ width: 48, height: 48 }} />
+                  </div>
+                )}
+                <div className="flex-1">
+                  <p style={{ fontFamily: "var(--font-accent)", fontSize: 17, fontWeight: 400, fontStyle: "italic", color: colors.primary }}>{getServiceNames(selectedAppt)}</p>
+                  <p className="text-sm mt-0.5" style={{ color: colors.secondary }}>{stylist?.name}</p>
+                </div>
+                <Badge variant={statusVariant(selectedAppt.status)}>{statusLabel(selectedAppt.status)}</Badge>
+              </div>
+
+              {/* Date/Time/Price */}
+              <div className="grid grid-cols-3 gap-3 text-center" style={{ padding: "12px 0" }}>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: colors.muted }}>{language === "es" ? "Fecha" : "Date"}</p>
+                  <p className="text-sm font-medium" style={{ color: colors.primary }}>{formatShortDate(selectedAppt.date, language)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: colors.muted }}>{language === "es" ? "Hora" : "Time"}</p>
+                  <p className="text-sm font-medium" style={{ color: colors.primary }}>{formatTime(selectedAppt.startTime)} - {formatTime(selectedAppt.endTime)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: colors.muted }}>{language === "es" ? "Total" : "Total"}</p>
+                  <p className="text-sm font-bold" style={{ color: colors.gold }}>{formatPrice(selectedAppt.totalPrice)}</p>
+                </div>
+              </div>
+
+              {/* Reschedule Section */}
+              {rescheduleMode && canReschedule(selectedAppt) && (
+                <div className="space-y-3 pt-3" style={{ borderTop: "1px solid var(--color-border-default)" }}>
+                  <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: colors.gold }}>
+                    {language === "es" ? "Selecciona nueva fecha" : "Select new date"}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {availDates.map((d) => {
+                      const dateObj = new Date(d + "T12:00:00");
+                      const label = dateObj.toLocaleDateString(language === "es" ? "es-PA" : "en-US", { weekday: "short", day: "numeric", month: "short" });
+                      return (
+                        <button key={d} onClick={() => { setRescheduleDate(d); setRescheduleTime(""); }}
+                          className="px-3 py-2 rounded-lg text-xs font-medium transition-all"
+                          style={{
+                            background: rescheduleDate === d ? "var(--color-accent-subtle)" : "var(--color-bg-glass)",
+                            border: rescheduleDate === d ? "1px solid var(--color-accent)" : "1px solid var(--color-border-default)",
+                            color: rescheduleDate === d ? colors.gold : colors.secondary,
+                            cursor: "pointer",
+                          }}
+                        >{label}</button>
+                      );
+                    })}
+                  </div>
+                  {rescheduleDate && timeSlots.length > 0 && (
+                    <>
+                      <p className="text-xs font-semibold uppercase tracking-wider mt-2" style={{ color: colors.gold }}>
+                        {language === "es" ? "Selecciona hora" : "Select time"}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {timeSlots.map((slot) => (
+                          <button key={slot} onClick={() => setRescheduleTime(slot)}
+                            className="px-3 py-2 rounded-lg text-xs font-medium transition-all"
+                            style={{
+                              background: rescheduleTime === slot ? "var(--color-accent-subtle)" : "var(--color-bg-glass)",
+                              border: rescheduleTime === slot ? "1px solid var(--color-accent)" : "1px solid var(--color-border-default)",
+                              color: rescheduleTime === slot ? colors.gold : colors.secondary,
+                              cursor: "pointer",
+                            }}
+                          >{formatTime(slot)}</button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  <div className="flex gap-2 pt-2">
+                    <Button variant="outline" size="sm" onClick={() => setRescheduleMode(false)} className="flex-1">
+                      {language === "es" ? "Cancelar" : "Cancel"}
+                    </Button>
+                    <Button size="sm" onClick={handleReschedule} className="flex-1" disabled={!rescheduleDate || !rescheduleTime}>
+                      {language === "es" ? "Confirmar" : "Confirm"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              {!rescheduleMode && (
+                <div className="flex gap-3 pt-2">
+                  {canReschedule(selectedAppt) && (
+                    <Button variant="outline" size="sm" onClick={() => setRescheduleMode(true)} className="flex-1">
+                      {language === "es" ? "Reprogramar" : "Reschedule"}
+                    </Button>
+                  )}
+                  {canCancel(selectedAppt) && (
+                    <Button variant="danger" size="sm" onClick={() => { handleCancel(selectedAppt.id); setSelectedAppt(null); }} className="flex-1">
+                      {language === "es" ? "Cancelar Cita" : "Cancel Appointment"}
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </Modal>
 
       {/* ─── Payment Modal ────────────────────────────────── */}
