@@ -13,7 +13,7 @@ import type { Stylist, StylistSchedule } from "@/types";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { stylists as seedStylists } from "@/data/stylists";
 import { useEventBus } from "@/providers/EventBusProvider";
-import { setDocument, deleteDocument, onCollectionChange, syncArrayToDoc, onDocumentChange } from "@/lib/firestore";
+import { setDocument, deleteDocument, onCollectionChange, syncArrayToDoc, onDocumentChange, onArrayDocChange } from "@/lib/firestore";
 
 interface StaffContextValue {
   allStylists: Stylist[];
@@ -173,6 +173,17 @@ export function StaffProvider({ children }: { children: ReactNode }) {
           }
         }
       }),
+      onArrayDocChange<{ id: string } & Partial<Stylist>>("staff-config", "detail-overrides", (items) => {
+        if (items.length > 0) {
+          const overrides: Record<string, Partial<Stylist>> = {};
+          for (const item of items) {
+            const { id, ...rest } = item;
+            if (id) overrides[id] = rest;
+          }
+          setDetailOverrides(overrides);
+          setStoredData("mila-staff-detail-overrides", overrides);
+        }
+      }),
       onDocumentChange<{ ids?: string[] }>("staff-config", "deleted", (data) => {
         if (data && data.ids) {
           setDeletedIds(data.ids);
@@ -183,7 +194,7 @@ export function StaffProvider({ children }: { children: ReactNode }) {
     return () => unsubs.forEach((u) => u());
   }, []);
 
-  // Listen for cross-tab events
+  // Listen for cross-tab events (EventBus + BroadcastChannel)
   useEffect(() => {
     const unsubs = [
       on("staff:created", () => {
@@ -201,6 +212,20 @@ export function StaffProvider({ children }: { children: ReactNode }) {
     ];
     return () => unsubs.forEach((u) => u());
   }, [on]);
+
+  // Fallback: listen to localStorage changes from other tabs (window storage event)
+  useEffect(() => {
+    const STAFF_KEYS = ["mila-staff-custom", "mila-staff-schedules", "mila-staff-detail-overrides", "mila-staff-deleted"];
+    const handleStorage = (e: StorageEvent) => {
+      if (!e.key || !STAFF_KEYS.includes(e.key)) return;
+      setCustomStylists(getStoredData<Stylist[]>("mila-staff-custom", []));
+      setScheduleOverrides(getStoredData<Record<string, StylistSchedule[]>>("mila-staff-schedules", {}));
+      setDetailOverrides(getStoredData<Record<string, Partial<Stylist>>>("mila-staff-detail-overrides", {}));
+      setDeletedIds(getStoredData<string[]>("mila-staff-deleted", []));
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
 
   return (
     <StaffContext.Provider value={{ allStylists, addStylist, updateStylist, deleteStylist, updateSchedule, getStylistByPhone, getStylistByUserId }}>
