@@ -7,6 +7,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useBooking } from "@/providers/BookingProvider";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { setDocument } from "@/lib/firestore";
+import { services } from "@/data/services";
 import type { Booking } from "@/types";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -56,16 +57,24 @@ export default function HomePage() {
 
   // Handle booking confirmation
   const handleBook = useCallback(() => {
+    const selectedServices = state.isGeneralAppointment
+      ? []
+      : state.selectedServiceIds;
+    const totalPrice = selectedServices.reduce((sum, sId) => {
+      const svc = services.find((s) => s.id === sId);
+      return sum + (svc?.price ?? 0);
+    }, 0);
+
     const booking: Booking = {
       id: generateId(),
-      serviceIds: state.isGeneralAppointment ? [] : state.selectedServiceIds,
+      serviceIds: selectedServices,
       stylistId: state.selectedStylistId!,
       clientId: user?.id ?? null,
       date: state.selectedDate!,
       startTime: state.selectedTimeSlot!.startTime,
       endTime: state.selectedTimeSlot!.endTime,
       status: "confirmed",
-      totalPrice: 0,
+      totalPrice,
       notes: state.notes,
       createdAt: new Date().toISOString(),
     };
@@ -88,11 +97,15 @@ export default function HomePage() {
   // After successful login, proceed with booking
   const handleLoginSuccess = useCallback(() => {
     setShowLoginModal(false);
-    if (pendingBook) {
+  }, []);
+
+  // When login completes and user is available, finalize the pending booking
+  useEffect(() => {
+    if (pendingBook && user?.id) {
       setPendingBook(false);
-      setTimeout(() => handleBook(), 100);
+      handleBook();
     }
-  }, [pendingBook, handleBook]);
+  }, [pendingBook, user, handleBook]);
 
   // Don't render until hydrated
   if (!hydrated) return null;
