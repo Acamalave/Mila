@@ -82,12 +82,21 @@
    Base Styles
    ─────────────────────────────────────────────── */
 @layer base {
+  html {
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+  }
+
   body {
     font-family: var(--font-body);
     color: var(--color-text-primary);
     background-color: var(--color-bg-page);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
   }
 
   select option {
