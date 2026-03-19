@@ -58,15 +58,28 @@ export default function AdminClientsPage() {
     return () => unsubUsers();
   }, []);
 
+  // Filter out invalid/empty user entries and deduplicate by phone
+  const validUsers = useMemo(() => {
+    const seen = new Map<string, User>();
+    for (const u of users) {
+      if (!u.id || !u.name || !u.phone) continue;
+      const key = u.phone;
+      if (!seen.has(key) || (u.createdAt && !seen.get(key)!.createdAt)) {
+        seen.set(key, u);
+      }
+    }
+    return Array.from(seen.values());
+  }, [users]);
+
   const filteredUsers = useMemo(() => {
-    if (!search.trim()) return users;
+    if (!search.trim()) return validUsers;
     const q = search.toLowerCase();
-    return users.filter(
+    return validUsers.filter(
       (u) =>
         u.name.toLowerCase().includes(q) ||
         u.phone.toLowerCase().includes(q)
     );
-  }, [users, search]);
+  }, [validUsers, search]);
 
   const getUserBookings = (userId: string) =>
     bookings.filter((b) => b.clientId === userId);
@@ -112,7 +125,7 @@ export default function AdminClientsPage() {
   const statCards = [
     {
       icon: Users,
-      value: users.length,
+      value: validUsers.length,
       label: t("admin", "clients"),
       color: "text-mila-gold",
       bg: "bg-mila-gold/10",
@@ -275,7 +288,7 @@ export default function AdminClientsPage() {
                           {formatPrice(spent)}
                         </td>
                         <td className="px-6 py-4 text-sm text-text-secondary hidden lg:table-cell">
-                          {formatShortDate(user.createdAt, language)}
+                          {user.createdAt ? formatShortDate(user.createdAt, language) : "—"}
                         </td>
                       </tr>
                     );
@@ -320,7 +333,7 @@ export default function AdminClientsPage() {
                 <div className="flex items-center gap-2 text-sm text-text-secondary">
                   <CalendarDays size={14} className="text-text-muted" />
                   {t("admin", "registeredOn")}:{" "}
-                  {formatShortDate(selectedUser.createdAt, language)}
+                  {selectedUser.createdAt ? formatShortDate(selectedUser.createdAt, language) : "—"}
                 </div>
                 <Badge
                   variant={

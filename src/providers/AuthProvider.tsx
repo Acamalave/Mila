@@ -33,22 +33,24 @@ const MOCK_USERS: Record<string, { name: string; role: "admin" | "client" | "sty
 
 /* ── User registry: localStorage + Firestore sync ── */
 function addToUserRegistry(user: User): void {
-  const registry = getStoredData<User[]>("mila-users", []);
-  const exists = registry.some(
-    (u) => u.phone === user.phone && u.countryCode === user.countryCode
-  );
-  if (!exists) {
-    registry.push(user);
-    setStoredData("mila-users", registry);
-  } else {
-    const idx = registry.findIndex(
-      (u) => u.phone === user.phone && u.countryCode === user.countryCode
-    );
-    if (idx !== -1 && (registry[idx].name !== user.name || registry[idx].email !== user.email)) {
-      registry[idx] = { ...registry[idx], name: user.name, email: user.email };
-      setStoredData("mila-users", registry);
-    }
+  if (!user.id || !user.phone) return;
+  const raw = getStoredData<User[]>("mila-users", []);
+  // Clean: remove empty/invalid entries and deduplicate by id then phone
+  const seen = new Map<string, User>();
+  for (const u of raw) {
+    if (!u.id && !u.phone) continue;
+    const key = u.id || u.phone;
+    if (!seen.has(key)) seen.set(key, u);
   }
+  // Upsert by id first, then phone fallback
+  const existing = seen.get(user.id) || Array.from(seen.values()).find((u) => u.phone === user.phone);
+  if (existing) {
+    const merged = { ...existing, name: user.name, email: user.email, role: user.role };
+    seen.set(existing.id || user.id, merged);
+  } else {
+    seen.set(user.id, user);
+  }
+  setStoredData("mila-users", Array.from(seen.values()));
 
   // Sync to Firestore (fire-and-forget)
   const { id, ...userData } = user;
