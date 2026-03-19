@@ -5,7 +5,8 @@ import { motion } from "motion/react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useStaff } from "@/providers/StaffProvider";
-import { getStoredData } from "@/lib/utils";
+import { getStoredData, setStoredData } from "@/lib/utils";
+import { onCollectionChange } from "@/lib/firestore";
 import { formatShortDate, formatTime } from "@/lib/date-utils";
 import { getInitialDemoAppointments } from "@/data/appointments";
 import { services } from "@/data/services";
@@ -31,6 +32,19 @@ export default function StylistSchedulePage() {
       stored = getInitialDemoAppointments();
     }
     setBookings(stored);
+
+    const unsubBookings = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
+      if (firestoreBookings.length > 0) {
+        const local = getStoredData<Booking[]>("mila-bookings", []);
+        const merged = new Map<string, Booking>();
+        for (const b of local) if (b.id) merged.set(b.id, b);
+        for (const b of firestoreBookings) if (b.id) merged.set(b.id, b);
+        const all = Array.from(merged.values());
+        setBookings(all);
+        setStoredData("mila-bookings", all);
+      }
+    });
+    return () => unsubBookings();
   }, []);
 
   const myBookings = useMemo(

@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
-import { cn, formatPrice, getStoredData } from "@/lib/utils";
+import { cn, formatPrice, getStoredData, setStoredData } from "@/lib/utils";
 import { services, serviceCategories } from "@/data/services";
 import { useStaff } from "@/providers/StaffProvider";
 import { useCommissions } from "@/providers/CommissionProvider";
@@ -21,6 +21,7 @@ import {
   BarChart3,
   DollarSign,
 } from "lucide-react";
+import { onCollectionChange } from "@/lib/firestore";
 import type { Booking } from "@/types";
 
 const DAY_NAMES_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -38,6 +39,20 @@ export default function AdminAnalyticsPage() {
       stored = getInitialDemoAppointments();
     }
     setBookings(stored);
+
+    const unsubBookings = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
+      if (firestoreBookings.length > 0) {
+        const local = getStoredData<Booking[]>("mila-bookings", []);
+        const merged = new Map<string, Booking>();
+        for (const b of local) if (b.id) merged.set(b.id, b);
+        for (const b of firestoreBookings) if (b.id) merged.set(b.id, b);
+        const all = Array.from(merged.values());
+        setBookings(all);
+        setStoredData("mila-bookings", all);
+      }
+    });
+
+    return () => unsubBookings();
   }, []);
 
   // Bookings this week

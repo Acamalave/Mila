@@ -79,7 +79,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       return next;
     });
     const { id, ...productData } = newProduct;
-    setDocument("products", id, productData).catch(() => {});
+    setDocument("products", id, productData).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
     emit("product:created", newProduct);
   }, [emit]);
 
@@ -91,13 +91,13 @@ export function ProductProvider({ children }: { children: ReactNode }) {
         setStoredData("mila-products-custom", next);
         return next;
       });
-      setDocument("products", id, updates as Record<string, unknown>).catch(() => {});
+      setDocument("products", id, updates as Record<string, unknown>).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
     } else {
       setSeedOverrides((prev) => {
         const existing = prev[id] ?? {};
         const next = { ...prev, [id]: { ...existing, ...updates } };
         setStoredData("mila-products-seed-overrides", next);
-        setDocument("products-config", "seed-overrides", next).catch(() => {});
+        setDocument("products-config", "seed-overrides", next).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
         return next;
       });
     }
@@ -105,7 +105,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       setStockOverrides((prev) => {
         const next = { ...prev, [id]: updates.stockQuantity as number };
         setStoredData("mila-stock-overrides", next);
-        setDocument("products-config", "stock-overrides", next).catch(() => {});
+        setDocument("products-config", "stock-overrides", next).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
         return next;
       });
     }
@@ -120,12 +120,12 @@ export function ProductProvider({ children }: { children: ReactNode }) {
         setStoredData("mila-products-custom", next);
         return next;
       });
-      deleteDocument("products", id).catch(() => {});
+      deleteDocument("products", id).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
     } else {
       setDeletedIds((prev) => {
         const next = [...prev, id];
         setStoredData("mila-products-deleted", next);
-        setDocument("products-config", "deleted", { ids: next }).catch(() => {});
+        setDocument("products-config", "deleted", { ids: next }).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
         return next;
       });
     }
@@ -136,7 +136,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     setStockOverrides((prev) => {
       const next = { ...prev, [id]: quantity };
       setStoredData("mila-stock-overrides", next);
-      setDocument("products-config", "stock-overrides", next).catch(() => {});
+      setDocument("products-config", "stock-overrides", next).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
       return next;
     });
     const isCustom = customProducts.some((p) => p.id === id);
@@ -148,7 +148,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
         setStoredData("mila-products-custom", next);
         return next;
       });
-      setDocument("products", id, { stockQuantity: quantity, inStock: quantity > 0 }).catch(() => {});
+      setDocument("products", id, { stockQuantity: quantity, inStock: quantity > 0 }).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
     }
     emit("product:updated", { id, stockQuantity: quantity });
   }, [customProducts, emit]);

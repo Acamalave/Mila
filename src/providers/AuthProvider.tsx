@@ -78,7 +78,7 @@ function seedMockUsersToRegistry(): void {
       changed = true;
       // Sync mock user to Firestore
       const { id, ...data } = mockUser;
-      setDocument("users", id, data).catch(() => {});
+      setDocument("users", id, data).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
     }
   }
   if (changed) setStoredData("mila-users", registry);

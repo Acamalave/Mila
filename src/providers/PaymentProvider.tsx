@@ -79,7 +79,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
         return next;
       });
       const { id, ...cardData } = newCard;
-      setDocument("payment-methods", id, cardData).catch(() => {});
+      setDocument("payment-methods", id, cardData).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
     },
     []
   );
@@ -90,7 +90,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
       setStoredData("mila-payment-methods", next);
       return next;
     });
-    deleteDocument("payment-methods", cardId).catch(() => {});
+    deleteDocument("payment-methods", cardId).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
   }, []);
 
   const setDefaultCard = useCallback(
@@ -130,7 +130,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
       });
 
       const { id, ...txnData } = transaction;
-      setDocument("payments", id, txnData).catch(() => {});
+      setDocument("payments", id, txnData).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
       emit("payment:completed", transaction);
       return transaction;
     },
@@ -158,7 +158,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
       });
 
       const { id, ...txnData } = transaction;
-      setDocument("payments", id, txnData).catch(() => {});
+      setDocument("payments", id, txnData).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
       emit("payment:completed", transaction);
       return transaction;
     },

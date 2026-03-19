@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { motion } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useToast } from "@/providers/ToastProvider";
+import { useEventBus } from "@/providers/EventBusProvider";
 import {
   cn,
   formatPrice,
@@ -63,6 +64,7 @@ function toDateString(d: Date): string {
 export default function AdminCalendarPage() {
   const { language, t } = useLanguage();
   const { addToast } = useToast();
+  const { emit } = useEventBus();
   const { allStylists } = useStaff();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [weekStart, setWeekStart] = useState<Date>(() => getMonday(new Date()));
@@ -75,7 +77,7 @@ export default function AdminCalendarPage() {
       setStoredData("mila-bookings", stored);
       for (const b of stored) {
         const { id, ...data } = b;
-        setDocument("bookings", id, data).catch(() => {});
+        setDocument("bookings", id, data).catch((err) => console.warn("[Mila] Booking sync failed:", err));
       }
     }
     setBookings(stored);
@@ -128,7 +130,8 @@ export default function AdminCalendarPage() {
       );
       setBookings(updated);
       setStoredData("mila-bookings", updated);
-      setDocument("bookings", bookingId, { status: newStatus }).catch(() => {});
+      setDocument("bookings", bookingId, { status: newStatus }).catch((err) => console.warn("[Mila] Booking sync failed:", err));
+      emit("booking:updated", { id: bookingId, status: newStatus });
 
       const statusMessages: Record<BookingStatus, { en: string; es: string }> = {
         confirmed: { en: "Booking confirmed", es: "Reserva confirmada" },

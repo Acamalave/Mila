@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useToast } from "@/providers/ToastProvider";
+import { useEventBus } from "@/providers/EventBusProvider";
 import { getStoredData, setStoredData, formatPrice } from "@/lib/utils";
 import { setDocument, onCollectionChange } from "@/lib/firestore";
 import { formatShortDate, formatTime } from "@/lib/date-utils";
@@ -30,6 +31,7 @@ import { es as esLocale, enUS } from "date-fns/locale";
 export default function AppointmentsPage() {
   const { language, t } = useLanguage();
   const { addToast } = useToast();
+  const { emit } = useEventBus();
   const { allStylists } = useStaff();
   const [appointments, setAppointments] = useState<Booking[]>([]);
   const [rescheduleAppt, setRescheduleAppt] = useState<Booking | null>(null);
@@ -43,7 +45,7 @@ export default function AppointmentsPage() {
       setStoredData("mila-bookings", stored);
       for (const b of stored) {
         const { id, ...data } = b;
-        setDocument("bookings", id, data).catch(() => {});
+        setDocument("bookings", id, data).catch((err) => console.warn("[Mila] Booking sync failed:", err));
       }
     }
     setAppointments(stored);
@@ -102,7 +104,8 @@ export default function AppointmentsPage() {
     );
     setAppointments(updated);
     setStoredData("mila-bookings", updated);
-    setDocument("bookings", bookingId, { status: "cancelled" }).catch(() => {});
+    setDocument("bookings", bookingId, { status: "cancelled" }).catch((err) => console.warn("[Mila] Booking sync failed:", err));
+    emit("booking:updated", { id: bookingId, status: "cancelled" });
     addToast(
       language === "es" ? "Cita cancelada" : "Appointment cancelled",
       "info"
@@ -194,7 +197,8 @@ export default function AppointmentsPage() {
       date: rescheduleDate,
       startTime: rescheduleTime,
       endTime,
-    }).catch(() => {});
+    }).catch((err) => console.warn("[Mila] Booking sync failed:", err));
+    emit("booking:updated", { id: rescheduleAppt.id, date: rescheduleDate });
     addToast(
       language === "es" ? "Cita reprogramada" : "Appointment rescheduled",
       "success"

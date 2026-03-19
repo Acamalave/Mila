@@ -84,7 +84,7 @@ export function StaffProvider({ children }: { children: ReactNode }) {
       return next;
     });
     const { id, ...stylistData } = newStylist;
-    setDocument("staff", id, stylistData).catch(() => {});
+    setDocument("staff", id, stylistData).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
     emit("staff:created", newStylist);
   }, [emit]);
 
@@ -96,12 +96,12 @@ export function StaffProvider({ children }: { children: ReactNode }) {
         setStoredData("mila-staff-custom", next);
         return next;
       });
-      setDocument("staff", id, updates as Record<string, unknown>).catch(() => {});
+      setDocument("staff", id, updates as Record<string, unknown>).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
     } else {
       setDetailOverrides((prev) => {
         const next = { ...prev, [id]: { ...(prev[id] || {}), ...updates } };
         setStoredData("mila-staff-detail-overrides", next);
-        syncArrayToDoc("staff-config", "detail-overrides", Object.entries(next).map(([k, v]) => ({ id: k, ...v }))).catch(() => {});
+        syncArrayToDoc("staff-config", "detail-overrides", Object.entries(next).map(([k, v]) => ({ id: k, ...v }))).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
         return next;
       });
     }
@@ -116,12 +116,12 @@ export function StaffProvider({ children }: { children: ReactNode }) {
         setStoredData("mila-staff-custom", next);
         return next;
       });
-      deleteDocument("staff", id).catch(() => {});
+      deleteDocument("staff", id).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
     } else {
       setDeletedIds((prev) => {
         const next = [...prev, id];
         setStoredData("mila-staff-deleted", next);
-        setDocument("staff-config", "deleted", { ids: next }).catch(() => {});
+        setDocument("staff-config", "deleted", { ids: next }).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
         return next;
       });
     }
@@ -132,7 +132,7 @@ export function StaffProvider({ children }: { children: ReactNode }) {
     setScheduleOverrides((prev) => {
       const next = { ...prev, [stylistId]: schedule };
       setStoredData("mila-staff-schedules", next);
-      setDocument("staff-config", "schedules", next).catch(() => {});
+      setDocument("staff-config", "schedules", next).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
       return next;
     });
     emit("staff:updated", { id: stylistId, schedule });

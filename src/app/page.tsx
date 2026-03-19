@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useBooking } from "@/providers/BookingProvider";
+import { useEventBus } from "@/providers/EventBusProvider";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { setDocument } from "@/lib/firestore";
 import { services } from "@/data/services";
@@ -20,6 +21,7 @@ export default function HomePage() {
   const router = useRouter();
   const { user, isAuthenticated, hydrated } = useAuth();
   const { state, dispatch, resetBooking } = useBooking();
+  const { emit } = useEventBus();
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [pendingBook, setPendingBook] = useState(false);
 
@@ -82,7 +84,8 @@ export default function HomePage() {
     const existing = getStoredData<Booking[]>("mila-bookings", []);
     setStoredData("mila-bookings", [...existing, booking]);
     const { id, ...bookingData } = booking;
-    setDocument("bookings", id, bookingData).catch(() => {});
+    setDocument("bookings", id, bookingData).catch((err) => console.warn("[Mila] Booking sync failed:", err));
+    emit("booking:updated", booking);
 
     resetBooking();
     router.push("/dashboard");

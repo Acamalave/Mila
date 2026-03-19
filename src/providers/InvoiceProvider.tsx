@@ -49,7 +49,7 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
       return next;
     });
     const { id, ...invoiceData } = newInvoice;
-    setDocument("invoices", id, invoiceData).catch(() => {});
+    setDocument("invoices", id, invoiceData).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
     emit("invoice:created", newInvoice);
     return newInvoice;
   }, [emit, persist]);
@@ -60,7 +60,7 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
       persist(next);
       return next;
     });
-    setDocument("invoices", id, updates as Record<string, unknown>).catch(() => {});
+    setDocument("invoices", id, updates as Record<string, unknown>).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
     emit("invoice:updated", { id, updates });
   }, [emit, persist]);
 
@@ -79,7 +79,7 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
       }
       return next;
     });
-    setDocument("invoices", invoiceId, { status: "sent", sentAt }).catch(() => {});
+    setDocument("invoices", invoiceId, { status: "sent", sentAt }).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
   }, [emit, persist]);
 
   const markAsPaid = useCallback((invoiceId: string, transactionId: string) => {
@@ -102,7 +102,7 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
       }
       return next;
     });
-    setDocument("invoices", invoiceId, { status: "paid", paidAt, paymentTransactionId: transactionId }).catch(() => {});
+    setDocument("invoices", invoiceId, { status: "paid", paidAt, paymentTransactionId: transactionId }).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
   }, [emit, persist]);
 
   const deleteInvoice = useCallback((invoiceId: string) => {
@@ -111,7 +111,7 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
       persist(next);
       return next;
     });
-    deleteDocument("invoices", invoiceId).catch(() => {});
+    deleteDocument("invoices", invoiceId).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
   }, [persist]);
 
   const getInvoicesForClient = useCallback(
@@ -135,7 +135,7 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
         return next;
       });
       const { id, ...invoiceData } = newInvoice;
-      setDocument("invoices", id, invoiceData).catch(() => {});
+      setDocument("invoices", id, invoiceData).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
       emit("invoice:created", newInvoice);
       emit("invoice:paid", newInvoice);
       return newInvoice;

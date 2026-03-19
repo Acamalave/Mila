@@ -99,7 +99,7 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
         });
         for (const rec of newRecords) {
           const { id, ...data } = rec;
-          setDocument("commissions", id, data).catch(() => {});
+          setDocument("commissions", id, data).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
         }
       }
     },
@@ -118,7 +118,7 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
         persist(next);
         return next;
       });
-      setDocument("commissions", commissionId, { status: "paid", paidAt }).catch(() => {});
+      setDocument("commissions", commissionId, { status: "paid", paidAt }).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
     },
     [persist]
   );
@@ -130,7 +130,7 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
         const next = prev.map((c) => {
           if (c.stylistId === stylistId && c.status === "pending") {
             const updated = { ...c, status: "paid" as const, paidAt };
-            setDocument("commissions", c.id, { status: "paid", paidAt }).catch(() => {});
+            setDocument("commissions", c.id, { status: "paid", paidAt }).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
             return updated;
           }
           return c;

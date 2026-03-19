@@ -67,7 +67,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         return next;
       });
       const { id, ...notifData } = newNotif;
-      setDocument("notifications", id, notifData).catch(() => {});
+      setDocument("notifications", id, notifData).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
       emit("notification:created", newNotif);
     },
     [emit, persist]
@@ -82,7 +82,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         persist(next);
         return next;
       });
-      setDocument("notifications", notificationId, { read: true }).catch(() => {});
+      setDocument("notifications", notificationId, { read: true }).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
       emit("notification:read", notificationId);
     },
     [emit, persist]
@@ -95,6 +95,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         n.userId === user.id ? { ...n, read: true } : n
       );
       persist(next);
+
+      // Sync unread notifications to Firestore
+      prev
+        .filter((n) => n.userId === user.id && !n.read)
+        .forEach((notif) => {
+          setDocument("notifications", notif.id, { ...notif, read: true })
+            .catch((err) => console.warn("[Mila] Failed to sync notification read status:", err));
+        });
+
       return next;
     });
   }, [user, persist]);
@@ -106,7 +115,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         persist(next);
         return next;
       });
-      deleteDocument("notifications", notificationId).catch(() => {});
+      deleteDocument("notifications", notificationId).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
     },
     [persist]
   );
@@ -156,7 +165,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             return next;
           });
           const { id, ...notifData } = newNotif;
-          setDocument("notifications", id, notifData).catch(() => {});
+          setDocument("notifications", id, notifData).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
         }
       }),
       on("invoice:paid", (payload) => {
@@ -201,8 +210,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           });
           const { id: adminId, ...adminData } = adminNotif;
           const { id: clientId, ...clientData } = clientNotif;
-          setDocument("notifications", adminId, adminData).catch(() => {});
-          setDocument("notifications", clientId, clientData).catch(() => {});
+          setDocument("notifications", adminId, adminData).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
+          setDocument("notifications", clientId, clientData).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
         }
       }),
       on("notification:created", () => {

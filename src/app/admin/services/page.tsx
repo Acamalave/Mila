@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useToast } from "@/providers/ToastProvider";
@@ -11,6 +11,7 @@ import Card from "@/components/ui/Card";
 import Modal from "@/components/ui/Modal";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
+import { setDocument, onDocumentChange } from "@/lib/firestore";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
 import { Clock, Edit2 } from "lucide-react";
 
@@ -24,6 +25,21 @@ export default function AdminServicesPage() {
   );
   const [editingService, setEditingService] = useState<string | null>(null);
   const [editDuration, setEditDuration] = useState<number>(0);
+
+  useEffect(() => {
+    const unsub = onDocumentChange<Record<string, number>>("service-config", "duration-overrides", (data) => {
+      if (data) {
+        const overridesData = { ...data };
+        delete (overridesData as any).id;
+        if (Object.keys(overridesData).length > 0) {
+          setOverrides(overridesData);
+          setStoredData("mila-service-duration-overrides", overridesData);
+        }
+      }
+    });
+
+    return () => unsub();
+  }, []);
 
   const getEffectiveDuration = (serviceId: string, defaultDuration: number) => {
     return overrides[serviceId] ?? defaultDuration;
@@ -39,6 +55,7 @@ export default function AdminServicesPage() {
     const newOverrides = { ...overrides, [editingService]: editDuration };
     setOverrides(newOverrides);
     setStoredData("mila-service-duration-overrides", newOverrides);
+    setDocument("service-config", "duration-overrides", newOverrides).catch((err) => console.warn("[Mila] Failed to sync duration overrides:", err));
     setEditingService(null);
     addToast(
       language === "es" ? "Duración actualizada" : "Duration updated",
