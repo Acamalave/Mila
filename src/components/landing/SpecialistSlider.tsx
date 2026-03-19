@@ -159,7 +159,7 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
           {/* Navigation + Select button */}
           <div className="max-w-lg mx-auto">
             {/* Dot indicators with names */}
-            <div className="flex items-center justify-center gap-3 sm:gap-5 mb-5">
+            <div className="flex items-center justify-center gap-2 sm:gap-5 mb-5 overflow-x-auto max-w-full">
               {allStylists.map((s, i) => (
                 <motion.button
                   key={s.id}

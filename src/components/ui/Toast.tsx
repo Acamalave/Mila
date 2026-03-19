@@ -48,7 +48,7 @@ export default function ToastContainer({ toasts, onRemove }: ToastContainerProps
               transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
               className={cn(
                 "flex items-center gap-3 px-4 py-3 rounded-xl border shadow-[0_10px_25px_rgba(0,0,0,0.4)]",
-                "min-w-[300px] max-w-[400px]",
+                "w-[calc(100vw-2rem)] sm:min-w-[300px] sm:w-auto max-w-[400px]",
                 styles[toast.type]
               )}
             >

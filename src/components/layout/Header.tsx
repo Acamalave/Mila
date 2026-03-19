@@ -172,7 +172,7 @@ export default function Header() {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 8, scale: 0.95 }}
                         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                        className="absolute right-0 top-full mt-2 w-48 rounded-xl overflow-hidden"
+                        className="absolute right-0 top-full mt-2 w-44 sm:w-48 rounded-xl overflow-hidden"
                         style={{
                           background: "var(--color-bg-glass-hover)",
                           backdropFilter: "blur(20px)",

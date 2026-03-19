@@ -234,7 +234,7 @@ export default function NotificationPanel({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -12, scale: 0.96 }}
           transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-          className="absolute right-0 top-full mt-2 w-[340px] sm:w-[380px] rounded-xl overflow-hidden"
+          className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] sm:w-[380px] max-w-[380px] rounded-xl overflow-hidden"
           style={{
             zIndex: 50,
             background: "var(--color-bg-card)",
