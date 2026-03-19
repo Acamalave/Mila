@@ -161,20 +161,19 @@ export default function LoginPage() {
               >
                 {t("auth", "phone")}
               </label>
-              <div className="flex gap-2">
+              <div className="flex gap-2" style={{ minWidth: 0 }}>
                 {/* Country Code */}
-                <div className="relative">
+                <div className="relative shrink-0">
                   <button
                     type="button"
                     onClick={() => setShowCountries(!showCountries)}
-                    className="flex items-center gap-1 px-3 py-3 rounded-lg"
+                    className="flex items-center gap-1 px-2.5 py-3 rounded-lg"
                     style={{
                       background: "var(--color-bg-input)",
                       border: "1px solid var(--color-border-default)",
                       color: "var(--color-text-primary)",
                       fontSize: 14,
                       cursor: "pointer",
-                      minWidth: 90,
                       transition: "all 0.3s ease",
                     }}
                   >
@@ -229,7 +228,7 @@ export default function LoginPage() {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
                   placeholder="555 100 2000"
-                  className="flex-1 px-4 py-3 rounded-lg"
+                  className="flex-1 min-w-0 px-3 py-3 rounded-lg"
                   style={{
                     background: "var(--color-bg-input)",
                     border: error ? "1px solid #9B4D4D" : "1px solid var(--color-border-default)",
@@ -276,21 +275,23 @@ export default function LoginPage() {
             </motion.button>
           </form>
 
-          {/* Demo hint */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="mt-6 p-3 rounded-lg"
-            style={{
-              background: "var(--color-accent-subtle)",
-              border: "1px solid var(--color-border-accent)",
-            }}
-          >
-            <p className="text-xs text-center" style={{ color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
-              {t("auth", "demoHint")}
-            </p>
-          </motion.div>
+          {/* Demo hint - only in development */}
+          {process.env.NODE_ENV === "development" && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="mt-6 p-3 rounded-lg"
+              style={{
+                background: "var(--color-accent-subtle)",
+                border: "1px solid var(--color-border-accent)",
+              }}
+            >
+              <p className="text-xs text-center" style={{ color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
+                {t("auth", "demoHint")}
+              </p>
+            </motion.div>
+          )}
         </div>
       </motion.div>
     </div>
