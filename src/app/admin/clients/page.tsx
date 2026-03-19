@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
-import { cn, formatPrice, getStoredData } from "@/lib/utils";
+import { cn, formatPrice, getStoredData, setStoredData } from "@/lib/utils";
 import { formatShortDate } from "@/lib/date-utils";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
@@ -47,14 +47,25 @@ export default function AdminClientsPage() {
 
     // Subscribe to Firestore real-time updates for users
     const unsubUsers = onCollectionChange<User>("users", (firestoreUsers) => {
-      if (firestoreUsers.length > 0) {
-        const localUsers = getStoredData<User[]>("mila-users", []);
-        const merged = new Map<string, User>();
-        for (const u of localUsers) if (u.id) merged.set(u.id, u);
-        for (const u of firestoreUsers) if (u.id) merged.set(u.id, u);
-        const allUsers = Array.from(merged.values());
-        setUsers(allUsers);
-      }
+      const localUsers = getStoredData<User[]>("mila-users", []);
+      const merged = new Map<string, User>();
+      for (const u of localUsers) if (u.id) merged.set(u.id, u);
+      for (const u of firestoreUsers) if (u.id) merged.set(u.id, u);
+      const allUsers = Array.from(merged.values());
+      setUsers(allUsers);
+      // Persist merged data so all pages on this device see it
+      setStoredData("mila-users", allUsers);
+    });
+
+    // Subscribe to Firestore real-time updates for bookings
+    const unsubBookings = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
+      const localBookings = getStoredData<Booking[]>("mila-bookings", []);
+      const merged = new Map<string, Booking>();
+      for (const b of localBookings) if (b.id) merged.set(b.id, b);
+      for (const b of firestoreBookings) if (b.id) merged.set(b.id, b);
+      const allBookings = Array.from(merged.values());
+      setBookings(allBookings);
+      setStoredData("mila-bookings", allBookings);
     });
 
     // Listen for localStorage changes from other tabs (same browser)
@@ -72,6 +83,7 @@ export default function AdminClientsPage() {
 
     return () => {
       unsubUsers();
+      unsubBookings();
       window.removeEventListener("storage", handleStorage);
       clearInterval(poll);
     };

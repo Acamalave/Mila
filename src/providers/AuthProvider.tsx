@@ -11,7 +11,7 @@ import {
 import type { User } from "@/types";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { stylists as seedStylists } from "@/data/stylists";
-import { setDocument } from "@/lib/firestore";
+import { setDocument, getCollection } from "@/lib/firestore";
 
 interface AuthContextValue {
   user: User | null;
@@ -141,6 +141,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       addToUserRegistry(stored);
     }
     seedMockUsersToRegistry();
+
+    // Hydrate local user registry from Firestore (cross-device sync)
+    getCollection<User>("users")
+      .then((firestoreUsers) => {
+        if (firestoreUsers.length > 0) {
+          const localUsers = getStoredData<User[]>("mila-users", []);
+          const merged = new Map<string, User>();
+          for (const u of localUsers) if (u.id) merged.set(u.id, u);
+          for (const u of firestoreUsers) if (u.id) merged.set(u.id, u);
+          setStoredData("mila-users", Array.from(merged.values()));
+        }
+      })
+      .catch(() => {});
+
     setHydrated(true);
   }, []);
 

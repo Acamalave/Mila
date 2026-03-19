@@ -166,16 +166,14 @@ export default function DashboardPage() {
     setAppointments(stored);
 
     const unsub = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
-      if (firestoreBookings.length > 0) {
-        setAppointments((prev) => {
-          const merged = new Map<string, Booking>();
-          for (const b of prev) merged.set(b.id, b);
-          for (const b of firestoreBookings) merged.set(b.id, b);
-          const next = Array.from(merged.values());
-          setStoredData("mila-bookings", next);
-          return next;
-        });
-      }
+      setAppointments((prev) => {
+        const merged = new Map<string, Booking>();
+        for (const b of prev) merged.set(b.id, b);
+        for (const b of firestoreBookings) merged.set(b.id, b);
+        const next = Array.from(merged.values());
+        setStoredData("mila-bookings", next);
+        return next;
+      });
     });
 
     const storedReviews = getStoredData<Review[]>("mila-reviews", []);

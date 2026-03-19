@@ -69,10 +69,16 @@ export function onCollectionChange<T>(
   name: string,
   callback: (items: T[]) => void
 ): Unsubscribe {
-  return onSnapshot(collection(getDb(), name), (snap) => {
-    const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as T);
-    callback(items);
-  });
+  return onSnapshot(
+    collection(getDb(), name),
+    (snap) => {
+      const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as T);
+      callback(items);
+    },
+    (error) => {
+      console.warn(`[Mila] Firestore listener error on "${name}":`, error.message);
+    }
+  );
 }
 
 export function onDocumentChange<T>(
@@ -80,9 +86,15 @@ export function onDocumentChange<T>(
   docId: string,
   callback: (item: T | null) => void
 ): Unsubscribe {
-  return onSnapshot(doc(getDb(), collectionName, docId), (snap) => {
-    callback(snap.exists() ? ({ id: snap.id, ...snap.data() } as T) : null);
-  });
+  return onSnapshot(
+    doc(getDb(), collectionName, docId),
+    (snap) => {
+      callback(snap.exists() ? ({ id: snap.id, ...snap.data() } as T) : null);
+    },
+    (error) => {
+      console.warn(`[Mila] Firestore doc listener error on "${collectionName}/${docId}":`, error.message);
+    }
+  );
 }
 
 /* ── Bulk: sync entire array as a single document ── */
