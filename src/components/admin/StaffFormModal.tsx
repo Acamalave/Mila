@@ -118,26 +118,26 @@ export default function StaffFormModal({
 
   const handleFileSelect = useCallback((file: File) => {
     if (!file.type.startsWith("image/")) return;
-    // Limit to 2MB
-    if (file.size > 2 * 1024 * 1024) return;
+    if (file.size > 5 * 1024 * 1024) return;
     const reader = new FileReader();
     reader.onload = (e) => {
       const dataUrl = e.target?.result as string;
-      // Resize to max 256px for localStorage efficiency
       const img = new window.Image();
       img.onload = () => {
         const canvas = document.createElement("canvas");
-        const maxSize = 256;
+        const maxSize = 800;
         let w = img.width;
         let h = img.height;
-        if (w > h) { h = (h / w) * maxSize; w = maxSize; }
-        else { w = (w / h) * maxSize; h = maxSize; }
+        if (w > maxSize || h > maxSize) {
+          if (w > h) { h = (h / w) * maxSize; w = maxSize; }
+          else { w = (w / h) * maxSize; h = maxSize; }
+        }
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext("2d");
         if (ctx) {
           ctx.drawImage(img, 0, 0, w, h);
-          setAvatar(canvas.toDataURL("image/jpeg", 0.85));
+          setAvatar(canvas.toDataURL("image/jpeg", 0.9));
         }
       };
       img.src = dataUrl;
@@ -494,7 +494,7 @@ export default function StaffFormModal({
                 {language === "en" ? "Upload photo" : "Subir foto"}
               </p>
               <p className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>
-                {language === "en" ? "Drag & drop or click to browse · Max 2MB" : "Arrastra o haz clic para buscar · Máx 2MB"}
+                {language === "en" ? "Drag & drop or click to browse · Max 5MB" : "Arrastra o haz clic para buscar · Máx 5MB"}
               </p>
             </div>
           )}
