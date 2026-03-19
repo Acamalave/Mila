@@ -190,6 +190,17 @@ export function StaffProvider({ children }: { children: ReactNode }) {
           setStoredData("mila-staff-deleted", data.ids);
         }
       }),
+      onDocumentChange<{ items?: Array<{ id: string } & Partial<Stylist>> }>("staff-config", "detail-overrides", (data) => {
+        if (data && data.items && Array.isArray(data.items)) {
+          const overrides: Record<string, Partial<Stylist>> = {};
+          for (const item of data.items) {
+            const { id, ...rest } = item;
+            if (id) overrides[id] = rest;
+          }
+          setDetailOverrides(overrides);
+          setStoredData("mila-staff-detail-overrides", overrides);
+        }
+      }),
     ];
     return () => unsubs.forEach((u) => u());
   }, []);

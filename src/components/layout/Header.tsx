@@ -159,7 +159,7 @@ export default function Header() {
                     }}
                   >
                     <User size={14} />
-                    <span className="hidden sm:inline">{user.name.split(" ")[0]}</span>
+                    <span className="hidden sm:inline">{user?.name?.split(" ")[0]}</span>
                     <ChevronDown size={12} style={{
                       transform: profileOpen ? "rotate(180deg)" : "rotate(0deg)",
                       transition: "transform 0.2s ease",

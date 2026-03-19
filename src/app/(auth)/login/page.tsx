@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { motion } from "motion/react";
@@ -35,12 +35,13 @@ export default function LoginPage() {
   const [error, setError] = useState("");
 
   // Redirect if already authenticated
-  if (hydrated && isAuthenticated && user) {
-    if (user.role === "admin") router.push("/admin");
-    else if (user.role === "stylist") router.push("/stylist");
-    else router.push("/dashboard");
-    return null;
-  }
+  useEffect(() => {
+    if (hydrated && isAuthenticated && user) {
+      if (user.role === "admin") router.push("/admin");
+      else if (user.role === "stylist") router.push("/stylist");
+      else router.push("/dashboard");
+    }
+  }, [hydrated, isAuthenticated, user, router]);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
