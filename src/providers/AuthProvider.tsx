@@ -35,26 +35,30 @@ const MOCK_USERS: Record<string, { name: string; role: "admin" | "client" | "sty
 function addToUserRegistry(user: User): void {
   if (!user.id || !user.phone) return;
   const raw = getStoredData<User[]>("mila-users", []);
-  // Clean: remove empty/invalid entries and deduplicate by id then phone
-  const seen = new Map<string, User>();
+  // Deduplicate by phone (primary key for real users)
+  const byPhone = new Map<string, User>();
   for (const u of raw) {
-    if (!u.id && !u.phone) continue;
-    const key = u.id || u.phone;
-    if (!seen.has(key)) seen.set(key, u);
+    if (!u.phone) continue;
+    // Keep the most complete entry
+    const existing = byPhone.get(u.phone);
+    if (!existing || (u.createdAt && !existing.createdAt)) {
+      byPhone.set(u.phone, u);
+    }
   }
-  // Upsert by id first, then phone fallback
-  const existing = seen.get(user.id) || Array.from(seen.values()).find((u) => u.phone === user.phone);
+  // Upsert current user
+  const existing = byPhone.get(user.phone);
   if (existing) {
-    const merged = { ...existing, name: user.name, email: user.email, role: user.role };
-    seen.set(existing.id || user.id, merged);
+    byPhone.set(user.phone, { ...existing, ...user });
   } else {
-    seen.set(user.id, user);
+    byPhone.set(user.phone, user);
   }
-  setStoredData("mila-users", Array.from(seen.values()));
+  setStoredData("mila-users", Array.from(byPhone.values()));
 
-  // Sync to Firestore (fire-and-forget)
+  // Sync to Firestore
   const { id, ...userData } = user;
-  setDocument("users", id, userData).catch(() => {});
+  setDocument("users", id, { ...userData, phone: user.phone }).catch((err) => {
+    console.warn("[Mila] Failed to sync user to Firestore:", err);
+  });
 }
 
 function seedMockUsersToRegistry(): void {
@@ -93,29 +97,36 @@ function createUserFromPhone(phone: string, countryCode: string, providedName?: 
     };
   }
 
+  // Check if user already exists in registry (preserve their id)
+  const registry = getStoredData<User[]>("mila-users", []);
+  const existingUser = registry.find((u) => u.phone === phone);
+
   const allStaffCustom = getStoredData<Array<{ linkedPhone?: string; name: string }>>("mila-staff-custom", []);
   const linkedStylist =
     seedStylists.find((s) => s.linkedPhone === phone) ||
     allStaffCustom.find((s) => s.linkedPhone === phone);
 
+  // Deterministic ID based on phone to ensure consistency across devices
+  const determinedId = existingUser?.id || `user-${phone}`;
+
   if (linkedStylist) {
     return {
-      id: generateId(),
+      id: determinedId,
       name: linkedStylist.name,
       phone,
       countryCode,
       role: "stylist",
-      createdAt: new Date().toISOString(),
+      createdAt: existingUser?.createdAt || new Date().toISOString(),
     };
   }
 
   return {
-    id: generateId(),
-    name: providedName ?? `User ${phone.slice(-4)}`,
+    id: determinedId,
+    name: existingUser?.name || providedName || `User ${phone.slice(-4)}`,
     phone,
     countryCode,
-    role: "client",
-    createdAt: new Date().toISOString(),
+    role: existingUser?.role || "client",
+    createdAt: existingUser?.createdAt || new Date().toISOString(),
   };
 }
 
