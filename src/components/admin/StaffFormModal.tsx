@@ -125,7 +125,7 @@ export default function StaffFormModal({
       const img = new window.Image();
       img.onload = () => {
         const canvas = document.createElement("canvas");
-        const maxSize = 800;
+        const maxSize = 1080;
         let w = img.width;
         let h = img.height;
         if (w > maxSize || h > maxSize) {
@@ -136,8 +136,10 @@ export default function StaffFormModal({
         canvas.height = h;
         const ctx = canvas.getContext("2d");
         if (ctx) {
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
           ctx.drawImage(img, 0, 0, w, h);
-          setAvatar(canvas.toDataURL("image/jpeg", 0.9));
+          setAvatar(canvas.toDataURL("image/jpeg", 0.92));
         }
       };
       img.src = dataUrl;
