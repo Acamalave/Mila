@@ -29,33 +29,52 @@ export default function AdminClientsPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   useEffect(() => {
-    // Load local data first for instant display
-    const storedUsers = getStoredData<User[]>("mila-users", []);
-    setUsers(storedUsers);
+    const loadLocal = () => {
+      const storedUsers = getStoredData<User[]>("mila-users", []);
+      setUsers(storedUsers);
 
-    let storedBookings = getStoredData<Booking[]>("mila-bookings", []);
-    if (storedBookings.length === 0) {
-      storedBookings = getInitialDemoAppointments();
-    }
-    setBookings(storedBookings);
+      let storedBookings = getStoredData<Booking[]>("mila-bookings", []);
+      if (storedBookings.length === 0) {
+        storedBookings = getInitialDemoAppointments();
+      }
+      setBookings(storedBookings);
 
-    const storedInvoices = getStoredData<Invoice[]>("mila-invoices", []);
-    setInvoices(storedInvoices);
+      const storedInvoices = getStoredData<Invoice[]>("mila-invoices", []);
+      setInvoices(storedInvoices);
+    };
+
+    loadLocal();
 
     // Subscribe to Firestore real-time updates for users
     const unsubUsers = onCollectionChange<User>("users", (firestoreUsers) => {
       if (firestoreUsers.length > 0) {
-        // Merge: Firestore is source of truth, but keep local-only users
         const localUsers = getStoredData<User[]>("mila-users", []);
         const merged = new Map<string, User>();
-        for (const u of localUsers) merged.set(u.id, u);
-        for (const u of firestoreUsers) merged.set(u.id, u);
+        for (const u of localUsers) if (u.id) merged.set(u.id, u);
+        for (const u of firestoreUsers) if (u.id) merged.set(u.id, u);
         const allUsers = Array.from(merged.values());
         setUsers(allUsers);
       }
     });
 
-    return () => unsubUsers();
+    // Listen for localStorage changes from other tabs (same browser)
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "mila-users") {
+        setUsers(getStoredData<User[]>("mila-users", []));
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+
+    // Poll localStorage every 3s to catch same-tab changes
+    const poll = setInterval(() => {
+      setUsers(getStoredData<User[]>("mila-users", []));
+    }, 3000);
+
+    return () => {
+      unsubUsers();
+      window.removeEventListener("storage", handleStorage);
+      clearInterval(poll);
+    };
   }, []);
 
   // Filter out invalid/empty user entries and deduplicate by phone
