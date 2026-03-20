@@ -27,9 +27,24 @@ export function getStoredData<T>(key: string, fallback: T): T {
   }
 }
 
-export function setStoredData<T>(key: string, data: T): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(key, JSON.stringify(data));
+export function setStoredData<T>(key: string, data: T): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+    return true;
+  } catch (error) {
+    if (
+      error instanceof DOMException &&
+      (error.name === "QuotaExceededError" || error.code === 22)
+    ) {
+      console.warn(
+        `[Mila] localStorage quota exceeded when saving "${key}". Data was not persisted.`
+      );
+    } else {
+      console.warn(`[Mila] Failed to save "${key}" to localStorage:`, error);
+    }
+    return false;
+  }
 }
 
 export function generateId(): string {

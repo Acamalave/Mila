@@ -6,9 +6,13 @@ import {
   useReducer,
   useMemo,
   useCallback,
+  useState,
+  useEffect,
   type ReactNode,
 } from "react";
-import type { BookingFlowState, TimeSlot } from "@/types";
+import type { Booking, BookingFlowState, TimeSlot } from "@/types";
+import { getStoredData, setStoredData } from "@/lib/utils";
+import { onCollectionChange } from "@/lib/firestore";
 
 type BookingAction =
   | { type: "SET_STYLIST"; payload: string }
@@ -25,6 +29,7 @@ interface BookingContextValue {
   dispatch: React.Dispatch<BookingAction>;
   resetBooking: () => void;
   canProceed: boolean;
+  bookings: Booking[];
 }
 
 const BookingContext = createContext<BookingContextValue | null>(null);
@@ -107,8 +112,28 @@ export function BookingProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "RESET" });
   }, []);
 
+  // Bookings state: merged from localStorage + Firestore
+  const [bookings, setBookings] = useState<Booking[]>(() =>
+    getStoredData<Booking[]>("mila-bookings", [])
+  );
+
+  // Firestore real-time listener for bookings collection
+  useEffect(() => {
+    const unsub = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
+      setBookings((prev) => {
+        const merged = new Map<string, Booking>();
+        for (const b of prev) merged.set(b.id, b);
+        for (const b of firestoreBookings) merged.set(b.id, b);
+        const next = Array.from(merged.values());
+        setStoredData("mila-bookings", next);
+        return next;
+      });
+    });
+    return () => unsub();
+  }, []);
+
   return (
-    <BookingContext.Provider value={{ state, dispatch, resetBooking, canProceed }}>
+    <BookingContext.Provider value={{ state, dispatch, resetBooking, canProceed, bookings }}>
       {children}
     </BookingContext.Provider>
   );

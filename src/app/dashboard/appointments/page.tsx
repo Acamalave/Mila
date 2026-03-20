@@ -148,7 +148,7 @@ export default function AppointmentsPage() {
     return dates;
   }
 
-  // Generate time slots for selected reschedule date
+  // Generate time slots for selected reschedule date, filtering out conflicts
   function getRescheduleSlots(): string[] {
     if (!rescheduleAppt || !rescheduleDate) return [];
     const stylist = allStylists.find((s) => s.id === rescheduleAppt.stylistId);
@@ -163,6 +163,15 @@ export default function AppointmentsPage() {
       return sum + (svc?.durationMinutes ?? 60);
     }, 0) || 60;
 
+    // Get existing bookings for this stylist on this date, excluding the one being rescheduled
+    const dayBookings = appointments.filter(
+      (b) =>
+        b.id !== rescheduleAppt.id &&
+        b.stylistId === rescheduleAppt.stylistId &&
+        b.date === rescheduleDate &&
+        (b.status === "confirmed" || b.status === "pending")
+    );
+
     const [startH, startM] = sched.startTime.split(":").map(Number);
     const [endH, endM] = sched.endTime.split(":").map(Number);
     const startMin = startH * 60 + startM;
@@ -171,7 +180,16 @@ export default function AppointmentsPage() {
     for (let m = startMin; m + totalDuration <= endMin; m += 30) {
       const h = Math.floor(m / 60);
       const min = m % 60;
-      slots.push(`${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`);
+      const slotStart = `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+      const slotEndMin = m + totalDuration;
+      const slotEnd = `${String(Math.floor(slotEndMin / 60)).padStart(2, "0")}:${String(slotEndMin % 60).padStart(2, "0")}`;
+
+      // Check for overlap with existing bookings
+      const hasConflict = dayBookings.some((b) => slotStart < b.endTime && slotEnd > b.startTime);
+
+      if (!hasConflict) {
+        slots.push(slotStart);
+      }
     }
     return slots;
   }

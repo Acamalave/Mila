@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useRef, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { motion } from "motion/react";
@@ -33,17 +33,20 @@ export default function LoginPage() {
   const [selectedCountry, setSelectedCountry] = useState(countryCodes[0]);
   const [showCountries, setShowCountries] = useState(false);
   const [error, setError] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const hasRedirected = useRef(false);
 
   // Redirect if already authenticated
   useEffect(() => {
-    if (hydrated && isAuthenticated && user) {
+    if (hydrated && isAuthenticated && user && !hasRedirected.current) {
+      hasRedirected.current = true;
       if (user.role === "admin") router.push("/admin");
       else if (user.role === "stylist") router.push("/stylist");
       else router.push("/dashboard");
     }
   }, [hydrated, isAuthenticated, user, router]);
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
 
@@ -53,14 +56,14 @@ export default function LoginPage() {
       return;
     }
 
-    loginByPhone(cleanPhone, selectedCountry.code);
-
-    if (cleanPhone === "5551002000") {
-      router.push("/admin");
-    } else if (cleanPhone === "5552003000" || getStylistByPhone(cleanPhone)) {
-      router.push("/stylist");
-    } else {
-      router.push("/dashboard");
+    setIsLoggingIn(true);
+    try {
+      await loginByPhone(cleanPhone, selectedCountry.code);
+      // Let the useEffect handle the redirect based on user state
+    } catch {
+      setError("Login failed. Please try again.");
+    } finally {
+      setIsLoggingIn(false);
     }
   }
 
@@ -100,7 +103,7 @@ export default function LoginPage() {
             <div className="flex justify-center mb-4">
               <Image
                 src="/logo-mila-brand.png"
-                alt="Milà Concept"
+                alt="Mila Concept"
                 width={120}
                 height={48}
                 className="h-10 w-auto object-contain"
@@ -228,6 +231,7 @@ export default function LoginPage() {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
                   placeholder="555 100 2000"
+                  disabled={isLoggingIn}
                   className="flex-1 min-w-0 px-3 py-3 rounded-lg"
                   style={{
                     background: "var(--color-bg-input)",
@@ -237,6 +241,7 @@ export default function LoginPage() {
                     outline: "none",
                     letterSpacing: "0.05em",
                     transition: "all 0.3s ease",
+                    opacity: isLoggingIn ? 0.6 : 1,
                   }}
                   onFocus={(e) => {
                     if (!error) e.currentTarget.style.borderColor = "var(--color-accent)";
@@ -255,23 +260,26 @@ export default function LoginPage() {
 
             <motion.button
               type="submit"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              disabled={isLoggingIn}
+              whileHover={{ scale: isLoggingIn ? 1 : 1.02 }}
+              whileTap={{ scale: isLoggingIn ? 1 : 0.98 }}
               className="w-full py-3.5 rounded-xl"
               style={{
                 background: "var(--gradient-accent)",
                 color: "var(--color-text-inverse)",
                 boxShadow: "var(--shadow-glow)",
                 border: "none",
-                cursor: "pointer",
+                cursor: isLoggingIn ? "wait" : "pointer",
                 fontFamily: "var(--font-display)",
                 fontSize: 14,
                 fontWeight: 600,
                 letterSpacing: "0.08em",
                 textTransform: "uppercase" as const,
+                opacity: isLoggingIn ? 0.7 : 1,
+                transition: "opacity 0.2s ease",
               }}
             >
-              {t("auth", "loginButton")}
+              {isLoggingIn ? "..." : t("auth", "loginButton")}
             </motion.button>
           </form>
 

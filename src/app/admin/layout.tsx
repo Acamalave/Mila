@@ -45,7 +45,34 @@ export default function AdminLayout({
   }, [pathname]);
 
   if (!hydrated || !isAuthenticated || user?.role !== "admin") {
-    return null;
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ backgroundColor: "var(--color-bg-page)" }}
+      >
+        <div className="flex flex-col items-center gap-3">
+          <div
+            className="w-8 h-8 rounded-full border-2 animate-spin"
+            style={{
+              borderColor: "var(--color-border-default)",
+              borderTopColor: "var(--color-accent)",
+            }}
+          />
+          <p
+            className="text-sm"
+            style={{
+              color: "var(--color-text-muted)",
+              fontFamily: "var(--font-display)",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              fontSize: 11,
+            }}
+          >
+            Loading...
+          </p>
+        </div>
+      </div>
+    );
   }
 
   const mobileLinks = [

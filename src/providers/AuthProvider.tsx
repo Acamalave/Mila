@@ -11,13 +11,13 @@ import {
 import type { User } from "@/types";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { stylists as seedStylists } from "@/data/stylists";
-import { setDocument, getCollection } from "@/lib/firestore";
+import { setDocument, getCollection, onCollectionChange } from "@/lib/firestore";
 
 interface AuthContextValue {
   user: User | null;
   isAuthenticated: boolean;
   hydrated: boolean;
-  loginByPhone: (phone: string, countryCode: string, name?: string) => void;
+  loginByPhone: (phone: string, countryCode: string, name?: string) => Promise<void>;
   register: (name: string, phone: string, countryCode: string) => void;
   updateProfile: (updates: Partial<Pick<User, "name" | "phone" | "email">>) => void;
   logout: () => void;
@@ -32,7 +32,7 @@ const MOCK_USERS: Record<string, { name: string; role: "admin" | "client" | "sty
 };
 
 /* ── User registry: localStorage + Firestore sync ── */
-function addToUserRegistry(user: User): void {
+async function addToUserRegistry(user: User): Promise<void> {
   if (!user.id || !user.phone) return;
   const raw = getStoredData<User[]>("mila-users", []);
   // Deduplicate by phone (primary key for real users)
@@ -54,11 +54,13 @@ function addToUserRegistry(user: User): void {
   }
   setStoredData("mila-users", Array.from(byPhone.values()));
 
-  // Sync to Firestore
-  const { id, ...userData } = user;
-  setDocument("users", id, { ...userData, phone: user.phone }).catch((err) => {
+  // Sync to Firestore (await instead of fire-and-forget)
+  try {
+    const { id, ...userData } = user;
+    await setDocument("users", id, { ...userData, phone: user.phone });
+  } catch (err) {
     console.warn("[Mila] Failed to sync user to Firestore:", err);
-  });
+  }
 }
 
 function seedMockUsersToRegistry(): void {
@@ -135,16 +137,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const stored = getStoredData<User | null>("mila-auth", null);
-    if (stored) {
-      setUser(stored);
-      addToUserRegistry(stored);
-    }
-    seedMockUsersToRegistry();
+    let unsubscribe: (() => void) | undefined;
 
-    // Hydrate local user registry from Firestore (cross-device sync)
-    getCollection<User>("users")
-      .then((firestoreUsers) => {
+    (async () => {
+      const stored = getStoredData<User | null>("mila-auth", null);
+      if (stored) {
+        setUser(stored);
+        await addToUserRegistry(stored);
+      }
+      seedMockUsersToRegistry();
+
+      // Hydrate local user registry from Firestore (cross-device sync)
+      try {
+        const firestoreUsers = await getCollection<User>("users");
         if (firestoreUsers.length > 0) {
           const localUsers = getStoredData<User[]>("mila-users", []);
           const merged = new Map<string, User>();
@@ -152,17 +157,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           for (const u of firestoreUsers) if (u.id) merged.set(u.id, u);
           setStoredData("mila-users", Array.from(merged.values()));
         }
-      })
-      .catch(() => {});
+      } catch {
+        // Firestore unavailable, continue with local data
+      }
 
-    setHydrated(true);
+      // Mark hydrated only after Firestore sync attempt completes
+      setHydrated(true);
+
+      // Set up real-time listener for users collection
+      unsubscribe = onCollectionChange<User>("users", (firestoreUsers) => {
+        if (firestoreUsers.length > 0) {
+          const localUsers = getStoredData<User[]>("mila-users", []);
+          const merged = new Map<string, User>();
+          for (const u of localUsers) if (u.id) merged.set(u.id, u);
+          for (const u of firestoreUsers) if (u.id) merged.set(u.id, u);
+          setStoredData("mila-users", Array.from(merged.values()));
+        }
+      });
+    })();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
-  const loginByPhone = useCallback((phone: string, countryCode: string, name?: string) => {
+  const loginByPhone = useCallback(async (phone: string, countryCode: string, name?: string) => {
     const newUser = createUserFromPhone(phone, countryCode, name);
     setUser(newUser);
     setStoredData("mila-auth", newUser);
-    addToUserRegistry(newUser);
+    await addToUserRegistry(newUser);
   }, []);
 
   const register = useCallback((name: string, phone: string, countryCode: string) => {

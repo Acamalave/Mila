@@ -57,7 +57,7 @@ export default function HomePage() {
     scrollToSection(calendarRef);
   }, [dispatch, scrollToSection]);
 
-  // Handle booking confirmation
+  // Handle booking confirmation with conflict check
   const handleBook = useCallback(() => {
     const selectedServices = state.isGeneralAppointment
       ? []
@@ -81,7 +81,22 @@ export default function HomePage() {
       createdAt: new Date().toISOString(),
     };
 
+    // Final conflict check before saving (optimistic lock)
     const existing = getStoredData<Booking[]>("mila-bookings", []);
+    const hasConflict = existing.some(
+      (b) =>
+        b.stylistId === booking.stylistId &&
+        b.date === booking.date &&
+        (b.status === "confirmed" || b.status === "pending") &&
+        booking.startTime < b.endTime &&
+        booking.endTime > b.startTime
+    );
+
+    if (hasConflict) {
+      alert("This time slot was just booked. Please select a different time.");
+      return;
+    }
+
     setStoredData("mila-bookings", [...existing, booking]);
     const { id, ...bookingData } = booking;
     setDocument("bookings", id, bookingData).catch((err) => console.warn("[Mila] Booking sync failed:", err));

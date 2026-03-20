@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   format,
@@ -24,9 +24,10 @@ import { useStaff } from "@/providers/StaffProvider";
 import { services } from "@/data/services";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useBooking } from "@/providers/BookingProvider";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, getStoredData } from "@/lib/utils";
+import { onCollectionChange } from "@/lib/firestore";
 import BookingPolicyModal from "@/components/landing/BookingPolicyModal";
-import type { TimeSlot } from "@/types";
+import type { TimeSlot, Booking } from "@/types";
 
 interface CalendarPickerProps {
   onBook?: () => void;
@@ -41,6 +42,24 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
   const [viewMode, setViewMode] = useState<"week" | "month">("week");
   const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date()));
   const [showPolicyModal, setShowPolicyModal] = useState(false);
+  const [existingBookings, setExistingBookings] = useState<Booking[]>(() =>
+    getStoredData<Booking[]>("mila-bookings", [])
+  );
+
+  // Keep bookings in sync with localStorage and Firestore
+  useEffect(() => {
+    const unsub = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
+      if (firestoreBookings.length > 0) {
+        setExistingBookings((prev) => {
+          const merged = new Map<string, Booking>();
+          for (const b of prev) merged.set(b.id, b);
+          for (const b of firestoreBookings) merged.set(b.id, b);
+          return Array.from(merged.values());
+        });
+      }
+    });
+    return () => unsub();
+  }, []);
 
   const locale = language === "es" ? es : enUS;
 
@@ -124,7 +143,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
     [stylist]
   );
 
-  // Generate time slots for selected date
+  // Generate time slots for selected date, filtering out conflicts with existing bookings
   const timeSlots = useMemo((): TimeSlot[] => {
     if (!state.selectedDate || !stylist) return [];
     const date = new Date(state.selectedDate + "T12:00:00");
@@ -133,6 +152,14 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
       (s) => s.dayOfWeek === dayOfWeek && s.isAvailable
     );
     if (!schedule) return [];
+
+    // Get bookings for this stylist on this date that are not cancelled
+    const dayBookings = existingBookings.filter(
+      (b) =>
+        b.stylistId === stylist.id &&
+        b.date === state.selectedDate &&
+        (b.status === "confirmed" || b.status === "pending")
+    );
 
     const slots: TimeSlot[] = [];
     const [startH, startM] = schedule.startTime.split(":").map(Number);
@@ -147,14 +174,25 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
       const endHour = Math.floor(endM2 / 60);
       const endMin = endM2 % 60;
 
-      slots.push({
-        startTime: `${String(startHour).padStart(2, "0")}:${String(startMin).padStart(2, "0")}`,
-        endTime: `${String(endHour).padStart(2, "0")}:${String(endMin).padStart(2, "0")}`,
-        isAvailable: true,
+      const slotStart = `${String(startHour).padStart(2, "0")}:${String(startMin).padStart(2, "0")}`;
+      const slotEnd = `${String(endHour).padStart(2, "0")}:${String(endMin).padStart(2, "0")}`;
+
+      // Check if this slot overlaps with any existing booking
+      const hasConflict = dayBookings.some((b) => {
+        // Two time ranges overlap if one starts before the other ends and vice versa
+        return slotStart < b.endTime && slotEnd > b.startTime;
       });
+
+      if (!hasConflict) {
+        slots.push({
+          startTime: slotStart,
+          endTime: slotEnd,
+          isAvailable: true,
+        });
+      }
     }
     return slots;
-  }, [state.selectedDate, stylist, totalDuration]);
+  }, [state.selectedDate, stylist, totalDuration, existingBookings]);
 
   const formatTimeDisplay = (time: string) => {
     const [h, m] = time.split(":").map(Number);

@@ -9,7 +9,7 @@ import {
   useEffect,
   type ReactNode,
 } from "react";
-import type { AppNotification, Invoice } from "@/types";
+import type { AppNotification, Invoice, Booking } from "@/types";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
 import { useEventBus } from "@/providers/EventBusProvider";
@@ -137,6 +137,24 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     return () => unsub();
   }, [persist]);
 
+  // Helper to create and persist booking notifications
+  const createBookingNotifications = useCallback(
+    (notifs: AppNotification[]) => {
+      setAllNotifications((prev) => {
+        const next = [...prev, ...notifs];
+        persist(next);
+        return next;
+      });
+      for (const notif of notifs) {
+        const { id, ...notifData } = notif;
+        setDocument("notifications", id, notifData).catch((err) =>
+          console.warn("[Mila] Firestore notification sync failed:", err)
+        );
+      }
+    },
+    [persist]
+  );
+
   // Auto-create notifications from events
   useEffect(() => {
     const unsubs = [
@@ -214,6 +232,112 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           setDocument("notifications", clientId, clientData).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
         }
       }),
+      on("booking:updated", (payload) => {
+        const booking = payload as Booking;
+        if (!booking) return;
+
+        const notifs: AppNotification[] = [];
+        const now = new Date().toISOString();
+
+        if (booking.status === "pending" || booking.status === "confirmed") {
+          // New booking created
+          notifs.push({
+            id: `notif-${generateId()}`,
+            userId: "user-admin",
+            type: "appointment_update",
+            title: { en: "New Booking", es: "Nueva Reserva" },
+            message: {
+              en: `A new booking has been created for ${booking.date} at ${booking.startTime}.`,
+              es: `Se ha creado una nueva reserva para el ${booking.date} a las ${booking.startTime}.`,
+            },
+            read: false,
+            createdAt: now,
+            bookingId: booking.id,
+          });
+          if (booking.stylistId) {
+            notifs.push({
+              id: `notif-${generateId()}`,
+              userId: booking.stylistId,
+              type: "appointment_update",
+              title: { en: "New Appointment", es: "Nueva Cita" },
+              message: {
+                en: `You have a new appointment on ${booking.date} at ${booking.startTime}.`,
+                es: `Tienes una nueva cita el ${booking.date} a las ${booking.startTime}.`,
+              },
+              read: false,
+              createdAt: now,
+              bookingId: booking.id,
+            });
+          }
+        } else if (booking.status === "cancelled") {
+          // Booking cancelled
+          notifs.push({
+            id: `notif-${generateId()}`,
+            userId: "user-admin",
+            type: "appointment_update",
+            title: { en: "Booking Cancelled", es: "Reserva Cancelada" },
+            message: {
+              en: `A booking for ${booking.date} has been cancelled.`,
+              es: `Una reserva para el ${booking.date} ha sido cancelada.`,
+            },
+            read: false,
+            createdAt: now,
+            bookingId: booking.id,
+          });
+          if (booking.stylistId) {
+            notifs.push({
+              id: `notif-${generateId()}`,
+              userId: booking.stylistId,
+              type: "appointment_update",
+              title: { en: "Appointment Cancelled", es: "Cita Cancelada" },
+              message: {
+                en: `An appointment on ${booking.date} has been cancelled.`,
+                es: `Una cita el ${booking.date} ha sido cancelada.`,
+              },
+              read: false,
+              createdAt: now,
+              bookingId: booking.id,
+            });
+          }
+        }
+
+        // Rescheduled bookings emit booking:updated with a date field change
+        // Detect reschedule: booking has a date but status is not cancelled
+        if (booking.date && booking.status !== "cancelled" && booking.status !== "pending" && booking.status !== "confirmed") {
+          notifs.push({
+            id: `notif-${generateId()}`,
+            userId: "user-admin",
+            type: "appointment_update",
+            title: { en: "Booking Rescheduled", es: "Reserva Reprogramada" },
+            message: {
+              en: `A booking has been rescheduled to ${booking.date}.`,
+              es: `Una reserva ha sido reprogramada para el ${booking.date}.`,
+            },
+            read: false,
+            createdAt: now,
+            bookingId: booking.id,
+          });
+          if (booking.stylistId) {
+            notifs.push({
+              id: `notif-${generateId()}`,
+              userId: booking.stylistId,
+              type: "appointment_update",
+              title: { en: "Appointment Rescheduled", es: "Cita Reprogramada" },
+              message: {
+                en: `An appointment has been rescheduled to ${booking.date}.`,
+                es: `Una cita ha sido reprogramada para el ${booking.date}.`,
+              },
+              read: false,
+              createdAt: now,
+              bookingId: booking.id,
+            });
+          }
+        }
+
+        if (notifs.length > 0) {
+          createBookingNotifications(notifs);
+        }
+      }),
       on("notification:created", () => {
         setAllNotifications(getStoredData<AppNotification[]>("mila-notifications", []));
       }),
@@ -222,7 +346,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       }),
     ];
     return () => unsubs.forEach((u) => u());
-  }, [on, persist]);
+  }, [on, persist, createBookingNotifications]);
 
   return (
     <NotificationContext.Provider
