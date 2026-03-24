@@ -10,21 +10,27 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-let app: FirebaseApp;
-let db: Firestore;
+const isConfigured = !!firebaseConfig.apiKey && !!firebaseConfig.projectId;
 
-function getApp(): FirebaseApp {
+let app: FirebaseApp | null = null;
+let db: Firestore | null = null;
+
+function getApp(): FirebaseApp | null {
+  if (!isConfigured) return null;
   if (!app) {
     app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
   }
   return app;
 }
 
-export function getDb(): Firestore {
+export function getDb(): Firestore | null {
+  if (!isConfigured) return null;
   if (!db) {
-    db = getFirestore(getApp());
+    const firebaseApp = getApp();
+    if (!firebaseApp) return null;
+    db = getFirestore(firebaseApp);
   }
   return db;
 }
 
-export { getApp };
+export { getApp, isConfigured };
