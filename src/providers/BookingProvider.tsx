@@ -12,7 +12,7 @@ import {
 } from "react";
 import type { Booking, BookingFlowState, TimeSlot } from "@/types";
 import { getStoredData, setStoredData } from "@/lib/utils";
-import { onCollectionChange } from "@/lib/firestore";
+import { onCollectionChange, onDocumentChange, setDocument } from "@/lib/firestore";
 
 type BookingAction =
   | { type: "SET_STYLIST"; payload: string }
@@ -119,20 +119,33 @@ export function BookingProvider({ children }: { children: ReactNode }) {
 
   // Firestore real-time listener for bookings collection
   useEffect(() => {
-    const deletedIds = getStoredData<string[]>("mila-bookings-deleted", []);
-    const deletedSet = new Set(deletedIds);
+    // Listen to Firestore-synced deleted IDs so all devices respect deletions
+    const unsubDeleted = onDocumentChange<{ ids?: string[] }>(
+      "bookings-config", "deleted",
+      (data) => {
+        if (data?.ids) {
+          const merged = Array.from(new Set([
+            ...getStoredData<string[]>("mila-bookings-deleted", []),
+            ...data.ids,
+          ]));
+          setStoredData("mila-bookings-deleted", merged);
+        }
+      }
+    );
 
     const unsub = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
+      // Re-read deleted IDs fresh on every sync to pick up runtime changes
+      const currentDeleted = new Set(getStoredData<string[]>("mila-bookings-deleted", []));
       setBookings((prev) => {
         const merged = new Map<string, Booking>();
-        for (const b of prev) if (!deletedSet.has(b.id)) merged.set(b.id, b);
-        for (const b of firestoreBookings) if (!deletedSet.has(b.id)) merged.set(b.id, b);
+        for (const b of prev) if (!currentDeleted.has(b.id)) merged.set(b.id, b);
+        for (const b of firestoreBookings) if (!currentDeleted.has(b.id)) merged.set(b.id, b);
         const next = Array.from(merged.values());
         setStoredData("mila-bookings", next);
         return next;
       });
     });
-    return () => unsub();
+    return () => { unsub(); unsubDeleted(); };
   }, []);
 
   return (
