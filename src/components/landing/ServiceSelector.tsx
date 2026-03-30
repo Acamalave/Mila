@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Calendar, Check, X, Clock, Plus, CreditCard } from "lucide-react";
 import { useStaff } from "@/providers/StaffProvider";
@@ -11,6 +11,7 @@ import { formatPrice, formatServicePrice, getStoredData } from "@/lib/utils";
 import type { ServiceDepositConfig } from "@/types/service";
 
 type DepositOverrides = Record<string, ServiceDepositConfig>;
+type PriceOverrides = Record<string, { price: number; priceMax?: number }>;
 
 interface ServiceSelectorProps {
   stylistId: string;
@@ -25,20 +26,34 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
 
   const stylist = useMemo(() => allStylists.find(s => s.id === stylistId), [stylistId, allStylists]);
 
-  const durationOverrides = useMemo(() =>
-    getStoredData<Record<string, number>>("mila-service-duration-overrides", {}), []);
-  const depositOverrides = useMemo<DepositOverrides>(() =>
-    getStoredData<DepositOverrides>("mila-service-deposit-overrides", {}), []);
+  const [durationOverrides, setDurationOverrides] = useState<Record<string, number>>(() =>
+    getStoredData<Record<string, number>>("mila-service-duration-overrides", {}));
+  const [depositOverrides, setDepositOverrides] = useState<DepositOverrides>(() =>
+    getStoredData<DepositOverrides>("mila-service-deposit-overrides", {}));
+  const [priceOverrides, setPriceOverrides] = useState<PriceOverrides>(() =>
+    getStoredData<PriceOverrides>("mila-service-price-overrides", {}));
+
+  // Re-read overrides from localStorage on mount to catch admin changes
+  useEffect(() => {
+    setDurationOverrides(getStoredData<Record<string, number>>("mila-service-duration-overrides", {}));
+    setDepositOverrides(getStoredData<DepositOverrides>("mila-service-deposit-overrides", {}));
+    setPriceOverrides(getStoredData<PriceOverrides>("mila-service-price-overrides", {}));
+  }, []);
 
   const availableServices = useMemo(() => {
     if (!stylist) return [];
     return services
       .filter(s => stylist.serviceIds.includes(s.id))
-      .map(s => ({
-        ...s,
-        durationMinutes: durationOverrides[s.id] ?? s.durationMinutes,
-      }));
-  }, [stylist, durationOverrides]);
+      .map(s => {
+        const p = priceOverrides[s.id];
+        return {
+          ...s,
+          durationMinutes: durationOverrides[s.id] ?? s.durationMinutes,
+          price: p?.price ?? s.price,
+          priceMax: p?.priceMax ?? s.priceMax,
+        };
+      });
+  }, [stylist, durationOverrides, priceOverrides]);
 
   const selectedIds = state.selectedServiceIds;
   const isGeneral = state.isGeneralAppointment;

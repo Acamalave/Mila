@@ -18,6 +18,7 @@ import type { ServiceDepositConfig } from "@/types/service";
 
 type DurationOverrides = Record<string, number>;
 type DepositOverrides = Record<string, ServiceDepositConfig>;
+type PriceOverrides = Record<string, { price: number; priceMax?: number }>;
 
 export default function AdminServicesPage() {
   const { language, t } = useLanguage();
@@ -28,8 +29,13 @@ export default function AdminServicesPage() {
   const [depositOverrides, setDepositOverrides] = useState<DepositOverrides>(() =>
     getStoredData<DepositOverrides>("mila-service-deposit-overrides", {})
   );
+  const [priceOverrides, setPriceOverrides] = useState<PriceOverrides>(() =>
+    getStoredData<PriceOverrides>("mila-service-price-overrides", {})
+  );
   const [editingService, setEditingService] = useState<string | null>(null);
   const [editDuration, setEditDuration] = useState<number>(0);
+  const [editPrice, setEditPrice] = useState<number>(0);
+  const [editPriceMax, setEditPriceMax] = useState<string>("");
   const [editDeposit, setEditDeposit] = useState<ServiceDepositConfig>({
     requiresDeposit: false,
     depositType: "fixed",
@@ -58,6 +64,16 @@ export default function AdminServicesPage() {
           }
         }
       }),
+      onDocumentChange<PriceOverrides>("service-config", "price-overrides", (data) => {
+        if (data) {
+          const priceData = { ...data };
+          delete (priceData as any).id;
+          if (Object.keys(priceData).length > 0) {
+            setPriceOverrides(priceData as unknown as PriceOverrides);
+            setStoredData("mila-service-price-overrides", priceData);
+          }
+        }
+      }),
     ];
 
     return () => unsubs.forEach((u) => u());
@@ -67,9 +83,17 @@ export default function AdminServicesPage() {
     return overrides[serviceId] ?? defaultDuration;
   };
 
-  const openEditor = (serviceId: string, currentDuration: number) => {
+  const getEffectivePrice = (serviceId: string, defaultPrice: number, defaultPriceMax?: number) => {
+    const p = priceOverrides[serviceId];
+    return p ? { price: p.price, priceMax: p.priceMax } : { price: defaultPrice, priceMax: defaultPriceMax };
+  };
+
+  const openEditor = (serviceId: string, currentDuration: number, currentPrice: number, currentPriceMax?: number) => {
     setEditingService(serviceId);
     setEditDuration(getEffectiveDuration(serviceId, currentDuration));
+    const ep = getEffectivePrice(serviceId, currentPrice, currentPriceMax);
+    setEditPrice(ep.price);
+    setEditPriceMax(ep.priceMax !== undefined ? String(ep.priceMax) : "");
     setEditDeposit(depositOverrides[serviceId] ?? { requiresDeposit: false, depositType: "fixed", depositAmount: 0 });
   };
 
@@ -94,6 +118,15 @@ export default function AdminServicesPage() {
     setStoredData("mila-service-duration-overrides", newDurationOverrides);
     setDocument("service-config", "duration-overrides", newDurationOverrides).catch((err) => console.warn("[Mila] Failed to sync duration overrides:", err));
 
+    // Save price
+    const priceEntry: { price: number; priceMax?: number } = { price: editPrice };
+    const parsedMax = parseFloat(editPriceMax);
+    if (!isNaN(parsedMax) && parsedMax > 0) priceEntry.priceMax = parsedMax;
+    const newPriceOverrides = { ...priceOverrides, [editingService]: priceEntry };
+    setPriceOverrides(newPriceOverrides);
+    setStoredData("mila-service-price-overrides", newPriceOverrides);
+    setDocument("service-config", "price-overrides", newPriceOverrides as unknown as Record<string, unknown>).catch((err) => console.warn("[Mila] Failed to sync price overrides:", err));
+
     // Save deposit config
     const newDepositOverrides = { ...depositOverrides, [editingService]: editDeposit };
     setDepositOverrides(newDepositOverrides);
@@ -105,7 +138,7 @@ export default function AdminServicesPage() {
       language === "es" ? "Servicio actualizado" : "Service updated",
       "success"
     );
-  }, [editingService, editDuration, editDeposit, overrides, depositOverrides, addToast, language]);
+  }, [editingService, editDuration, editPrice, editPriceMax, editDeposit, overrides, priceOverrides, depositOverrides, addToast, language]);
 
   const editingServiceData = editingService
     ? seedServices.find((s) => s.id === editingService)
@@ -176,7 +209,8 @@ export default function AdminServicesPage() {
                       service.id,
                       service.durationMinutes
                     );
-                    const isOverridden = overrides[service.id] !== undefined;
+                    const effectivePrice = getEffectivePrice(service.id, service.price, service.priceMax);
+                    const isOverridden = overrides[service.id] !== undefined || priceOverrides[service.id] !== undefined;
                     return (
                       <tr
                         key={service.id}
@@ -187,8 +221,10 @@ export default function AdminServicesPage() {
                             {service.name[language]}
                           </span>
                         </td>
-                        <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm font-medium text-text-primary text-right">
-                          {formatServicePrice(service.price, service.priceMax)}
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm font-medium text-right">
+                          <span style={{ color: priceOverrides[service.id] ? "var(--color-accent)" : "var(--color-text-primary)" }}>
+                            {formatServicePrice(effectivePrice.price, effectivePrice.priceMax)}
+                          </span>
                         </td>
                         <td className="px-3 sm:px-6 py-2 sm:py-4 text-center">
                           <span
@@ -226,7 +262,7 @@ export default function AdminServicesPage() {
                         <td className="px-3 sm:px-6 py-2 sm:py-4 text-center">
                           <button
                             onClick={() =>
-                              openEditor(service.id, service.durationMinutes)
+                              openEditor(service.id, service.durationMinutes, service.price, service.priceMax)
                             }
                             className="p-2 rounded-lg hover:bg-white/5 transition-colors text-text-muted hover:text-text-primary cursor-pointer"
                           >
@@ -264,6 +300,27 @@ export default function AdminServicesPage() {
                   {formatServicePrice(editingServiceData.price, editingServiceData.priceMax)}
                 </p>
               </div>
+            </div>
+
+            {/* Price */}
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label={language === "es" ? "Precio ($)" : "Price ($)"}
+                type="number"
+                min="0"
+                step="1"
+                value={editPrice.toString()}
+                onChange={(e) => setEditPrice(parseFloat(e.target.value) || 0)}
+              />
+              <Input
+                label={language === "es" ? "Precio máx. (opcional)" : "Max price (optional)"}
+                type="number"
+                min="0"
+                step="1"
+                value={editPriceMax}
+                onChange={(e) => setEditPriceMax(e.target.value)}
+                placeholder={language === "es" ? "ej. 150" : "e.g. 150"}
+              />
             </div>
 
             {/* Duration */}
