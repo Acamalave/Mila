@@ -147,13 +147,16 @@ export function StaffProvider({ children }: { children: ReactNode }) {
       if (linkedPhone) {
         // Use the new systemRole if provided, otherwise use the existing stylist role
         const newRole = ((updates.systemRole ?? stylist?.systemRole) || "stylist") as "admin" | "stylist";
+        const staffName = updates.name ?? stylist?.name;
         const userId = `user-${linkedPhone}`;
         const registry = getStoredData<User[]>("mila-users", []);
         const updatedRegistry = registry.map((u) =>
-          u.phone === linkedPhone ? { ...u, role: newRole } : u
+          u.phone === linkedPhone
+            ? { ...u, role: newRole, ...(staffName ? { name: staffName } : {}) }
+            : u
         );
         setStoredData("mila-users", updatedRegistry);
-        setDocument("users", userId, { role: newRole }).catch((err) => console.warn("[Mila] User role sync failed:", err));
+        setDocument("users", userId, { role: newRole, ...(staffName ? { name: staffName } : {}) }).catch((err) => console.warn("[Mila] User role sync failed:", err));
       }
     }
 

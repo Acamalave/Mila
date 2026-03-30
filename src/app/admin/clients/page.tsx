@@ -194,6 +194,13 @@ export default function AdminClientsPage() {
       setStoredData("mila-users", next);
       return next;
     });
+    // Add to soft-delete list so Firestore listener won't re-add the user
+    const deletedIds = getStoredData<string[]>("mila-users-deleted", []);
+    if (!deletedIds.includes(deleteConfirmId)) {
+      const next = [...deletedIds, deleteConfirmId];
+      setStoredData("mila-users-deleted", next);
+      setDocument("staff-config", "users-deleted", { ids: next }).catch(() => {});
+    }
     deleteDocument("users", deleteConfirmId).catch(() => {});
     if (selectedUser?.id === deleteConfirmId) setSelectedUser(null);
     setDeleteConfirmId(null);
