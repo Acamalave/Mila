@@ -119,6 +119,12 @@ export function BookingProvider({ children }: { children: ReactNode }) {
 
   // Firestore real-time listener for bookings collection
   useEffect(() => {
+    // Push any locally-known deleted IDs to Firestore so all devices respect them
+    const localDeleted = getStoredData<string[]>("mila-bookings-deleted", []);
+    if (localDeleted.length > 0) {
+      setDocument("bookings-config", "deleted", { ids: localDeleted }).catch(() => {});
+    }
+
     // Listen to Firestore-synced deleted IDs so all devices respect deletions
     const unsubDeleted = onDocumentChange<{ ids?: string[] }>(
       "bookings-config", "deleted",
