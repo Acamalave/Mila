@@ -17,7 +17,6 @@ import { useToast } from "@/providers/ToastProvider";
 import { useProducts } from "@/providers/ProductProvider";
 import { useInvoices } from "@/providers/InvoiceProvider";
 import { usePayment, detectCardBrand } from "@/providers/PaymentProvider";
-import { getInitialDemoAppointments } from "@/data/appointments";
 import type { Booking, BookingStatus, Invoice, Review } from "@/types";
 import type { CardFormData } from "@/components/payment/CreditCardForm";
 import type { Variants } from "motion/react";
@@ -158,24 +157,32 @@ export default function DashboardPage() {
   const [rescheduleTime, setRescheduleTime] = useState("");
 
   useEffect(() => {
-    let stored = getStoredData<Booking[]>("mila-bookings", []);
-    if (stored.length === 0) {
-      stored = getInitialDemoAppointments();
-      setStoredData("mila-bookings", stored);
-      for (const b of stored) {
-        const { id, ...data } = b;
-        setDocument("bookings", id, data).catch(() => {});
-      }
-    }
+    if (!user) return;
+
+    const deletedIds = getStoredData<string[]>("mila-bookings-deleted", []);
+    const deletedSet = new Set(deletedIds);
+
+    const isMyBooking = (b: Booking) =>
+      !deletedSet.has(b.id) &&
+      (b.clientId === user.id ||
+        (b.guestPhone && b.guestPhone === user.phone));
+
+    const stored = getStoredData<Booking[]>("mila-bookings", []).filter(isMyBooking);
     setAppointments(stored);
 
     const unsub = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
+      // Persist all to shared localStorage (admin/stylist need full data)
+      const all = getStoredData<Booking[]>("mila-bookings", []);
+      const allMerged = new Map<string, Booking>();
+      for (const b of all) allMerged.set(b.id, b);
+      for (const b of firestoreBookings) allMerged.set(b.id, b);
+      setStoredData("mila-bookings", Array.from(allMerged.values()));
+
       setAppointments((prev) => {
         const merged = new Map<string, Booking>();
-        for (const b of prev) merged.set(b.id, b);
-        for (const b of firestoreBookings) merged.set(b.id, b);
+        for (const b of prev) if (isMyBooking(b)) merged.set(b.id, b);
+        for (const b of firestoreBookings) if (isMyBooking(b)) merged.set(b.id, b);
         const next = Array.from(merged.values());
-        setStoredData("mila-bookings", next);
         return next;
       });
     });
@@ -189,7 +196,7 @@ export default function DashboardPage() {
     }
 
     return () => unsub();
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (user) {

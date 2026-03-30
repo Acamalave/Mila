@@ -5,12 +5,12 @@ import { motion } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useToast } from "@/providers/ToastProvider";
 import { useEventBus } from "@/providers/EventBusProvider";
+import { useAuth } from "@/providers/AuthProvider";
 import { getStoredData, setStoredData, formatPrice } from "@/lib/utils";
 import { setDocument, onCollectionChange } from "@/lib/firestore";
 import { formatShortDate, formatTime } from "@/lib/date-utils";
 import { services } from "@/data/services";
 import { useStaff } from "@/providers/StaffProvider";
-import { getInitialDemoAppointments } from "@/data/appointments";
 import type { Booking, BookingStatus } from "@/types";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
@@ -33,6 +33,7 @@ export default function AppointmentsPage() {
   const { language, t } = useLanguage();
   const { addToast } = useToast();
   const { emit } = useEventBus();
+  const { user } = useAuth();
   const { allStylists } = useStaff();
   const [appointments, setAppointments] = useState<Booking[]>([]);
   const [rescheduleAppt, setRescheduleAppt] = useState<Booking | null>(null);
@@ -41,31 +42,38 @@ export default function AppointmentsPage() {
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
-    let stored = getStoredData<Booking[]>("mila-bookings", []);
-    if (stored.length === 0) {
-      stored = getInitialDemoAppointments();
-      setStoredData("mila-bookings", stored);
-      for (const b of stored) {
-        const { id, ...data } = b;
-        setDocument("bookings", id, data).catch((err) => console.warn("[Mila] Booking sync failed:", err));
-      }
-    }
+    if (!user) return;
+
+    const deletedIds = getStoredData<string[]>("mila-bookings-deleted", []);
+    const deletedSet = new Set(deletedIds);
+
+    const isMyBooking = (b: Booking) =>
+      !deletedSet.has(b.id) &&
+      (b.clientId === user.id ||
+        (b.guestPhone && b.guestPhone === user.phone));
+
+    const stored = getStoredData<Booking[]>("mila-bookings", []).filter(isMyBooking);
     setAppointments(stored);
 
     const unsub = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
       if (firestoreBookings.length > 0) {
         setAppointments((prev) => {
           const merged = new Map<string, Booking>();
-          for (const b of prev) merged.set(b.id, b);
-          for (const b of firestoreBookings) merged.set(b.id, b);
+          for (const b of prev) if (isMyBooking(b)) merged.set(b.id, b);
+          for (const b of firestoreBookings) if (isMyBooking(b)) merged.set(b.id, b);
           const next = Array.from(merged.values());
-          setStoredData("mila-bookings", next);
+          // Persist all bookings (unfiltered) to shared localStorage for admin/stylist use
+          const all = getStoredData<Booking[]>("mila-bookings", []);
+          const allMerged = new Map<string, Booking>();
+          for (const b of all) allMerged.set(b.id, b);
+          for (const b of firestoreBookings) allMerged.set(b.id, b);
+          setStoredData("mila-bookings", Array.from(allMerged.values()));
           return next;
         });
       }
     });
     return () => unsub();
-  }, []);
+  }, [user]);
 
   const now = new Date();
 
