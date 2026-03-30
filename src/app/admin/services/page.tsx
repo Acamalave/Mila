@@ -19,6 +19,7 @@ import type { ServiceDepositConfig } from "@/types/service";
 type DurationOverrides = Record<string, number>;
 type DepositOverrides = Record<string, ServiceDepositConfig>;
 type PriceOverrides = Record<string, { price: number; priceMax?: number }>;
+type NameOverrides = Record<string, { en: string; es: string }>;
 
 export default function AdminServicesPage() {
   const { language, t } = useLanguage();
@@ -32,10 +33,15 @@ export default function AdminServicesPage() {
   const [priceOverrides, setPriceOverrides] = useState<PriceOverrides>(() =>
     getStoredData<PriceOverrides>("mila-service-price-overrides", {})
   );
+  const [nameOverrides, setNameOverrides] = useState<NameOverrides>(() =>
+    getStoredData<NameOverrides>("mila-service-name-overrides", {})
+  );
   const [editingService, setEditingService] = useState<string | null>(null);
   const [editDuration, setEditDuration] = useState<number>(0);
   const [editPrice, setEditPrice] = useState<number>(0);
   const [editPriceMax, setEditPriceMax] = useState<string>("");
+  const [editNameEn, setEditNameEn] = useState<string>("");
+  const [editNameEs, setEditNameEs] = useState<string>("");
   const [editDeposit, setEditDeposit] = useState<ServiceDepositConfig>({
     requiresDeposit: false,
     depositType: "fixed",
@@ -74,6 +80,16 @@ export default function AdminServicesPage() {
           }
         }
       }),
+      onDocumentChange<NameOverrides>("service-config", "name-overrides", (data) => {
+        if (data) {
+          const nameData = { ...data };
+          delete (nameData as any).id;
+          if (Object.keys(nameData).length > 0) {
+            setNameOverrides(nameData as unknown as NameOverrides);
+            setStoredData("mila-service-name-overrides", nameData);
+          }
+        }
+      }),
     ];
 
     return () => unsubs.forEach((u) => u());
@@ -88,12 +104,19 @@ export default function AdminServicesPage() {
     return p ? { price: p.price, priceMax: p.priceMax } : { price: defaultPrice, priceMax: defaultPriceMax };
   };
 
-  const openEditor = (serviceId: string, currentDuration: number, currentPrice: number, currentPriceMax?: number) => {
+  const getEffectiveName = (serviceId: string, defaultName: { en: string; es: string }) => {
+    return nameOverrides[serviceId] ?? defaultName;
+  };
+
+  const openEditor = (serviceId: string, currentDuration: number, currentPrice: number, currentPriceMax?: number, currentName?: { en: string; es: string }) => {
     setEditingService(serviceId);
     setEditDuration(getEffectiveDuration(serviceId, currentDuration));
     const ep = getEffectivePrice(serviceId, currentPrice, currentPriceMax);
     setEditPrice(ep.price);
     setEditPriceMax(ep.priceMax !== undefined ? String(ep.priceMax) : "");
+    const en = currentName ? getEffectiveName(serviceId, currentName) : { en: "", es: "" };
+    setEditNameEn(en.en);
+    setEditNameEs(en.es);
     setEditDeposit(depositOverrides[serviceId] ?? { requiresDeposit: false, depositType: "fixed", depositAmount: 0 });
   };
 
@@ -127,6 +150,14 @@ export default function AdminServicesPage() {
     setStoredData("mila-service-price-overrides", newPriceOverrides);
     setDocument("service-config", "price-overrides", newPriceOverrides as unknown as Record<string, unknown>).catch((err) => console.warn("[Mila] Failed to sync price overrides:", err));
 
+    // Save name
+    if (editNameEn.trim() || editNameEs.trim()) {
+      const newNameOverrides = { ...nameOverrides, [editingService]: { en: editNameEn.trim(), es: editNameEs.trim() } };
+      setNameOverrides(newNameOverrides);
+      setStoredData("mila-service-name-overrides", newNameOverrides);
+      setDocument("service-config", "name-overrides", newNameOverrides as unknown as Record<string, unknown>).catch((err) => console.warn("[Mila] Failed to sync name overrides:", err));
+    }
+
     // Save deposit config
     const newDepositOverrides = { ...depositOverrides, [editingService]: editDeposit };
     setDepositOverrides(newDepositOverrides);
@@ -138,7 +169,7 @@ export default function AdminServicesPage() {
       language === "es" ? "Servicio actualizado" : "Service updated",
       "success"
     );
-  }, [editingService, editDuration, editPrice, editPriceMax, editDeposit, overrides, priceOverrides, depositOverrides, addToast, language]);
+  }, [editingService, editDuration, editPrice, editPriceMax, editNameEn, editNameEs, editDeposit, overrides, priceOverrides, nameOverrides, depositOverrides, addToast, language]);
 
   const editingServiceData = editingService
     ? seedServices.find((s) => s.id === editingService)
@@ -210,15 +241,16 @@ export default function AdminServicesPage() {
                       service.durationMinutes
                     );
                     const effectivePrice = getEffectivePrice(service.id, service.price, service.priceMax);
-                    const isOverridden = overrides[service.id] !== undefined || priceOverrides[service.id] !== undefined;
+                    const effectiveName = getEffectiveName(service.id, service.name);
+                    const isOverridden = overrides[service.id] !== undefined || priceOverrides[service.id] !== undefined || nameOverrides[service.id] !== undefined;
                     return (
                       <tr
                         key={service.id}
                         className="hover:bg-white/5 transition-colors"
                       >
                         <td className="px-3 sm:px-6 py-2 sm:py-4">
-                          <span className="text-xs sm:text-sm font-medium text-text-primary">
-                            {service.name[language]}
+                          <span className="text-xs sm:text-sm font-medium" style={{ color: nameOverrides[service.id] ? "var(--color-accent)" : "var(--color-text-primary)" }}>
+                            {effectiveName[language]}
                           </span>
                         </td>
                         <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm font-medium text-right">
@@ -262,7 +294,7 @@ export default function AdminServicesPage() {
                         <td className="px-3 sm:px-6 py-2 sm:py-4 text-center">
                           <button
                             onClick={() =>
-                              openEditor(service.id, service.durationMinutes, service.price, service.priceMax)
+                              openEditor(service.id, service.durationMinutes, service.price, service.priceMax, service.name)
                             }
                             className="p-2 rounded-lg hover:bg-white/5 transition-colors text-text-muted hover:text-text-primary cursor-pointer"
                           >
@@ -300,6 +332,22 @@ export default function AdminServicesPage() {
                   {formatServicePrice(editingServiceData.price, editingServiceData.priceMax)}
                 </p>
               </div>
+            </div>
+
+            {/* Name */}
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label={language === "es" ? "Nombre (ES)" : "Name (ES)"}
+                value={editNameEs}
+                onChange={(e) => setEditNameEs(e.target.value)}
+                placeholder={editingServiceData?.name.es}
+              />
+              <Input
+                label={language === "es" ? "Nombre (EN)" : "Name (EN)"}
+                value={editNameEn}
+                onChange={(e) => setEditNameEn(e.target.value)}
+                placeholder={editingServiceData?.name.en}
+              />
             </div>
 
             {/* Price */}

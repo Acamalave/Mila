@@ -13,7 +13,6 @@ import Button from "@/components/ui/Button";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
 import { Users, Search, Phone, Mail, CalendarDays, DollarSign, Star, Trash2 } from "lucide-react";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import { getInitialDemoAppointments } from "@/data/appointments";
 import { useStaff } from "@/providers/StaffProvider";
 import { services } from "@/data/services";
 import { onCollectionChange, setDocument, getCollection, deleteDocument } from "@/lib/firestore";
@@ -37,13 +36,12 @@ export default function AdminClientsPage() {
 
   useEffect(() => {
     const loadLocal = () => {
-      const storedUsers = getStoredData<User[]>("mila-users", []);
+      const deletedUIds = getStoredData<string[]>("mila-users-deleted", []);
+      const deletedBIds = getStoredData<string[]>("mila-bookings-deleted", []);
+      const storedUsers = getStoredData<User[]>("mila-users", []).filter(u => u.id && !deletedUIds.includes(u.id));
       setUsers(storedUsers);
 
-      let storedBookings = getStoredData<Booking[]>("mila-bookings", []);
-      if (storedBookings.length === 0) {
-        storedBookings = getInitialDemoAppointments();
-      }
+      const storedBookings = getStoredData<Booking[]>("mila-bookings", []).filter(b => !deletedBIds.includes(b.id));
       setBookings(storedBookings);
 
       const storedInvoices = getStoredData<Invoice[]>("mila-invoices", []);
@@ -52,13 +50,18 @@ export default function AdminClientsPage() {
 
     loadLocal();
 
-    // Eagerly fetch ALL users from Firestore on mount (don't rely solely on listener)
+    const deletedUserIds = getStoredData<string[]>("mila-users-deleted", []);
+    const deletedUserSet = new Set(deletedUserIds);
+    const deletedBookingIds = getStoredData<string[]>("mila-bookings-deleted", []);
+    const deletedBookingSet = new Set(deletedBookingIds);
+
+    // Eagerly fetch ALL users from Firestore on mount
     getCollection<User>("users").then((firestoreUsers) => {
       if (firestoreUsers.length > 0) {
         const localUsers = getStoredData<User[]>("mila-users", []);
         const merged = new Map<string, User>();
-        for (const u of localUsers) if (u.id) merged.set(u.id, u);
-        for (const u of firestoreUsers) if (u.id) merged.set(u.id, u);
+        for (const u of localUsers) if (u.id && !deletedUserSet.has(u.id)) merged.set(u.id, u);
+        for (const u of firestoreUsers) if (u.id && !deletedUserSet.has(u.id)) merged.set(u.id, u);
         const allUsers = Array.from(merged.values());
         setUsers(allUsers);
         setStoredData("mila-users", allUsers);
@@ -69,8 +72,8 @@ export default function AdminClientsPage() {
     const unsubUsers = onCollectionChange<User>("users", (firestoreUsers) => {
       const localUsers = getStoredData<User[]>("mila-users", []);
       const merged = new Map<string, User>();
-      for (const u of localUsers) if (u.id) merged.set(u.id, u);
-      for (const u of firestoreUsers) if (u.id) merged.set(u.id, u);
+      for (const u of localUsers) if (u.id && !deletedUserSet.has(u.id)) merged.set(u.id, u);
+      for (const u of firestoreUsers) if (u.id && !deletedUserSet.has(u.id)) merged.set(u.id, u);
       const allUsers = Array.from(merged.values());
       setUsers(allUsers);
       setStoredData("mila-users", allUsers);
@@ -80,8 +83,8 @@ export default function AdminClientsPage() {
     const unsubBookings = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
       const localBookings = getStoredData<Booking[]>("mila-bookings", []);
       const merged = new Map<string, Booking>();
-      for (const b of localBookings) if (b.id) merged.set(b.id, b);
-      for (const b of firestoreBookings) if (b.id) merged.set(b.id, b);
+      for (const b of localBookings) if (b.id && !deletedBookingSet.has(b.id)) merged.set(b.id, b);
+      for (const b of firestoreBookings) if (b.id && !deletedBookingSet.has(b.id)) merged.set(b.id, b);
       const allBookings = Array.from(merged.values());
       setBookings(allBookings);
       setStoredData("mila-bookings", allBookings);

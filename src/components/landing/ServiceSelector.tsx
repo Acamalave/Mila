@@ -12,6 +12,7 @@ import type { ServiceDepositConfig } from "@/types/service";
 
 type DepositOverrides = Record<string, ServiceDepositConfig>;
 type PriceOverrides = Record<string, { price: number; priceMax?: number }>;
+type NameOverrides = Record<string, { en: string; es: string }>;
 
 interface ServiceSelectorProps {
   stylistId: string;
@@ -32,12 +33,15 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
     getStoredData<DepositOverrides>("mila-service-deposit-overrides", {}));
   const [priceOverrides, setPriceOverrides] = useState<PriceOverrides>(() =>
     getStoredData<PriceOverrides>("mila-service-price-overrides", {}));
+  const [nameOverrides, setNameOverrides] = useState<NameOverrides>(() =>
+    getStoredData<NameOverrides>("mila-service-name-overrides", {}));
 
   // Re-read overrides from localStorage on mount to catch admin changes
   useEffect(() => {
     setDurationOverrides(getStoredData<Record<string, number>>("mila-service-duration-overrides", {}));
     setDepositOverrides(getStoredData<DepositOverrides>("mila-service-deposit-overrides", {}));
     setPriceOverrides(getStoredData<PriceOverrides>("mila-service-price-overrides", {}));
+    setNameOverrides(getStoredData<NameOverrides>("mila-service-name-overrides", {}));
   }, []);
 
   const availableServices = useMemo(() => {
@@ -46,14 +50,16 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
       .filter(s => stylist.serviceIds.includes(s.id))
       .map(s => {
         const p = priceOverrides[s.id];
+        const n = nameOverrides[s.id];
         return {
           ...s,
           durationMinutes: durationOverrides[s.id] ?? s.durationMinutes,
           price: p?.price ?? s.price,
           priceMax: p?.priceMax ?? s.priceMax,
+          name: n ? { en: n.en || s.name.en, es: n.es || s.name.es } : s.name,
         };
       });
-  }, [stylist, durationOverrides, priceOverrides]);
+  }, [stylist, durationOverrides, priceOverrides, nameOverrides]);
 
   const selectedIds = state.selectedServiceIds;
   const isGeneral = state.isGeneralAppointment;
