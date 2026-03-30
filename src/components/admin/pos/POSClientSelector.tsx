@@ -36,14 +36,20 @@ export default function POSClientSelector({
 
   // Eagerly fetch users then subscribe to real-time updates
   useEffect(() => {
+    const filterDeleted = (users: User[]) => {
+      const deletedIds = getStoredData<string[]>("mila-users-deleted", []);
+      const deletedSet = new Set(deletedIds);
+      return users.filter((u) => !u.id || !deletedSet.has(u.id));
+    };
+
     // Immediate fetch to ensure we have all users
     getCollection<User>("users").then((users) => {
-      if (users.length > 0) setFirestoreUsers(users);
+      if (users.length > 0) setFirestoreUsers(filterDeleted(users));
     }).catch(() => {});
 
     // Real-time listener for new registrations
     const unsub = onCollectionChange<User>("users", (users) => {
-      setFirestoreUsers(users);
+      setFirestoreUsers(filterDeleted(users));
     });
     return () => unsub();
   }, []);
@@ -52,10 +58,15 @@ export default function POSClientSelector({
   const clients = useMemo(() => {
     const map = new Map<string, POSClient>();
 
+    const deletedUserIds = getStoredData<string[]>("mila-users-deleted", []);
+    const deletedUserSet = new Set(deletedUserIds);
+    const deletedBookingIds = getStoredData<string[]>("mila-bookings-deleted", []);
+    const deletedBookingSet = new Set(deletedBookingIds);
+
     // Primary source: user registry (all registered users)
     const registry = getStoredData<User[]>("mila-users", []);
     for (const u of registry) {
-      if (u.id && !map.has(u.id)) {
+      if (u.id && !deletedUserSet.has(u.id) && !map.has(u.id)) {
         map.set(u.id, {
           id: u.id,
           name: u.name,
@@ -66,7 +77,7 @@ export default function POSClientSelector({
 
     // Firestore users (cross-device registrations)
     for (const u of firestoreUsers) {
-      if (u.id && !map.has(u.id)) {
+      if (u.id && !deletedUserSet.has(u.id) && !map.has(u.id)) {
         map.set(u.id, {
           id: u.id,
           name: u.name,
@@ -78,7 +89,7 @@ export default function POSClientSelector({
     // From bookings (may include guests not in registry)
     const bookings = getStoredData<Booking[]>("mila-bookings", []);
     for (const b of bookings) {
-      if (b.clientId && !map.has(b.clientId)) {
+      if (b.clientId && !deletedBookingSet.has(b.id) && !map.has(b.clientId)) {
         map.set(b.clientId, {
           id: b.clientId,
           name: b.guestName || b.clientId,
