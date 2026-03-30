@@ -4,11 +4,10 @@ import { useState, useEffect, useMemo } from "react";
 import { motion } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { cn, formatPrice, getStoredData, setStoredData } from "@/lib/utils";
-import { onCollectionChange } from "@/lib/firestore";
+import { onCollectionChange, onDocumentChange, deleteDocument } from "@/lib/firestore";
 import { formatShortDate, formatTime } from "@/lib/date-utils";
 import { services } from "@/data/services";
 import { useStaff } from "@/providers/StaffProvider";
-import { getInitialDemoAppointments } from "@/data/appointments";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Avatar from "@/components/ui/Avatar";
@@ -23,20 +22,34 @@ export default function AdminOverviewPage() {
   const [allUsers, setAllUsers] = useState<User[]>([]);
 
   useEffect(() => {
-    const deletedIds = getStoredData<string[]>("mila-bookings-deleted", []);
-    const deletedSet = new Set(deletedIds);
+    // Permanently delete any soft-deleted bookings from Firestore
+    const localDeleted = getStoredData<string[]>("mila-bookings-deleted", []);
+    for (const id of localDeleted) {
+      deleteDocument("bookings", id).catch(() => {});
+    }
 
-    let stored = getStoredData<Booking[]>("mila-bookings", []).filter(b => !deletedSet.has(b.id));
+    const getDeletedSet = () => new Set(getStoredData<string[]>("mila-bookings-deleted", []));
+
+    const stored = getStoredData<Booking[]>("mila-bookings", []).filter(b => !getDeletedSet().has(b.id));
     setBookings(stored);
 
-    // Load users for name resolution
     const storedUsers = getStoredData<User[]>("mila-users", []);
     setAllUsers(storedUsers);
 
     const unsubs = [
+      // Listen to Firestore deleted IDs so cross-device deletions propagate
+      onDocumentChange<{ ids?: string[] }>("bookings-config", "deleted", (data) => {
+        if (data?.ids) {
+          const merged = Array.from(new Set([...getStoredData<string[]>("mila-bookings-deleted", []), ...data.ids]));
+          setStoredData("mila-bookings-deleted", merged);
+          for (const id of data.ids) deleteDocument("bookings", id).catch(() => {});
+          setBookings(prev => prev.filter(b => !new Set(merged).has(b.id)));
+        }
+      }),
       onCollectionChange<Booking>("bookings", (firestoreBookings) => {
         if (firestoreBookings.length > 0) {
           setBookings((prev) => {
+            const deletedSet = getDeletedSet();
             const merged = new Map<string, Booking>();
             for (const b of prev) if (!deletedSet.has(b.id)) merged.set(b.id, b);
             for (const b of firestoreBookings) if (!deletedSet.has(b.id)) merged.set(b.id, b);
