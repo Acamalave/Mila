@@ -10,7 +10,7 @@ import { getStoredData, setStoredData, formatPrice, generateId } from "@/lib/uti
 import { setDocument, onCollectionChange } from "@/lib/firestore";
 import { formatShortDate, formatTime } from "@/lib/date-utils";
 import { services } from "@/data/services";
-import { reviews as mockReviews } from "@/data/reviews";
+import { mockReviews } from "@/data/reviews";
 import { useStaff } from "@/providers/StaffProvider";
 import { useCart } from "@/providers/CartProvider";
 import { useToast } from "@/providers/ToastProvider";
@@ -27,6 +27,7 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Modal from "@/components/ui/Modal";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Avatar from "@/components/ui/Avatar";
 import StarRating from "@/components/ui/StarRating";
 import CreditCardForm from "@/components/payment/CreditCardForm";
@@ -34,6 +35,7 @@ import PaymentModal from "@/components/payment/PaymentModal";
 import {
   CalendarDays,
   CalendarPlus,
+  Clock,
   ShoppingBag,
   Star,
   UserCircle,
@@ -99,13 +101,7 @@ const cardSpring = {
   whileTap: { scale: 0.97 },
 };
 
-const SHOP_CATEGORIES = [
-  { value: "all", labelEn: "All", labelEs: "Todos" },
-  { value: "hair-care", labelEn: "Hair Care", labelEs: "Cabello" },
-  { value: "skin-care", labelEn: "Skin Care", labelEs: "Piel" },
-  { value: "styling", labelEn: "Styling", labelEs: "Estilizado" },
-  { value: "tools", labelEn: "Tools", labelEs: "Herramientas" },
-];
+/* SHOP_CATEGORIES is now dynamic — loaded from useProducts().categories */
 
 type ActiveTab = "shop" | "appointments" | "reviews" | "profile";
 
@@ -124,7 +120,12 @@ export default function DashboardPage() {
   const { allStylists } = useStaff();
   const { items, addItem, removeItem, updateQuantity, clearCart, totalItems, totalPrice: cartTotal } = useCart();
   const { addToast } = useToast();
-  const { allProducts } = useProducts();
+  const { allProducts, categories } = useProducts();
+
+  const SHOP_CATEGORIES = [
+    { value: "all", labelEn: "All", labelEs: "Todos" },
+    ...categories.map((cat) => ({ value: cat.value, labelEn: cat.labelEn, labelEs: cat.labelEs })),
+  ];
   const { invoices, addInvoice } = useInvoices();
   const { savedCards, addCard, removeCard, setDefaultCard } = usePayment();
   const [appointments, setAppointments] = useState<Booking[]>([]);
@@ -134,6 +135,8 @@ export default function DashboardPage() {
   const [checkoutInvoice, setCheckoutInvoice] = useState<Invoice | null>(null);
   const [showPayment, setShowPayment] = useState(false);
   const [prevInvoicesLen, setPrevInvoicesLen] = useState(0);
+  // Map of invoiceId → sentAt shown — allows detecting when admin resends a declined invoice
+  const [shownInvoiceSentAt, setShownInvoiceSentAt] = useState<Map<string, string>>(new Map());
 
   // Reviews state
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -149,6 +152,7 @@ export default function DashboardPage() {
 
   // Appointment detail modal state
   const [selectedAppt, setSelectedAppt] = useState<Booking | null>(null);
+  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
   const [rescheduleMode, setRescheduleMode] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [rescheduleTime, setRescheduleTime] = useState("");
@@ -195,19 +199,26 @@ export default function DashboardPage() {
     }
   }, [user]);
 
-  // Track invoices for checkout flow
+  // Track invoices for checkout flow — opens PaymentModal for "sent" invoices
+  // Modal is shown when an invoice is "sent" and either hasn't been shown before,
+  // or the sentAt timestamp changed (admin resent a previously declined invoice).
   useEffect(() => {
-    if (invoices.length > prevInvoicesLen && user) {
-      const latestForUser = [...invoices]
-        .filter((inv) => inv.clientId === user.id)
-        .pop();
-      if (latestForUser && latestForUser.status === "sent") {
-        setCheckoutInvoice(latestForUser);
+    if (!user) return;
+    const userSentInvoices = invoices.filter(
+      (inv) => inv.clientId === user.id && inv.status === "sent"
+    );
+    const latest = userSentInvoices[userSentInvoices.length - 1];
+    if (latest) {
+      const alreadyShownSentAt = shownInvoiceSentAt.get(latest.id);
+      const isNew = alreadyShownSentAt === undefined;
+      const wasResent = !isNew && alreadyShownSentAt !== latest.sentAt;
+      if (isNew || wasResent) {
+        setCheckoutInvoice(latest);
         setShowPayment(true);
       }
     }
     setPrevInvoicesLen(invoices.length);
-  }, [invoices, user, prevInvoicesLen]);
+  }, [invoices, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const visibleProducts = allProducts.filter((p) => !p.hidden);
   const filteredProducts =
@@ -293,14 +304,19 @@ export default function DashboardPage() {
   };
 
   function handleCancel(bookingId: string) {
-    if (!confirm(t("dashboard", "cancelConfirm"))) return;
+    setCancelConfirmId(bookingId);
+  }
+
+  function confirmCancelBooking() {
+    if (!cancelConfirmId) return;
     const updated = appointments.map((a) =>
-      a.id === bookingId ? { ...a, status: "cancelled" as BookingStatus } : a
+      a.id === cancelConfirmId ? { ...a, status: "cancelled" as BookingStatus } : a
     );
     setAppointments(updated);
     setStoredData("mila-bookings", updated);
-    setDocument("bookings", bookingId, { status: "cancelled" }).catch(() => {});
+    setDocument("bookings", cancelConfirmId, { status: "cancelled" }).catch(() => {});
     addToast(language === "es" ? "Cita cancelada" : "Appointment cancelled", "info");
+    setCancelConfirmId(null);
   }
 
   function canCancel(appt: Booking): boolean {
@@ -471,7 +487,7 @@ export default function DashboardPage() {
   const navCards: { icon: typeof CalendarDays; label: string; accent: boolean; tab?: ActiveTab; href?: string }[] = [
     { icon: ShoppingBag, label: language === "es" ? "Tienda" : "Shop", accent: false, tab: "shop" },
     { icon: CalendarDays, label: language === "es" ? "Mis Citas" : "My Appointments", accent: false, tab: "appointments" },
-    { icon: CalendarPlus, label: language === "es" ? "Reservar" : "Book New", accent: true, href: "/" },
+    { icon: CalendarPlus, label: language === "es" ? "Reservar" : "Book", accent: true, href: "/booking" },
     { icon: Star, label: language === "es" ? "Reseñas" : "Reviews", accent: false, tab: "reviews" },
     { icon: UserCircle, label: language === "es" ? "Mi Perfil" : "My Profile", accent: false, tab: "profile" },
   ];
@@ -789,8 +805,8 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <form onSubmit={handleProfileSubmit} className="space-y-5">
-                  <Input label={t("auth", "name")} type="text" value={profileName} onChange={(e) => setProfileName(e.target.value)} placeholder="Sofia Chen" />
-                  <Input label={t("auth", "phone")} type="tel" value={profilePhone} onChange={(e) => setProfilePhone(e.target.value)} placeholder="555 300 4000" />
+                  <Input label={t("auth", "name")} type="text" value={profileName} onChange={(e) => setProfileName(e.target.value)} placeholder="Tu nombre" />
+                  <Input label={t("auth", "phone")} type="tel" value={profilePhone} onChange={(e) => setProfilePhone(e.target.value)} placeholder="6000 0000" />
                   <Input label={language === "es" ? "Email (opcional)" : "Email (optional)"} type="email" value={profileEmail} onChange={(e) => setProfileEmail(e.target.value)} placeholder="you@example.com" />
                   <div className="pt-2"><Button type="submit" fullWidth>{t("dashboard", "updateProfile")}</Button></div>
                 </form>
@@ -1037,7 +1053,33 @@ export default function DashboardPage() {
       </Modal>
 
       {/* ─── Payment Modal ────────────────────────────────── */}
-      <PaymentModal isOpen={showPayment} onClose={() => { setShowPayment(false); setCheckoutInvoice(null); }} invoice={checkoutInvoice} onPaymentComplete={handlePaymentComplete} />
+      <PaymentModal
+        isOpen={showPayment}
+        onClose={() => {
+          if (checkoutInvoice) {
+            // Record this sentAt so we don't reopen unless admin resends with a new sentAt
+            setShownInvoiceSentAt((prev) => new Map(prev).set(checkoutInvoice.id, checkoutInvoice.sentAt ?? ""));
+          }
+          setShowPayment(false);
+          setCheckoutInvoice(null);
+        }}
+        invoice={checkoutInvoice}
+        onPaymentComplete={handlePaymentComplete}
+      />
+
+      {/* ─── Cancel Booking Confirmation ─────────────────── */}
+      <ConfirmDialog
+        isOpen={!!cancelConfirmId}
+        title={language === "es" ? "Cancelar Cita" : "Cancel Appointment"}
+        message={language === "es"
+          ? "¿Estás segura de que deseas cancelar esta cita? Esta acción no se puede deshacer."
+          : "Are you sure you want to cancel this appointment? This action cannot be undone."}
+        confirmLabel={language === "es" ? "Sí, Cancelar" : "Yes, Cancel"}
+        cancelLabel={language === "es" ? "No, Mantener" : "No, Keep"}
+        variant="danger"
+        onConfirm={confirmCancelBooking}
+        onCancel={() => setCancelConfirmId(null)}
+      />
     </motion.div>
   );
 }
@@ -1053,29 +1095,57 @@ function ReservationHeroCard({ appointment, language, getServiceNames, statusVar
 }) {
   const { allStylists } = useStaff();
   const stylist = allStylists.find((s) => s.id === appointment.stylistId);
+  const refId = appointment.id?.slice(-6)?.toUpperCase() ?? "";
+  const endTime = appointment.endTime ? formatTime(appointment.endTime) : null;
 
   return (
-    <div className="relative overflow-hidden px-4 py-3" style={{ ...glassCard, borderRadius: 16, borderLeft: "2px solid var(--color-accent)", background: "var(--color-bg-glass-selected)" }}>
+    <div className="relative overflow-hidden px-4 py-4" style={{ ...glassCard, borderRadius: 16, borderLeft: "2px solid var(--color-accent)", background: "var(--color-bg-glass-selected)" }}>
       <div className="absolute -top-16 -right-16 pointer-events-none" style={{ width: 100, height: 100, borderRadius: "50%", background: "radial-gradient(circle, var(--color-accent-subtle) 0%, transparent 70%)" }} />
-      <div className="flex items-center gap-1.5 mb-2">
-        <Sparkles size={11} style={{ color: colors.gold }} />
-        <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: colors.gold }}>{language === "es" ? "Reserva Actual" : "Current Reservation"}</span>
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-1.5">
+          <Sparkles size={11} style={{ color: colors.gold }} />
+          <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: colors.gold }}>{language === "es" ? "Reserva Actual" : "Current Reservation"}</span>
+        </div>
+        <span className="text-[9px] font-mono tracking-wider px-1.5 py-0.5 rounded" style={{ color: colors.muted, background: "var(--color-bg-glass)", border: "1px solid var(--color-border-subtle)" }}>#{refId}</span>
       </div>
-      <div className="flex items-center gap-3">
+
+      {/* Main content */}
+      <div className="flex items-center gap-3 mb-3">
         {stylist?.avatar && (
-          <div className="flex-shrink-0 overflow-hidden" style={{ width: 40, height: 40, borderRadius: "50%", border: "1.5px solid var(--color-border-accent)", boxShadow: "var(--shadow-card)" }}>
-            <Image src={stylist.avatar} alt={stylist.name} width={40} height={40} className="object-cover" style={{ width: 40, height: 40 }} />
+          <div className="flex-shrink-0 overflow-hidden" style={{ width: 44, height: 44, borderRadius: "50%", border: "1.5px solid var(--color-border-accent)", boxShadow: "var(--shadow-card)" }}>
+            <Image src={stylist.avatar} alt={stylist.name} width={44} height={44} className="object-cover" style={{ width: 44, height: 44 }} />
           </div>
         )}
         <div className="flex-1 min-w-0">
           <p className="truncate" style={{ fontFamily: "var(--font-accent)", fontSize: "clamp(13px, 2.8vw, 16px)", fontWeight: 400, fontStyle: "italic", color: colors.primary }}>{getServiceNames(appointment)}</p>
-          <p className="text-[10px] mt-0.5" style={{ color: colors.muted }}>{formatShortDate(appointment.date, language)}</p>
+          {stylist && <p className="text-[10px] mt-0.5" style={{ color: colors.secondary }}>{language === "es" ? "con" : "with"} {stylist.name}</p>}
         </div>
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
-          <span style={{ fontFamily: "var(--font-accent)", fontSize: 18, fontWeight: 400, color: colors.gold, letterSpacing: "0.02em" }}>{formatTime(appointment.startTime)}</span>
           <Badge variant={statusVariant(appointment.status)}>{statusLabel(appointment.status)}</Badge>
         </div>
       </div>
+
+      {/* Details row */}
+      <div className="flex items-center gap-4 pt-2" style={{ borderTop: "1px solid var(--color-border-subtle)" }}>
+        <div className="flex items-center gap-1.5">
+          <CalendarDays size={11} style={{ color: colors.muted }} />
+          <span className="text-[10px]" style={{ color: colors.secondary }}>{formatShortDate(appointment.date, language)}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Clock size={11} style={{ color: colors.muted }} />
+          <span className="text-[10px]" style={{ color: colors.secondary }}>{formatTime(appointment.startTime)}{endTime ? ` - ${endTime}` : ""}</span>
+        </div>
+        {appointment.totalPrice != null && appointment.totalPrice > 0 && (
+          <div className="ml-auto">
+            <span className="text-[11px] font-medium" style={{ color: colors.gold }}>${appointment.totalPrice.toFixed(2)}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Tap hint */}
+      <p className="text-center text-[9px] mt-2" style={{ color: colors.muted, opacity: 0.6 }}>{language === "es" ? "Toca para ver detalles o reprogramar" : "Tap for details or to reschedule"}</p>
     </div>
   );
 }
@@ -1088,7 +1158,7 @@ function EmptyReservationCard({ language }: { language: "en" | "es" }) {
       </div>
       <p className="text-xs font-medium mb-0.5" style={{ color: colors.primary }}>{language === "es" ? "No tienes reservas" : "No reservations"}</p>
       <p className="text-[10px] mb-4" style={{ color: colors.muted }}>{language === "es" ? "Agenda tu próxima experiencia" : "Schedule your next experience"}</p>
-      <Link href="/">
+      <Link href="/booking">
         <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }} className="px-5 py-2 text-xs font-semibold" style={{ background: "var(--gradient-accent)", color: "var(--color-text-inverse)", borderRadius: 10, border: "none", cursor: "pointer" }}>
           {language === "es" ? "Reservar Ahora" : "Book Now"}
         </motion.button>

@@ -9,7 +9,7 @@ import {
   useEffect,
   type ReactNode,
 } from "react";
-import type { Stylist, StylistSchedule } from "@/types";
+import type { Stylist, StylistSchedule, User } from "@/types";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { stylists as seedStylists } from "@/data/stylists";
 import { useEventBus } from "@/providers/EventBusProvider";
@@ -33,8 +33,9 @@ function mergeStylists(
   detailOverrides: Record<string, Partial<Stylist>>,
   deletedIds: string[]
 ): Stylist[] {
+  const safeDeleted = Array.isArray(deletedIds) ? deletedIds : [];
   const base = seedStylists
-    .filter((s) => !deletedIds.includes(s.id))
+    .filter((s) => !safeDeleted.includes(s.id))
     .map((s) => {
       const details = detailOverrides[s.id];
       const schedule = scheduleOverrides[s.id];
@@ -46,7 +47,7 @@ function mergeStylists(
     });
 
   const custom = customStylists
-    .filter((s) => !deletedIds.includes(s.id))
+    .filter((s) => !safeDeleted.includes(s.id))
     .map((s) => {
       const schedule = scheduleOverrides[s.id];
       return schedule ? { ...s, schedule } : s;
@@ -77,7 +78,12 @@ export function StaffProvider({ children }: { children: ReactNode }) {
   );
 
   const addStylist = useCallback((data: Omit<Stylist, "id">) => {
-    const newStylist: Stylist = { ...data, id: `stylist-custom-${generateId()}` };
+    const userId = data.linkedPhone ? `user-${data.linkedPhone}` : undefined;
+    const newStylist: Stylist = {
+      ...data,
+      id: `stylist-custom-${generateId()}`,
+      ...(userId && { linkedUserId: userId }),
+    };
     setCustomStylists((prev) => {
       const next = [...prev, newStylist];
       setStoredData("mila-staff-custom", next);
@@ -85,6 +91,31 @@ export function StaffProvider({ children }: { children: ReactNode }) {
     });
     const { id, ...stylistData } = newStylist;
     setDocument("staff", id, stylistData).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
+
+    // Auto-create user account for the stylist if linkedPhone is provided
+    if (data.linkedPhone) {
+      const userRecord: Omit<User, "id"> = {
+        name: data.name,
+        phone: data.linkedPhone,
+        countryCode: "+507",
+        role: "stylist",
+        createdAt: new Date().toISOString(),
+      };
+      // Add to local user registry
+      const registry = getStoredData<User[]>("mila-users", []);
+      const exists = registry.some((u) => u.phone === data.linkedPhone);
+      if (!exists) {
+        registry.push({ id: userId!, ...userRecord });
+        setStoredData("mila-users", registry);
+      } else {
+        // Update existing user's role to stylist
+        const updated = registry.map((u) => u.phone === data.linkedPhone ? { ...u, role: "stylist" as const, name: data.name } : u);
+        setStoredData("mila-users", updated);
+      }
+      // Sync to Firestore
+      setDocument("users", userId!, userRecord).catch((err) => console.warn("[Mila] User sync failed:", err));
+    }
+
     emit("staff:created", newStylist);
   }, [emit]);
 
@@ -108,22 +139,29 @@ export function StaffProvider({ children }: { children: ReactNode }) {
     emit("staff:updated", { id, updates });
   }, [customStylists, emit]);
 
-  const deleteStylist = useCallback((id: string) => {
+  const deleteStylist = useCallback(async (id: string) => {
     const isCustom = customStylists.some((s) => s.id === id);
+
+    // Always track in deletedIds so the listener never re-adds it
+    setDeletedIds((prev) => {
+      if (prev.includes(id)) return prev;
+      const next = [...prev, id];
+      setStoredData("mila-staff-deleted", next);
+      setDocument("staff-config", "deleted", { ids: next }).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
+      return next;
+    });
+
     if (isCustom) {
       setCustomStylists((prev) => {
         const next = prev.filter((s) => s.id !== id);
         setStoredData("mila-staff-custom", next);
         return next;
       });
-      deleteDocument("staff", id).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
-    } else {
-      setDeletedIds((prev) => {
-        const next = [...prev, id];
-        setStoredData("mila-staff-deleted", next);
-        setDocument("staff-config", "deleted", { ids: next }).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
-        return next;
-      });
+      try {
+        await deleteDocument("staff", id);
+      } catch (err) {
+        console.warn("[Mila] Firestore sync failed:", err);
+      }
     }
     emit("staff:deleted", id);
   }, [customStylists, emit]);
@@ -153,11 +191,17 @@ export function StaffProvider({ children }: { children: ReactNode }) {
     const unsubs = [
       onCollectionChange<Stylist>("staff", (firestoreStaff) => {
         if (firestoreStaff.length > 0) {
+          // Read current deletedIds to filter out deleted staff before merging
+          const currentDeleted = getStoredData<string[]>("mila-staff-deleted", []);
           setCustomStylists((prev) => {
             const merged = new Map<string, Stylist>();
             for (const s of prev) merged.set(s.id, s);
-            for (const s of firestoreStaff) merged.set(s.id, s);
-            const next = Array.from(merged.values());
+            for (const s of firestoreStaff) {
+              if (!currentDeleted.includes(s.id)) {
+                merged.set(s.id, s);
+              }
+            }
+            const next = Array.from(merged.values()).filter((s) => !currentDeleted.includes(s.id));
             setStoredData("mila-staff-custom", next);
             return next;
           });

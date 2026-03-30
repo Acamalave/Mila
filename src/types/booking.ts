@@ -20,6 +20,8 @@ export interface Booking {
   guestName?: string;
   guestPhone?: string;
   createdAt: string;
+  depositPaid?: boolean;
+  depositTransactionId?: string;
 }
 
 export interface BookingFlowState {

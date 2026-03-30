@@ -1,7 +1,8 @@
 export interface CommissionRecord {
   id: string;
   stylistId: string;
-  bookingId: string;
+  bookingId?: string;
+  invoiceId?: string;
   serviceId: string;
   serviceAmount: number;
   commissionRate: number;

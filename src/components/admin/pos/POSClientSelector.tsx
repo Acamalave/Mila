@@ -5,7 +5,7 @@ import { motion } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useInvoices } from "@/providers/InvoiceProvider";
 import { getStoredData } from "@/lib/utils";
-import { onCollectionChange } from "@/lib/firestore";
+import { onCollectionChange, getCollection } from "@/lib/firestore";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { Search, UserPlus, Check, Phone } from "lucide-react";
@@ -34,8 +34,14 @@ export default function POSClientSelector({
   const [newPhone, setNewPhone] = useState("");
   const [firestoreUsers, setFirestoreUsers] = useState<User[]>([]);
 
-  // Subscribe to Firestore users in real-time
+  // Eagerly fetch users then subscribe to real-time updates
   useEffect(() => {
+    // Immediate fetch to ensure we have all users
+    getCollection<User>("users").then((users) => {
+      if (users.length > 0) setFirestoreUsers(users);
+    }).catch(() => {});
+
+    // Real-time listener for new registrations
     const unsub = onCollectionChange<User>("users", (users) => {
       setFirestoreUsers(users);
     });
@@ -257,7 +263,7 @@ export default function POSClientSelector({
             label={t("pos", "clientPhone")}
             value={newPhone}
             onChange={(e) => setNewPhone(e.target.value)}
-            placeholder="5551234567"
+            placeholder="60000000"
           />
           <div className="flex gap-2 justify-end">
             <Button variant="ghost" size="sm" onClick={() => setShowNewForm(false)}>

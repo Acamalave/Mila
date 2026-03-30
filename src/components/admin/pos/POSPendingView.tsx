@@ -2,10 +2,10 @@
 
 import { useEffect, useState, useRef } from "react";
 import { motion } from "motion/react";
-import { formatPrice, getStoredData } from "@/lib/utils";
+import { formatPrice } from "@/lib/utils";
+import { useInvoices } from "@/providers/InvoiceProvider";
 import Button from "@/components/ui/Button";
-import { Clock, Send, CheckCircle2, Plus } from "lucide-react";
-import type { Invoice } from "@/types";
+import { Clock, Send, Plus, XCircle } from "lucide-react";
 
 interface POSPendingViewProps {
   invoiceId: string;
@@ -14,6 +14,7 @@ interface POSPendingViewProps {
   language: "en" | "es";
   onNewSale: () => void;
   onPaid: () => void;
+  onDeclined?: () => void;
 }
 
 export default function POSPendingView({
@@ -23,30 +24,88 @@ export default function POSPendingView({
   language,
   onNewSale,
   onPaid,
+  onDeclined,
 }: POSPendingViewProps) {
   const [showContent, setShowContent] = useState(false);
+  const [isDeclined, setIsDeclined] = useState(false);
   const onPaidRef = useRef(onPaid);
   onPaidRef.current = onPaid;
+  const { invoices } = useInvoices();
 
   useEffect(() => {
     const timer = setTimeout(() => setShowContent(true), 600);
     return () => clearTimeout(timer);
   }, []);
 
-  // Poll for invoice status changes
+  // React to invoice status changes from InvoiceProvider
+  // (covers localStorage, Firestore real-time sync, and event bus updates)
   useEffect(() => {
     if (!invoiceId) return;
+    const invoice = invoices.find((inv) => inv.id === invoiceId);
+    if (invoice && invoice.status === "paid") {
+      onPaidRef.current();
+    }
+    if (invoice && invoice.status === "declined") {
+      setIsDeclined(true);
+      onDeclined?.();
+    }
+  }, [invoiceId, invoices, onDeclined]);
 
-    const interval = setInterval(() => {
-      const invoices = getStoredData<Invoice[]>("mila-invoices", []);
-      const invoice = invoices.find((inv) => inv.id === invoiceId);
-      if (invoice && invoice.status === "paid") {
-        onPaidRef.current();
-      }
-    }, 2000);
+  if (isDeclined) {
+    return (
+      <div className="flex flex-col items-center justify-center py-8 space-y-6">
+        {/* Declined icon */}
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: "spring", stiffness: 260, damping: 20, delay: 0.1 }}
+          className="flex items-center justify-center"
+          style={{
+            width: 72,
+            height: 72,
+            borderRadius: "50%",
+            background: "rgba(239, 68, 68, 0.1)",
+            border: "2px solid rgba(239, 68, 68, 0.3)",
+          }}
+        >
+          <XCircle size={36} style={{ color: "#ef4444" }} strokeWidth={2} />
+        </motion.div>
 
-    return () => clearInterval(interval);
-  }, [invoiceId]);
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center space-y-2"
+        >
+          <h3 className="text-xl font-bold" style={{ color: "var(--color-text-primary)" }}>
+            {language === "es" ? "Cobro Rechazado" : "Payment Declined"}
+          </h3>
+          <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+            {clientName}
+          </p>
+          <p className="text-2xl font-bold" style={{ color: "#ef4444" }}>
+            {formatPrice(amount)}
+          </p>
+          <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+            {language === "es"
+              ? "El cliente rechazó la solicitud de pago."
+              : "The client declined the payment request."}
+          </p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="flex flex-col gap-3 w-full max-w-xs"
+        >
+          <Button fullWidth onClick={onNewSale}>
+            <Plus size={16} />
+            {language === "es" ? "Nueva Venta" : "New Sale"}
+          </Button>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center py-8 space-y-6">

@@ -145,7 +145,7 @@ export default function ProfilePage() {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Sofia Chen"
+              placeholder="Tu nombre"
             />
 
             <Input
@@ -153,7 +153,7 @@ export default function ProfilePage() {
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="555 300 4000"
+              placeholder="6000 0000"
             />
 
             <Input

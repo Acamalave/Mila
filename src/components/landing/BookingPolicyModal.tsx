@@ -4,13 +4,21 @@ import { useState } from "react";
 import { motion } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import Modal from "@/components/ui/Modal";
-import { Clock, DollarSign, AlertTriangle, Check } from "lucide-react";
+import { Clock, CreditCard, AlertTriangle, Check } from "lucide-react";
+
+export interface DepositServiceInfo {
+  name: string;
+  depositAmount: number;
+  depositType: "fixed" | "percentage";
+  depositPercent: number;
+}
 
 interface BookingPolicyModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAccept: () => void;
   hasColorService: boolean;
+  depositServices?: DepositServiceInfo[];
 }
 
 export default function BookingPolicyModal({
@@ -18,19 +26,55 @@ export default function BookingPolicyModal({
   onClose,
   onAccept,
   hasColorService,
+  depositServices = [],
 }: BookingPolicyModalProps) {
-  const { t } = useLanguage();
-  const [accepted, setAccepted] = useState(false);
+  const { language, t } = useLanguage();
+  const [accepted, setAccepted] = useState(true);
 
   const handleAccept = () => {
     onAccept();
-    setAccepted(false);
+    setAccepted(true);
   };
 
   const handleClose = () => {
-    setAccepted(false);
+    setAccepted(true);
     onClose();
   };
+
+  // Build dynamic deposit text from actual services
+  const buildDepositText = (): string | null => {
+    if (depositServices.length === 0) {
+      // Fallback to old behavior for color services without deposit config
+      if (hasColorService) return t("bookingPolicy", "colorDeposit");
+      return null;
+    }
+
+    if (depositServices.length === 1) {
+      const svc = depositServices[0];
+      const amountStr = svc.depositType === "percentage"
+        ? `${svc.depositPercent}% ($${svc.depositAmount.toFixed(2)})`
+        : `$${svc.depositAmount.toFixed(2)}`;
+
+      return language === "es"
+        ? `El servicio "${svc.name}" requiere un anticipo de ${amountStr} al momento de reservar para confirmar tu cita.`
+        : `The service "${svc.name}" requires a deposit of ${amountStr} at the time of booking to confirm your appointment.`;
+    }
+
+    // Multiple services
+    const totalDeposit = depositServices.reduce((sum, s) => sum + s.depositAmount, 0);
+    const serviceList = depositServices.map((s) => {
+      const amt = s.depositType === "percentage"
+        ? `${s.depositPercent}% ($${s.depositAmount.toFixed(2)})`
+        : `$${s.depositAmount.toFixed(2)}`;
+      return `${s.name}: ${amt}`;
+    }).join(" + ");
+
+    return language === "es"
+      ? `Los servicios seleccionados requieren un anticipo total de $${totalDeposit.toFixed(2)} al momento de reservar (${serviceList}).`
+      : `The selected services require a total deposit of $${totalDeposit.toFixed(2)} at the time of booking (${serviceList}).`;
+  };
+
+  const depositText = buildDepositText();
 
   const policies = [
     {
@@ -38,18 +82,22 @@ export default function BookingPolicyModal({
       text: t("bookingPolicy", "cancellation"),
       color: "var(--color-accent)",
     },
-    ...(hasColorService
+    ...(depositText
       ? [
           {
-            icon: DollarSign,
-            text: t("bookingPolicy", "colorDeposit"),
+            icon: CreditCard,
+            text: depositText,
             color: "#D4A853",
           },
         ]
       : []),
     {
       icon: AlertTriangle,
-      text: t("bookingPolicy", "noShow"),
+      text: depositText
+        ? (language === "es"
+          ? "En caso de no asistir y no notificar con al menos 24 horas de anticipación, el anticipo no será reembolsable."
+          : "In case of no-show without at least 24 hours notice, the deposit is non-refundable.")
+        : t("bookingPolicy", "noShow"),
       color: "#9B4D4D",
     },
   ];

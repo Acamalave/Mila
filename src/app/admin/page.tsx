@@ -14,33 +14,50 @@ import Badge from "@/components/ui/Badge";
 import Avatar from "@/components/ui/Avatar";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
 import { CalendarDays, DollarSign, Users, TrendingUp } from "lucide-react";
-import type { Booking } from "@/types";
+import type { Booking, User } from "@/types";
 
 export default function AdminOverviewPage() {
   const { language, t } = useLanguage();
   const { allStylists } = useStaff();
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
 
   useEffect(() => {
-    let stored = getStoredData<Booking[]>("mila-bookings", []);
-    if (stored.length === 0) {
-      stored = getInitialDemoAppointments();
-    }
+    const deletedIds = getStoredData<string[]>("mila-bookings-deleted", []);
+    const deletedSet = new Set(deletedIds);
+
+    let stored = getStoredData<Booking[]>("mila-bookings", []).filter(b => !deletedSet.has(b.id));
     setBookings(stored);
 
-    const unsub = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
-      if (firestoreBookings.length > 0) {
-        setBookings((prev) => {
-          const merged = new Map<string, Booking>();
-          for (const b of prev) merged.set(b.id, b);
-          for (const b of firestoreBookings) merged.set(b.id, b);
-          const next = Array.from(merged.values());
-          setStoredData("mila-bookings", next);
-          return next;
-        });
-      }
-    });
-    return () => unsub();
+    // Load users for name resolution
+    const storedUsers = getStoredData<User[]>("mila-users", []);
+    setAllUsers(storedUsers);
+
+    const unsubs = [
+      onCollectionChange<Booking>("bookings", (firestoreBookings) => {
+        if (firestoreBookings.length > 0) {
+          setBookings((prev) => {
+            const merged = new Map<string, Booking>();
+            for (const b of prev) if (!deletedSet.has(b.id)) merged.set(b.id, b);
+            for (const b of firestoreBookings) if (!deletedSet.has(b.id)) merged.set(b.id, b);
+            const next = Array.from(merged.values());
+            setStoredData("mila-bookings", next);
+            return next;
+          });
+        }
+      }),
+      onCollectionChange<User>("users", (firestoreUsers) => {
+        if (firestoreUsers.length > 0) {
+          setAllUsers((prev) => {
+            const merged = new Map<string, User>();
+            for (const u of prev) if (u.id) merged.set(u.id, u);
+            for (const u of firestoreUsers) if (u.id) merged.set(u.id, u);
+            return Array.from(merged.values());
+          });
+        }
+      }),
+    ];
+    return () => unsubs.forEach((u) => u());
   }, []);
 
   const stats = useMemo(() => {
@@ -156,25 +173,25 @@ export default function AdminOverviewPage() {
       {/* Stat cards */}
       <motion.div
         variants={fadeInUp}
-        className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4"
+        className="grid grid-cols-2 xl:grid-cols-4 gap-2 sm:gap-3"
       >
         {statCards.map((stat) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.label} className="flex items-center gap-4">
+            <Card key={stat.label} className="flex flex-col items-center text-center gap-1.5 p-2.5 sm:flex-row sm:text-left sm:items-center sm:gap-3 sm:p-5">
               <div
                 className={cn(
-                  "p-3 rounded-xl",
+                  "p-1.5 sm:p-3 rounded-lg sm:rounded-xl shrink-0",
                   stat.bg
                 )}
               >
-                <Icon size={22} className={stat.color} />
+                <Icon size={14} className={cn(stat.color, "sm:w-[22px] sm:h-[22px]")} />
               </div>
-              <div>
-                <p className="text-2xl font-bold text-text-primary">
+              <div className="min-w-0">
+                <p className="text-base sm:text-2xl font-bold text-text-primary truncate">
                   {stat.value}
                 </p>
-                <p className="text-sm text-text-secondary">{stat.label}</p>
+                <p className="text-[10px] sm:text-sm text-text-secondary truncate leading-tight">{stat.label}</p>
               </div>
             </Card>
           );
@@ -184,7 +201,7 @@ export default function AdminOverviewPage() {
       {/* Recent bookings table */}
       <motion.div variants={fadeInUp}>
         <Card padding="none">
-          <div className="p-6 border-b border-border-default">
+          <div className="p-4 sm:p-6 border-b border-border-default">
             <h2 className="text-lg font-semibold font-[family-name:var(--font-display)]">
               {language === "es" ? "Reservas Recientes" : "Recent Bookings"}
             </h2>
@@ -193,25 +210,25 @@ export default function AdminOverviewPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border-default text-left">
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider">
                     {language === "es" ? "Cliente" : "Client"}
                   </th>
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider">
                     {language === "es" ? "Servicio" : "Service"}
                   </th>
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden md:table-cell">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider hidden md:table-cell">
                     {language === "es" ? "Estilista" : "Stylist"}
                   </th>
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">
                     {language === "es" ? "Fecha" : "Date"}
                   </th>
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">
                     {language === "es" ? "Hora" : "Time"}
                   </th>
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider">
                     {t("admin", "status")}
                   </th>
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider text-right">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-right">
                     {language === "es" ? "Precio" : "Price"}
                   </th>
                 </tr>
@@ -231,20 +248,21 @@ export default function AdminOverviewPage() {
                 ) : (
                   recentBookings.map((booking) => {
                     const stylist = getStylist(booking.stylistId);
+                    const resolvedUser = allUsers.find((u) => u.id === booking.clientId);
                     const clientName =
-                      booking.guestName || booking.clientId || "---";
+                      booking.guestName || resolvedUser?.name || booking.clientId || "---";
                     return (
                       <tr
                         key={booking.id}
                         className="hover:bg-white/5 transition-colors"
                       >
-                        <td className="px-6 py-4 text-sm text-text-primary font-medium">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-text-primary font-medium">
                           {clientName}
                         </td>
-                        <td className="px-6 py-4 text-sm text-text-secondary">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-text-secondary">
                           {getServiceNames(booking.serviceIds, language)}
                         </td>
-                        <td className="px-6 py-4 hidden md:table-cell">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 hidden md:table-cell">
                           {stylist && (
                             <div className="flex items-center gap-2">
                               <Avatar
@@ -258,18 +276,18 @@ export default function AdminOverviewPage() {
                             </div>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-sm text-text-secondary hidden lg:table-cell">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-text-secondary hidden lg:table-cell">
                           {formatShortDate(booking.date, language)}
                         </td>
-                        <td className="px-6 py-4 text-sm text-text-secondary hidden lg:table-cell">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-text-secondary hidden lg:table-cell">
                           {formatTime(booking.startTime)}
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4">
                           <Badge variant={statusBadgeVariant(booking.status)}>
                             {booking.status}
                           </Badge>
                         </td>
-                        <td className="px-6 py-4 text-sm font-medium text-text-primary text-right">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm font-medium text-text-primary text-right">
                           {formatPrice(booking.totalPrice)}
                         </td>
                       </tr>

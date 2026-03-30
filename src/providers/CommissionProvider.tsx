@@ -9,7 +9,7 @@ import {
   useEffect,
   type ReactNode,
 } from "react";
-import type { CommissionRecord, Booking } from "@/types";
+import type { CommissionRecord, Booking, Invoice } from "@/types";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { useEventBus } from "@/providers/EventBusProvider";
 import { setDocument, onCollectionChange } from "@/lib/firestore";
@@ -106,6 +106,61 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
     [allStylists, commissions, persist]
   );
 
+  const generateCommissionFromInvoice = useCallback(
+    (invoice: Invoice) => {
+      if (invoice.status !== "paid") return;
+      if (!invoice.stylistId) return;
+      if (!invoice.items || invoice.items.length === 0) return;
+
+      // Check if commissions already exist for this invoice
+      const existing = commissions.some((c) => c.invoiceId === invoice.id);
+      if (existing) return;
+
+      const stylist = allStylists.find((s) => s.id === invoice.stylistId);
+      if (!stylist) return;
+
+      const newRecords: CommissionRecord[] = [];
+
+      for (const item of invoice.items) {
+        if (item.type !== "service") continue;
+
+        // Find commission rate: specific service override > default
+        const serviceOverride = stylist.serviceCommissions?.find(
+          (sc) => sc.serviceId === item.id
+        );
+        const rate = serviceOverride?.percentage ?? stylist.defaultCommission ?? 40;
+        const commissionAmount = (item.price * item.quantity * rate) / 100;
+
+        newRecords.push({
+          id: `comm-${generateId()}`,
+          stylistId: stylist.id,
+          invoiceId: invoice.id,
+          serviceId: item.id,
+          serviceAmount: item.price * item.quantity,
+          commissionRate: rate,
+          commissionAmount,
+          status: "pending",
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      if (newRecords.length > 0) {
+        setCommissions((prev) => {
+          // Double-check no duplicates
+          if (prev.some((c) => c.invoiceId === invoice.id)) return prev;
+          const next = [...prev, ...newRecords];
+          persist(next);
+          return next;
+        });
+        for (const rec of newRecords) {
+          const { id, ...data } = rec;
+          setDocument("commissions", id, data).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
+        }
+      }
+    },
+    [allStylists, commissions, persist]
+  );
+
   const markCommissionPaid = useCallback(
     (commissionId: string) => {
       const paidAt = new Date().toISOString();
@@ -174,12 +229,15 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
 
   // Firestore real-time sync
   useEffect(() => {
+    const deletedIds = getStoredData<string[]>("mila-commissions-deleted", []);
+    const deletedSet = new Set(deletedIds);
+
     const unsub = onCollectionChange<CommissionRecord>("commissions", (firestoreCommissions) => {
       if (firestoreCommissions.length > 0) {
         setCommissions((prev) => {
           const merged = new Map<string, CommissionRecord>();
-          for (const c of prev) merged.set(c.id, c);
-          for (const c of firestoreCommissions) merged.set(c.id, c);
+          for (const c of prev) if (!deletedSet.has(c.id)) merged.set(c.id, c);
+          for (const c of firestoreCommissions) if (!deletedSet.has(c.id)) merged.set(c.id, c);
           const next = Array.from(merged.values());
           persist(next);
           return next;
@@ -199,6 +257,17 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
     });
     return unsub;
   }, [on, generateCommission]);
+
+  // Listen for invoice payments to auto-generate commissions (POS sales)
+  useEffect(() => {
+    const unsub = on("invoice:paid", (payload) => {
+      const invoice = payload as Invoice;
+      if (invoice?.status === "paid" && invoice.stylistId) {
+        generateCommissionFromInvoice(invoice);
+      }
+    });
+    return unsub;
+  }, [on, generateCommissionFromInvoice]);
 
   const value = useMemo(
     () => ({

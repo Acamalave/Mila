@@ -6,6 +6,12 @@ export interface ServiceCategory {
   icon: string;
 }
 
+export interface ServiceDepositConfig {
+  requiresDeposit: boolean;
+  depositType: "fixed" | "percentage";
+  depositAmount: number; // Fixed $ amount or percentage (0-100)
+}
+
 export interface Service {
   id: string;
   categoryId: string;

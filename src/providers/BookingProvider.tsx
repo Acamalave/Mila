@@ -119,11 +119,14 @@ export function BookingProvider({ children }: { children: ReactNode }) {
 
   // Firestore real-time listener for bookings collection
   useEffect(() => {
+    const deletedIds = getStoredData<string[]>("mila-bookings-deleted", []);
+    const deletedSet = new Set(deletedIds);
+
     const unsub = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
       setBookings((prev) => {
         const merged = new Map<string, Booking>();
-        for (const b of prev) merged.set(b.id, b);
-        for (const b of firestoreBookings) merged.set(b.id, b);
+        for (const b of prev) if (!deletedSet.has(b.id)) merged.set(b.id, b);
+        for (const b of firestoreBookings) if (!deletedSet.has(b.id)) merged.set(b.id, b);
         const next = Array.from(merged.values());
         setStoredData("mila-bookings", next);
         return next;

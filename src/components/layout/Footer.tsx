@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { Instagram, MapPin, Phone, Clock, MessageCircle } from "lucide-react";
 
@@ -194,6 +195,17 @@ export default function Footer() {
           className="pt-6 text-center"
           style={{ borderTop: "1px solid var(--color-border-default)" }}
         >
+          <div className="mb-3">
+            <Link
+              href="/policies"
+              className="text-[10px] uppercase tracking-[0.15em] font-medium transition-colors duration-300"
+              style={{ color: "var(--color-text-muted)" }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "var(--color-accent)")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "var(--color-text-muted)")}
+            >
+              {language === "es" ? "Pol\u00edticas" : "Policies"}
+            </Link>
+          </div>
           <p className="text-[10px]" style={{ color: "var(--color-text-muted)", opacity: 0.6 }}>
             &copy; {new Date().getFullYear()} Milà Concept. {t("footer", "rights")}
           </p>

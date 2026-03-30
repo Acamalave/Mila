@@ -16,6 +16,7 @@ import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
 import { CalendarDays, CalendarClock } from "lucide-react";
 import {
@@ -37,6 +38,7 @@ export default function AppointmentsPage() {
   const [rescheduleAppt, setRescheduleAppt] = useState<Booking | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState<string>("");
   const [rescheduleTime, setRescheduleTime] = useState<string>("");
+  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
     let stored = getStoredData<Booking[]>("mila-bookings", []);
@@ -97,19 +99,24 @@ export default function AppointmentsPage() {
   };
 
   function handleCancel(bookingId: string) {
-    if (!confirm(t("dashboard", "cancelConfirm"))) return;
+    setCancelConfirmId(bookingId);
+  }
 
+  function confirmCancelBooking() {
+    if (!cancelConfirmId) return;
+    const fullBooking = appointments.find((a) => a.id === cancelConfirmId);
     const updated = appointments.map((a) =>
-      a.id === bookingId ? { ...a, status: "cancelled" as BookingStatus } : a
+      a.id === cancelConfirmId ? { ...a, status: "cancelled" as BookingStatus } : a
     );
     setAppointments(updated);
     setStoredData("mila-bookings", updated);
-    setDocument("bookings", bookingId, { status: "cancelled" }).catch((err) => console.warn("[Mila] Booking sync failed:", err));
-    emit("booking:updated", { id: bookingId, status: "cancelled" });
+    setDocument("bookings", cancelConfirmId, { status: "cancelled" }).catch((err) => console.warn("[Mila] Booking sync failed:", err));
+    emit("booking:updated", { ...fullBooking, status: "cancelled" });
     addToast(
       language === "es" ? "Cita cancelada" : "Appointment cancelled",
       "info"
     );
+    setCancelConfirmId(null);
   }
 
   function canCancel(appt: Booking): boolean {
@@ -185,7 +192,10 @@ export default function AppointmentsPage() {
       const slotEnd = `${String(Math.floor(slotEndMin / 60)).padStart(2, "0")}:${String(slotEndMin % 60).padStart(2, "0")}`;
 
       // Check for overlap with existing bookings
-      const hasConflict = dayBookings.some((b) => slotStart < b.endTime && slotEnd > b.startTime);
+      const hasConflict = dayBookings.some((b) => {
+        if (!b.endTime || !b.startTime) return false;
+        return slotStart < b.endTime && slotEnd > b.startTime;
+      });
 
       if (!hasConflict) {
         slots.push(slotStart);
@@ -416,6 +426,20 @@ export default function AppointmentsPage() {
           </button>
         </div>
       </Modal>
+
+      {/* Cancel Booking Confirmation */}
+      <ConfirmDialog
+        isOpen={!!cancelConfirmId}
+        title={language === "es" ? "Cancelar Cita" : "Cancel Appointment"}
+        message={language === "es"
+          ? "¿Estás segura de que deseas cancelar esta cita? Esta acción no se puede deshacer."
+          : "Are you sure you want to cancel this appointment? This action cannot be undone."}
+        confirmLabel={language === "es" ? "Sí, Cancelar" : "Yes, Cancel"}
+        cancelLabel={language === "es" ? "No, Mantener" : "No, Keep"}
+        variant="danger"
+        onConfirm={confirmCancelBooking}
+        onCancel={() => setCancelConfirmId(null)}
+      />
     </motion.div>
   );
 }

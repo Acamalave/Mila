@@ -1,9 +1,10 @@
-export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue";
+export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue" | "declined";
 export type PaymentMethod = "card" | "counter";
 
 export interface Invoice {
   id: string;
   bookingId?: string;
+  stylistId?: string;
   clientId: string;
   clientName: string;
   serviceId?: string;
@@ -20,6 +21,7 @@ export interface Invoice {
   counterNote?: string;
   sentAt?: string;
   paidAt?: string;
+  declinedAt?: string;
   paymentTransactionId?: string;
   createdAt: string;
 }

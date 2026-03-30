@@ -5,7 +5,7 @@ import { motion } from "motion/react";
 import Image from "next/image";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useToast } from "@/providers/ToastProvider";
-import { useProducts } from "@/providers/ProductProvider";
+import { useProducts, type ProductCategory } from "@/providers/ProductProvider";
 import { cn, formatPrice, generateId } from "@/lib/utils";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
@@ -24,6 +24,7 @@ import {
   Eye,
   EyeOff,
   Percent,
+  Settings2,
 } from "lucide-react";
 import type { Product } from "@/types";
 
@@ -75,13 +76,18 @@ function productToForm(product: Product): ProductFormState {
 export default function AdminProductsPage() {
   const { language, t } = useLanguage();
   const { addToast } = useToast();
-  const { allProducts, addProduct, deleteProduct, updateProduct } = useProducts();
+  const { allProducts, addProduct, deleteProduct, updateProduct, categories, addCategory, updateCategory, deleteCategory } = useProducts();
 
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [form, setForm] = useState<ProductFormState>(emptyForm);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  /* ── Category management state ─────────────────────────────────── */
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [catForm, setCatForm] = useState({ value: "", labelEn: "", labelEs: "" });
 
   const isEditing = !!editingProduct;
 
@@ -218,14 +224,57 @@ export default function AdminProductsPage() {
     );
   }, [deletingProduct, deleteProduct, addToast, language]);
 
-  /* ── Category options ────────────────────────────────────────── */
-  const categoryOptions = [
-    { value: "hair-care", label: language === "es" ? "Cuidado Capilar" : "Hair Care" },
-    { value: "skin-care", label: language === "es" ? "Cuidado de Piel" : "Skin Care" },
-    { value: "styling", label: language === "es" ? "Estilismo" : "Styling" },
-    { value: "tools", label: language === "es" ? "Herramientas" : "Tools" },
-    { value: "nails", label: language === "es" ? "Unas" : "Nails" },
-  ];
+  /* ── Category options (dynamic) ──────────────────────────────── */
+  const categoryOptions = categories.map((cat) => ({
+    value: cat.value,
+    label: language === "es" ? cat.labelEs : cat.labelEn,
+  }));
+
+  /* ── Category management helpers ───────────────────────────────── */
+  const resetCatForm = () => {
+    setEditingCatId(null);
+    setCatForm({ value: "", labelEn: "", labelEs: "" });
+  };
+
+  const handleSaveCategory = () => {
+    if (!catForm.value || !catForm.labelEn || !catForm.labelEs) {
+      addToast(
+        language === "es" ? "Completa todos los campos" : "Please fill all fields",
+        "error"
+      );
+      return;
+    }
+    if (editingCatId) {
+      updateCategory(editingCatId, catForm);
+      addToast(language === "es" ? "Categoria actualizada" : "Category updated", "success");
+    } else {
+      addCategory(catForm);
+      addToast(language === "es" ? "Categoria agregada" : "Category added", "success");
+    }
+    resetCatForm();
+  };
+
+  const handleDeleteCategory = (catId: string) => {
+    const cat = categories.find((c) => c.id === catId);
+    if (!cat) return;
+    const inUse = allProducts.some((p) => p.category === cat.value);
+    if (inUse) {
+      addToast(
+        language === "es"
+          ? "No se puede eliminar: hay productos con esta categoria"
+          : "Cannot delete: products are using this category",
+        "error"
+      );
+      return;
+    }
+    deleteCategory(catId);
+    addToast(language === "es" ? "Categoria eliminada" : "Category deleted", "success");
+  };
+
+  const startEditCategory = (cat: ProductCategory) => {
+    setEditingCatId(cat.id);
+    setCatForm({ value: cat.value, labelEn: cat.labelEn, labelEs: cat.labelEs });
+  };
 
   const updateForm = (field: keyof ProductFormState, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -253,10 +302,16 @@ export default function AdminProductsPage() {
               : "Inventory and product management"}
           </p>
         </div>
-        <Button size="sm" onClick={openCreate}>
-          <Plus size={16} />
-          {t("admin", "addProduct")}
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="ghost" onClick={() => setShowCategoryModal(true)}>
+            <Settings2 size={16} />
+            {language === "es" ? "Categorias" : "Categories"}
+          </Button>
+          <Button size="sm" onClick={openCreate}>
+            <Plus size={16} />
+            {t("admin", "addProduct")}
+          </Button>
+        </div>
       </motion.div>
 
       {/* Products table */}
@@ -741,6 +796,103 @@ export default function AdminProductsPage() {
         message={t("admin", "confirmDeleteProduct")}
         itemName={deletingProduct?.name ?? ""}
       />
+
+      {/* ── Category Management Modal ─────────────────────────────── */}
+      <Modal
+        isOpen={showCategoryModal}
+        onClose={() => {
+          setShowCategoryModal(false);
+          resetCatForm();
+        }}
+        title={language === "es" ? "Gestionar Categorias" : "Manage Categories"}
+        size="lg"
+      >
+        <div className="space-y-5">
+          {/* Existing categories list */}
+          <div className="space-y-2">
+            {categories.map((cat) => (
+              <div
+                key={cat.id}
+                className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg"
+                style={{
+                  background: "var(--color-bg-glass)",
+                  border: "1px solid var(--color-border-default)",
+                }}
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>
+                    {language === "es" ? cat.labelEs : cat.labelEn}
+                  </p>
+                  <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                    {cat.value}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => startEditCategory(cat)}
+                    className="p-2 rounded-lg hover:bg-white/5 transition-colors text-text-muted hover:text-text-primary cursor-pointer"
+                  >
+                    <Edit2 size={14} />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteCategory(cat.id)}
+                    className="p-2 rounded-lg hover:bg-red-50 transition-colors text-text-muted hover:text-red-500 cursor-pointer"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Add / edit category form */}
+          <div
+            className="p-4 rounded-lg space-y-3"
+            style={{
+              background: "var(--color-bg-glass)",
+              border: "1px solid var(--color-border-default)",
+            }}
+          >
+            <p className="text-sm font-medium" style={{ color: "var(--color-text-secondary)" }}>
+              {editingCatId
+                ? language === "es" ? "Editar categoria" : "Edit category"
+                : language === "es" ? "Nueva categoria" : "New category"}
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Input
+                label="Slug"
+                value={catForm.value}
+                onChange={(e) => setCatForm((prev) => ({ ...prev, value: e.target.value }))}
+                placeholder="e.g. hair-care"
+              />
+              <Input
+                label="Name (EN)"
+                value={catForm.labelEn}
+                onChange={(e) => setCatForm((prev) => ({ ...prev, labelEn: e.target.value }))}
+                placeholder="Hair Care"
+              />
+              <Input
+                label="Nombre (ES)"
+                value={catForm.labelEs}
+                onChange={(e) => setCatForm((prev) => ({ ...prev, labelEs: e.target.value }))}
+                placeholder="Cuidado Capilar"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              {editingCatId && (
+                <Button variant="ghost" size="sm" onClick={resetCatForm}>
+                  {t("common", "cancel")}
+                </Button>
+              )}
+              <Button size="sm" onClick={handleSaveCategory}>
+                {editingCatId
+                  ? t("common", "save")
+                  : language === "es" ? "Agregar" : "Add"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Modal>
     </motion.div>
   );
 }

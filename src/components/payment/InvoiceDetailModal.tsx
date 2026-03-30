@@ -16,11 +16,12 @@ interface InvoiceDetailModalProps {
   onPay: () => void;
 }
 
-const STATUS_BADGE_VARIANT: Record<InvoiceStatus, "gold" | "success" | "default" | "warning"> = {
+const STATUS_BADGE_VARIANT: Record<InvoiceStatus, "gold" | "success" | "default" | "warning" | "error"> = {
   sent: "gold",
   paid: "success",
   draft: "default",
   overdue: "warning",
+  declined: "error",
 };
 
 const STATUS_LABELS: Record<InvoiceStatus, Record<"en" | "es", string>> = {
@@ -28,6 +29,7 @@ const STATUS_LABELS: Record<InvoiceStatus, Record<"en" | "es", string>> = {
   sent: { en: "Sent", es: "Enviada" },
   paid: { en: "Paid", es: "Pagada" },
   overdue: { en: "Overdue", es: "Vencida" },
+  declined: { en: "Declined", es: "Rechazada" },
 };
 
 export default function InvoiceDetailModal({

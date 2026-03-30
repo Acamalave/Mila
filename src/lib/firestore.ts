@@ -107,7 +107,9 @@ export async function updateDocument(
   docId: string,
   updates: Record<string, unknown>
 ): Promise<void> {
-  await firestoreUpdateDoc(doc(getDb(), collectionName, docId), updates);
+  return withRetry(async () => {
+    await firestoreUpdateDoc(doc(getDb(), collectionName, docId), updates);
+  }, `updateDocument("${collectionName}/${docId}")`);
 }
 
 export async function deleteDocument(

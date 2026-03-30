@@ -230,7 +230,7 @@ export default function LoginPage() {
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-                  placeholder="555 100 2000"
+                  placeholder="6000 0000"
                   disabled={isLoggingIn}
                   className="flex-1 min-w-0 px-3 py-3 rounded-lg"
                   style={{
@@ -283,23 +283,6 @@ export default function LoginPage() {
             </motion.button>
           </form>
 
-          {/* Demo hint - only in development */}
-          {process.env.NODE_ENV === "development" && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="mt-6 p-3 rounded-lg"
-              style={{
-                background: "var(--color-accent-subtle)",
-                border: "1px solid var(--color-border-accent)",
-              }}
-            >
-              <p className="text-xs text-center" style={{ color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
-                {t("auth", "demoHint")}
-              </p>
-            </motion.div>
-          )}
         </div>
       </motion.div>
     </div>

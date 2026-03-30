@@ -11,16 +11,23 @@ import Avatar from "@/components/ui/Avatar";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
-import { Users, Search, Phone, Mail, CalendarDays, DollarSign, Star } from "lucide-react";
+import { Users, Search, Phone, Mail, CalendarDays, DollarSign, Star, Trash2 } from "lucide-react";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { getInitialDemoAppointments } from "@/data/appointments";
 import { useStaff } from "@/providers/StaffProvider";
 import { services } from "@/data/services";
-import { onCollectionChange } from "@/lib/firestore";
-import type { User, Booking, Review, Invoice } from "@/types";
+import { onCollectionChange, setDocument, getCollection, deleteDocument } from "@/lib/firestore";
+import { useAuth } from "@/providers/AuthProvider";
+import type { User, Booking, Invoice } from "@/types";
+
+const SUPER_ADMIN_PHONE = "68204698";
 
 export default function AdminClientsPage() {
   const { language, t } = useLanguage();
   const { allStylists } = useStaff();
+  const { user: currentUser } = useAuth();
+
+  const isSuperAdmin = currentUser?.phone === SUPER_ADMIN_PHONE;
 
   const [users, setUsers] = useState<User[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -45,6 +52,19 @@ export default function AdminClientsPage() {
 
     loadLocal();
 
+    // Eagerly fetch ALL users from Firestore on mount (don't rely solely on listener)
+    getCollection<User>("users").then((firestoreUsers) => {
+      if (firestoreUsers.length > 0) {
+        const localUsers = getStoredData<User[]>("mila-users", []);
+        const merged = new Map<string, User>();
+        for (const u of localUsers) if (u.id) merged.set(u.id, u);
+        for (const u of firestoreUsers) if (u.id) merged.set(u.id, u);
+        const allUsers = Array.from(merged.values());
+        setUsers(allUsers);
+        setStoredData("mila-users", allUsers);
+      }
+    }).catch(() => {});
+
     // Subscribe to Firestore real-time updates for users
     const unsubUsers = onCollectionChange<User>("users", (firestoreUsers) => {
       const localUsers = getStoredData<User[]>("mila-users", []);
@@ -53,7 +73,6 @@ export default function AdminClientsPage() {
       for (const u of firestoreUsers) if (u.id) merged.set(u.id, u);
       const allUsers = Array.from(merged.values());
       setUsers(allUsers);
-      // Persist merged data so all pages on this device see it
       setStoredData("mila-users", allUsers);
     });
 
@@ -89,11 +108,13 @@ export default function AdminClientsPage() {
     };
   }, []);
 
-  // Filter out invalid/empty user entries and deduplicate by phone
+  // Filter out invalid/empty user entries, super admin, and deduplicate by phone
   const validUsers = useMemo(() => {
     const seen = new Map<string, User>();
     for (const u of users) {
       if (!u.id || !u.name || !u.phone) continue;
+      // Hide super admin from clients list
+      if (u.phone === SUPER_ADMIN_PHONE) continue;
       const key = u.phone;
       if (!seen.has(key) || (u.createdAt && !seen.get(key)!.createdAt)) {
         seen.set(key, u);
@@ -107,8 +128,8 @@ export default function AdminClientsPage() {
     const q = search.toLowerCase();
     return validUsers.filter(
       (u) =>
-        u.name.toLowerCase().includes(q) ||
-        u.phone.toLowerCase().includes(q)
+        (u.name || "").toLowerCase().includes(q) ||
+        (u.phone || "").toLowerCase().includes(q)
     );
   }, [validUsers, search]);
 
@@ -153,6 +174,28 @@ export default function AdminClientsPage() {
     }
   };
 
+  // Roles are now managed exclusively from the Staff panel
+
+  // Super admin only: delete a client
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  const handleDeleteClient = (userId: string) => {
+    if (!isSuperAdmin) return;
+    setDeleteConfirmId(userId);
+  };
+
+  const confirmDeleteClient = () => {
+    if (!deleteConfirmId) return;
+    setUsers((prev) => {
+      const next = prev.filter((u) => u.id !== deleteConfirmId);
+      setStoredData("mila-users", next);
+      return next;
+    });
+    deleteDocument("users", deleteConfirmId).catch(() => {});
+    if (selectedUser?.id === deleteConfirmId) setSelectedUser(null);
+    setDeleteConfirmId(null);
+  };
+
   const statCards = [
     {
       icon: Users,
@@ -190,20 +233,20 @@ export default function AdminClientsPage() {
       {/* Stat cards */}
       <motion.div
         variants={fadeInUp}
-        className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+        className="grid grid-cols-2 gap-2 sm:gap-4"
       >
         {statCards.map((stat) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.label} className="flex items-center gap-4">
-              <div className={cn("p-3 rounded-xl", stat.bg)}>
-                <Icon size={22} className={stat.color} />
+            <Card key={stat.label} className="flex flex-col items-center text-center gap-1.5 p-2.5 sm:flex-row sm:text-left sm:items-center sm:gap-4 sm:p-5">
+              <div className={cn("p-1.5 sm:p-3 rounded-lg sm:rounded-xl", stat.bg)}>
+                <Icon size={14} className={cn(stat.color, "sm:w-[22px] sm:h-[22px]")} />
               </div>
-              <div>
-                <p className="text-2xl font-bold text-text-primary">
+              <div className="min-w-0">
+                <p className="text-base sm:text-2xl font-bold text-text-primary truncate">
                   {stat.value}
                 </p>
-                <p className="text-sm text-text-secondary">{stat.label}</p>
+                <p className="text-[10px] sm:text-sm text-text-secondary truncate leading-tight">{stat.label}</p>
               </div>
             </Card>
           );
@@ -238,23 +281,23 @@ export default function AdminClientsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border-default text-left">
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider">
                     {language === "es" ? "Nombre" : "Name"}
                   </th>
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">
                     <Phone size={14} className="inline mr-1" />
                     {language === "es" ? "Teléfono" : "Phone"}
                   </th>
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">
                     {language === "es" ? "Rol" : "Role"}
                   </th>
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider">
                     {t("admin", "appointmentHistory")}
                   </th>
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">
                     {t("admin", "totalSpent")}
                   </th>
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">
                     {t("admin", "registeredOn")}
                   </th>
                 </tr>
@@ -279,48 +322,51 @@ export default function AdminClientsPage() {
                         className="hover:bg-white/5 transition-colors cursor-pointer"
                         onClick={() => setSelectedUser(user)}
                       >
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4">
+                          <div className="flex items-center gap-2 sm:gap-3">
                             <Avatar
                               src={user.avatar}
                               alt={user.name}
                               size="sm"
                             />
                             <div>
-                              <p className="text-sm font-medium text-text-primary">
+                              <p className="text-xs sm:text-sm font-medium text-text-primary">
                                 {user.name}
                               </p>
-                              <p className="text-xs text-text-muted lg:hidden">
+                              <p className="text-[10px] sm:text-xs text-text-muted lg:hidden">
                                 {user.phone}
                               </p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-text-secondary hidden lg:table-cell">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-text-secondary hidden lg:table-cell">
                           {user.phone}
                         </td>
-                        <td className="px-6 py-4 hidden lg:table-cell">
-                          <Badge
-                            variant={
-                              user.role === "admin"
-                                ? "gold"
-                                : user.role === "stylist"
-                                ? "success"
-                                : "default"
-                            }
-                          >
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 hidden lg:table-cell">
+                          <Badge variant={user.role === "admin" ? "gold" : user.role === "stylist" ? "success" : "default"}>
                             {user.role}
                           </Badge>
                         </td>
-                        <td className="px-6 py-4 text-sm text-text-secondary">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-text-secondary">
                           {userBookings.length}
                         </td>
-                        <td className="px-6 py-4 text-sm font-medium text-text-primary hidden lg:table-cell">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm font-medium text-text-primary hidden lg:table-cell">
                           {formatPrice(spent)}
                         </td>
-                        <td className="px-6 py-4 text-sm text-text-secondary hidden lg:table-cell">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-text-secondary hidden lg:table-cell">
                           {user.createdAt ? formatShortDate(user.createdAt, language) : "—"}
                         </td>
+                        {isSuperAdmin && (
+                          <td className="px-3 sm:px-6 py-2 sm:py-4">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDeleteClient(user.id); }}
+                              className="p-1.5 rounded-lg transition-colors hover:bg-red-500/10"
+                              title={language === "es" ? "Eliminar" : "Delete"}
+                            >
+                              <Trash2 size={14} className="text-red-400" />
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     );
                   })
@@ -366,19 +412,23 @@ export default function AdminClientsPage() {
                   {t("admin", "registeredOn")}:{" "}
                   {selectedUser.createdAt ? formatShortDate(selectedUser.createdAt, language) : "—"}
                 </div>
-                <Badge
-                  variant={
-                    selectedUser.role === "admin"
-                      ? "gold"
-                      : selectedUser.role === "stylist"
-                      ? "success"
-                      : "default"
-                  }
-                >
+                <Badge variant={selectedUser.role === "admin" ? "gold" : selectedUser.role === "stylist" ? "success" : "default"} className="mt-1">
                   {selectedUser.role}
                 </Badge>
               </div>
             </div>
+
+            {/* Super admin: delete client */}
+            {isSuperAdmin && (
+              <button
+                onClick={() => handleDeleteClient(selectedUser.id)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-colors hover:bg-red-500/10"
+                style={{ color: "#ef4444", border: "1px solid rgba(239,68,68,0.3)" }}
+              >
+                <Trash2 size={14} />
+                {language === "es" ? "Eliminar cliente" : "Delete client"}
+              </button>
+            )}
 
             {/* Summary stats */}
             <div className="grid grid-cols-2 gap-4">
@@ -468,6 +518,25 @@ export default function AdminClientsPage() {
           </div>
         )}
       </Modal>
+
+      {/* Delete Client Confirmation (Super Admin only) */}
+      {isSuperAdmin && (() => {
+        const target = users.find((u) => u.id === deleteConfirmId);
+        return (
+          <ConfirmDialog
+            isOpen={!!deleteConfirmId}
+            title={language === "es" ? "Eliminar Cliente" : "Delete Client"}
+            message={language === "es"
+              ? `¿Estás seguro de eliminar a ${target?.name ?? ""} (${target?.phone ?? ""}) permanentemente? Esta acción no se puede deshacer.`
+              : `Are you sure you want to permanently delete ${target?.name ?? ""} (${target?.phone ?? ""})? This action cannot be undone.`}
+            confirmLabel={language === "es" ? "Sí, Eliminar" : "Yes, Delete"}
+            cancelLabel={language === "es" ? "No, Cancelar" : "No, Cancel"}
+            variant="danger"
+            onConfirm={confirmDeleteClient}
+            onCancel={() => setDeleteConfirmId(null)}
+          />
+        );
+      })()}
     </motion.div>
   );
 }

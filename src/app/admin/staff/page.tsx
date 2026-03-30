@@ -101,7 +101,7 @@ export default function AdminStaffPage() {
       </motion.div>
 
       {/* Staff grid */}
-      <motion.div variants={fadeInUp} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <motion.div variants={fadeInUp} className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6">
         {allStylists.map((stylist) => (
           <Card key={stylist.id} className="flex flex-col">
             <div className="flex items-start gap-4">

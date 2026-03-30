@@ -5,9 +5,9 @@ import { createContext, useContext, useEffect, useRef, useCallback, type ReactNo
 export type EventType =
   | "staff:created" | "staff:updated" | "staff:deleted"
   | "product:created" | "product:updated" | "product:deleted"
-  | "invoice:created" | "invoice:updated" | "invoice:sent" | "invoice:paid"
+  | "invoice:created" | "invoice:updated" | "invoice:sent" | "invoice:paid" | "invoice:declined"
   | "notification:created" | "notification:read"
-  | "payment:completed"
+  | "payment:completed" | "payment:failed"
   | "booking:updated";
 
 interface EventBusContextValue {

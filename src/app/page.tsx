@@ -1,42 +1,92 @@
 "use client";
 
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useEffect, useCallback, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useBooking } from "@/providers/BookingProvider";
 import { useEventBus } from "@/providers/EventBusProvider";
+import { useToast } from "@/providers/ToastProvider";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { setDocument } from "@/lib/firestore";
 import { services } from "@/data/services";
 import type { Booking } from "@/types";
+import type { ServiceDepositConfig } from "@/types/service";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import SpecialistSlider from "@/components/landing/SpecialistSlider";
 import ServiceSelector from "@/components/landing/ServiceSelector";
 import CalendarPicker from "@/components/landing/CalendarPicker";
 import PhoneLoginModal from "@/components/landing/PhoneLoginModal";
+import DepositPaymentModal from "@/components/booking/DepositPaymentModal";
+
+type DepositOverrides = Record<string, ServiceDepositConfig>;
 
 export default function HomePage() {
   const router = useRouter();
   const { user, isAuthenticated, hydrated } = useAuth();
   const { state, dispatch, resetBooking } = useBooking();
   const { emit } = useEventBus();
+  const { addToast } = useToast();
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showDepositModal, setShowDepositModal] = useState(false);
   const [pendingBook, setPendingBook] = useState(false);
 
   const servicesRef = useRef<HTMLDivElement>(null);
   const calendarRef = useRef<HTMLDivElement>(null);
 
+  // Load deposit overrides
+  const depositOverrides = useMemo<DepositOverrides>(
+    () => getStoredData<DepositOverrides>("mila-service-deposit-overrides", {}),
+    []
+  );
+
+  // Calculate deposit info for selected services
+  const depositInfo = useMemo(() => {
+    if (state.isGeneralAppointment || state.selectedServiceIds.length === 0) {
+      return { hasDeposit: false, depositServices: [], totalDeposit: 0 };
+    }
+
+    const depositServices = state.selectedServiceIds
+      .map((sId) => {
+        const svc = services.find((s) => s.id === sId);
+        const config = depositOverrides[sId];
+        if (!svc || !config?.requiresDeposit) return null;
+        const depositAmount = config.depositType === "percentage"
+          ? Math.round(svc.price * config.depositAmount / 100)
+          : config.depositAmount;
+        return {
+          id: svc.id,
+          name: svc.name.es,
+          price: svc.price,
+          deposit: config,
+          depositAmount,
+        };
+      })
+      .filter(Boolean) as Array<{
+        id: string;
+        name: string;
+        price: number;
+        deposit: ServiceDepositConfig;
+        depositAmount: number;
+      }>;
+
+    return {
+      hasDeposit: depositServices.length > 0,
+      depositServices,
+      totalDeposit: depositServices.reduce((sum, s) => sum + s.depositAmount, 0),
+    };
+  }, [state.selectedServiceIds, state.isGeneralAppointment, depositOverrides]);
+
   // Redirect authenticated users to dashboard
   useEffect(() => {
-    if (hydrated && isAuthenticated) {
+    if (hydrated && isAuthenticated && !pendingBook && !showDepositModal) {
       const hasBookingInProgress = state.selectedStylistId !== null;
       if (!hasBookingInProgress) {
         router.push("/dashboard");
       }
     }
-  }, [hydrated, isAuthenticated, router, state.selectedStylistId]);
+  }, [hydrated, isAuthenticated, router, state.selectedStylistId, pendingBook, showDepositModal]);
 
   // Smooth scroll to section
   const scrollToSection = useCallback((ref: React.RefObject<HTMLDivElement | null>) => {
@@ -57,8 +107,13 @@ export default function HomePage() {
     scrollToSection(calendarRef);
   }, [dispatch, scrollToSection]);
 
-  // Handle booking confirmation with conflict check
-  const handleBook = useCallback(() => {
+  // Finalize the booking (called after deposit payment or directly if no deposit)
+  const finalizeBooking = useCallback((depositTxnId?: string) => {
+    if (!state.selectedStylistId || !state.selectedDate || !state.selectedTimeSlot) {
+      console.warn("[Mila] finalizeBooking called with incomplete state, skipping");
+      return;
+    }
+
     const selectedServices = state.isGeneralAppointment
       ? []
       : state.selectedServiceIds;
@@ -70,18 +125,19 @@ export default function HomePage() {
     const booking: Booking = {
       id: generateId(),
       serviceIds: selectedServices,
-      stylistId: state.selectedStylistId!,
+      stylistId: state.selectedStylistId,
       clientId: user?.id ?? null,
-      date: state.selectedDate!,
-      startTime: state.selectedTimeSlot!.startTime,
-      endTime: state.selectedTimeSlot!.endTime,
+      date: state.selectedDate,
+      startTime: state.selectedTimeSlot.startTime,
+      endTime: state.selectedTimeSlot.endTime,
       status: "confirmed",
       totalPrice,
       notes: state.notes,
       createdAt: new Date().toISOString(),
+      ...(depositTxnId && { depositTransactionId: depositTxnId, depositPaid: true }),
     };
 
-    // Final conflict check before saving (optimistic lock)
+    // Final conflict check before saving
     const existing = getStoredData<Booking[]>("mila-bookings", []);
     const hasConflict = existing.some(
       (b) =>
@@ -93,7 +149,7 @@ export default function HomePage() {
     );
 
     if (hasConflict) {
-      alert("This time slot was just booked. Please select a different time.");
+      addToast("Este horario acaba de ser reservado. Selecciona otro.", "error");
       return;
     }
 
@@ -104,7 +160,29 @@ export default function HomePage() {
 
     resetBooking();
     router.push("/dashboard");
-  }, [state, user, resetBooking, router]);
+  }, [state, user, resetBooking, router, emit]);
+
+  // Handle booking — check if deposit is needed
+  const handleBook = useCallback(() => {
+    if (!state.selectedStylistId || !state.selectedDate || !state.selectedTimeSlot) {
+      console.warn("[Mila] handleBook called with incomplete state, skipping");
+      return;
+    }
+
+    if (depositInfo.hasDeposit) {
+      // Show deposit payment modal
+      setShowDepositModal(true);
+    } else {
+      // No deposit needed — create booking directly
+      finalizeBooking();
+    }
+  }, [state, depositInfo, finalizeBooking]);
+
+  // Handle deposit payment complete
+  const handleDepositComplete = useCallback((txnId: string) => {
+    setShowDepositModal(false);
+    finalizeBooking(txnId);
+  }, [finalizeBooking]);
 
   // Handle login required during booking
   const handleLoginRequired = useCallback(() => {
@@ -186,6 +264,15 @@ export default function HomePage() {
           setPendingBook(false);
         }}
         onSuccess={handleLoginSuccess}
+      />
+
+      {/* Deposit Payment Modal */}
+      <DepositPaymentModal
+        isOpen={showDepositModal}
+        onClose={() => setShowDepositModal(false)}
+        onPaymentComplete={handleDepositComplete}
+        depositServices={depositInfo.depositServices}
+        totalDeposit={depositInfo.totalDeposit}
       />
     </>
   );

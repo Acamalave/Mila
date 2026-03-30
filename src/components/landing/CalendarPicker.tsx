@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   format,
@@ -21,13 +21,18 @@ import {
 import { es, enUS } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
 import { useStaff } from "@/providers/StaffProvider";
+import { useAuth } from "@/providers/AuthProvider";
 import { services } from "@/data/services";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useBooking } from "@/providers/BookingProvider";
 import { formatPrice, getStoredData } from "@/lib/utils";
 import { onCollectionChange } from "@/lib/firestore";
 import BookingPolicyModal from "@/components/landing/BookingPolicyModal";
+import type { DepositServiceInfo } from "@/components/landing/BookingPolicyModal";
 import type { TimeSlot, Booking } from "@/types";
+import type { ServiceDepositConfig } from "@/types/service";
+
+type DepositOverrides = Record<string, ServiceDepositConfig>;
 
 interface CalendarPickerProps {
   onBook?: () => void;
@@ -36,15 +41,18 @@ interface CalendarPickerProps {
 
 export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPickerProps) {
   const { language, t } = useLanguage();
+  const { isAuthenticated } = useAuth();
   const { state, dispatch } = useBooking();
   const { allStylists } = useStaff();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [viewMode, setViewMode] = useState<"week" | "month">("week");
   const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date()));
   const [showPolicyModal, setShowPolicyModal] = useState(false);
+  const [showAllSlots, setShowAllSlots] = useState(false);
   const [existingBookings, setExistingBookings] = useState<Booking[]>(() =>
     getStoredData<Booking[]>("mila-bookings", [])
   );
+  const bookBtnRef = useRef<HTMLDivElement>(null);
 
   // Keep bookings in sync with localStorage and Firestore
   useEffect(() => {
@@ -204,6 +212,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
   const handleDateSelect = (date: Date) => {
     if (isDayAvailable(date)) {
       dispatch({ type: "SET_DATE", payload: format(date, "yyyy-MM-dd") });
+      setShowAllSlots(false);
       if (viewMode === "month") {
         setViewMode("week");
         setCurrentWeekStart(startOfWeek(date));
@@ -213,6 +222,10 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
 
   const handleTimeSelect = (slot: TimeSlot) => {
     dispatch({ type: "SET_TIME_SLOT", payload: slot });
+    // Auto-scroll to the confirm button after a short delay for animation
+    setTimeout(() => {
+      bookBtnRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 300);
   };
 
   const hasColorService = useMemo(
@@ -220,14 +233,38 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
     [selectedServices]
   );
 
+  // Build deposit info for the policy modal
+  const depositServicesInfo = useMemo<DepositServiceInfo[]>(() => {
+    const overrides = getStoredData<DepositOverrides>("mila-service-deposit-overrides", {});
+    return selectedServices
+      .filter((s) => overrides[s.id]?.requiresDeposit)
+      .map((s) => {
+        const config = overrides[s.id];
+        const depositAmount = config.depositType === "percentage"
+          ? Math.round(s.price * config.depositAmount / 100)
+          : config.depositAmount;
+        return {
+          name: s.name[language],
+          depositAmount,
+          depositType: config.depositType,
+          depositPercent: config.depositAmount,
+        };
+      });
+  }, [selectedServices, language]);
+
   const handleBookClick = () => {
     setShowPolicyModal(true);
   };
 
   const handlePolicyAccepted = () => {
     setShowPolicyModal(false);
-    // Show the name/phone modal
-    onLoginRequired?.();
+    if (isAuthenticated) {
+      // Already logged in — proceed directly (handles deposit check)
+      onBook?.();
+    } else {
+      // Not logged in — show phone login modal first
+      onLoginRequired?.();
+    }
   };
 
   const handlePrev = () => {
@@ -486,43 +523,73 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
               <p className="text-sm font-medium mb-3" style={{ color: "var(--color-text-secondary)" }}>
                 {language === "es" ? "Horarios disponibles" : "Available times"}
               </p>
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                {timeSlots.map((slot, i) => {
-                  const isSelected =
-                    state.selectedTimeSlot?.startTime === slot.startTime;
-                  return (
-                    <motion.button
-                      key={slot.startTime}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.03 }}
-                      whileHover={{ scale: 1.04 }}
-                      whileTap={{ scale: 0.96 }}
-                      onClick={() => handleTimeSelect(slot)}
-                      className="flex items-center justify-center py-3.5 px-2 rounded-xl"
-                      style={{
-                        background: isSelected
-                          ? "var(--gradient-accent)"
-                          : "var(--color-bg-card)",
-                        border: isSelected
-                          ? "2px solid var(--color-accent)"
-                          : "2px solid var(--color-border-default)",
-                        color: isSelected ? "var(--color-text-inverse)" : "var(--color-text-secondary)",
-                        fontSize: 15,
-                        fontWeight: isSelected ? 700 : 500,
-                        letterSpacing: "0.02em",
-                        cursor: "pointer",
-                        boxShadow: isSelected
-                          ? "var(--shadow-glow)"
-                          : "none",
-                        transition: "all 0.2s ease",
-                      }}
-                    >
-                      {formatTimeDisplay(slot.startTime)}
-                    </motion.button>
-                  );
-                })}
-              </div>
+              {(() => {
+                const visibleSlots = showAllSlots ? timeSlots : timeSlots.slice(0, 6);
+                const hasMore = timeSlots.length > 6;
+                return (
+                  <>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                      {visibleSlots.map((slot, i) => {
+                        const isSelected =
+                          state.selectedTimeSlot?.startTime === slot.startTime;
+                        return (
+                          <motion.button
+                            key={slot.startTime}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: i * 0.03 }}
+                            whileHover={{ scale: 1.04 }}
+                            whileTap={{ scale: 0.96 }}
+                            onClick={() => handleTimeSelect(slot)}
+                            className="flex items-center justify-center py-3.5 px-2 rounded-xl"
+                            style={{
+                              background: isSelected
+                                ? "var(--gradient-accent)"
+                                : "var(--color-bg-card)",
+                              border: isSelected
+                                ? "2px solid var(--color-accent)"
+                                : "2px solid var(--color-border-default)",
+                              color: isSelected ? "var(--color-text-inverse)" : "var(--color-text-secondary)",
+                              fontSize: 15,
+                              fontWeight: isSelected ? 700 : 500,
+                              letterSpacing: "0.02em",
+                              cursor: "pointer",
+                              boxShadow: isSelected
+                                ? "var(--shadow-glow)"
+                                : "none",
+                              transition: "all 0.2s ease",
+                            }}
+                          >
+                            {formatTimeDisplay(slot.startTime)}
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                    {hasMore && (
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setShowAllSlots(!showAllSlots)}
+                        className="w-full flex items-center justify-center gap-1.5 py-2.5 mt-3 rounded-xl"
+                        style={{
+                          background: "var(--color-bg-glass)",
+                          border: "1px solid var(--color-border-default)",
+                          color: "var(--color-accent)",
+                          fontSize: 13,
+                          fontWeight: 500,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {showAllSlots
+                          ? (language === "es" ? "Ver menos horarios" : "Show fewer times")
+                          : (language === "es" ? `Ver todos los horarios (${timeSlots.length})` : `Show all times (${timeSlots.length})`)
+                        }
+                        <ChevronDown size={14} style={{ transform: showAllSlots ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+                      </motion.button>
+                    )}
+                  </>
+                );
+              })()}
             </motion.div>
           )}
         </AnimatePresence>
@@ -531,6 +598,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
         <AnimatePresence>
           {state.selectedDate && state.selectedTimeSlot && (
             <motion.div
+              ref={bookBtnRef}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
@@ -589,6 +657,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
         onClose={() => setShowPolicyModal(false)}
         onAccept={handlePolicyAccepted}
         hasColorService={hasColorService}
+        depositServices={depositServicesInfo}
       />
     </section>
   );

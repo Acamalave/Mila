@@ -10,7 +10,7 @@ import { formatShortDate } from "@/lib/date-utils";
 import { services } from "@/data/services";
 import { useStaff } from "@/providers/StaffProvider";
 import { getInitialDemoAppointments } from "@/data/appointments";
-import { reviews as mockReviews } from "@/data/reviews";
+import { mockReviews } from "@/data/reviews";
 import type { Booking, Review } from "@/types";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";

@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useInvoices } from "@/providers/InvoiceProvider";
 import { usePayment } from "@/providers/PaymentProvider";
 import { useToast } from "@/providers/ToastProvider";
-import { calculateTaxBreakdown, generateId, formatPrice } from "@/lib/utils";
+import { calculateTaxBreakdown, generateId, formatPrice, getStoredData, setStoredData } from "@/lib/utils";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import POSClientSelector from "@/components/admin/pos/POSClientSelector";
@@ -48,12 +48,23 @@ export default function POSPage() {
   const { processCounterPayment } = usePayment();
   const { addToast } = useToast();
 
-  const [step, setStep] = useState<Step>("client");
-  const [client, setClient] = useState<POSClient | null>(null);
-  const [items, setItems] = useState<InvoiceItem[]>([]);
+  const savedCart = getStoredData<{ client: POSClient | null; items: InvoiceItem[]; stylistId: string | null } | null>("mila-pos-cart", null);
+  const [step, setStep] = useState<Step>(savedCart?.items?.length ? "items" : "client");
+  const [client, setClient] = useState<POSClient | null>(savedCart?.client ?? null);
+  const [items, setItems] = useState<InvoiceItem[]>(savedCart?.items ?? []);
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastPaymentMethod, setLastPaymentMethod] = useState<"card" | "counter">("counter");
   const [lastInvoiceId, setLastInvoiceId] = useState<string | null>(null);
+  const [stylistId, setStylistId] = useState<string | null>(savedCart?.stylistId ?? null);
+
+  // Persist cart to localStorage
+  useEffect(() => {
+    if (step === "success" || step === "pending") {
+      setStoredData("mila-pos-cart", null);
+    } else {
+      setStoredData("mila-pos-cart", { client, items, stylistId });
+    }
+  }, [client, items, stylistId, step]);
 
   const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const currentStepIndex = STEPS.indexOf(step);
@@ -111,7 +122,8 @@ export default function POSPage() {
           language === "es"
             ? "Venta en punto de venta"
             : "Point of sale transaction",
-      },
+        ...(stylistId ? { stylistId } : {}),
+      } as Omit<typeof invoice, "id" | "createdAt">,
       `txn-counter-${generateId()}`
     );
 
@@ -152,7 +164,8 @@ export default function POSPage() {
         language === "es"
           ? "Venta en punto de venta"
           : "Point of sale transaction",
-    });
+      ...(stylistId ? { stylistId } : {}),
+    } as Omit<typeof newInv, "id" | "createdAt">);
 
     setLastInvoiceId(newInv.id);
 
@@ -171,7 +184,9 @@ export default function POSPage() {
     setStep("client");
     setClient(null);
     setItems([]);
+    setStylistId(null);
     setIsProcessing(false);
+    setStoredData("mila-pos-cart", null);
   };
 
   const stepLabel = (s: Step) => {
@@ -328,7 +343,12 @@ export default function POSPage() {
               )}
 
               {step === "review" && client && (
-                <POSOrderReview client={client} items={items} />
+                <POSOrderReview
+                  client={client}
+                  items={items}
+                  selectedStylistId={stylistId}
+                  onStylistChange={setStylistId}
+                />
               )}
 
               {step === "payment" && client && (

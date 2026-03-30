@@ -9,11 +9,80 @@ import {
   useEffect,
   type ReactNode,
 } from "react";
-import type { AppNotification, Invoice, Booking } from "@/types";
+import type { AppNotification, Invoice, Booking, User, Stylist } from "@/types";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
+import { stylists as seedStylists } from "@/data/stylists";
 import { useAuth } from "@/providers/AuthProvider";
 import { useEventBus } from "@/providers/EventBusProvider";
 import { setDocument, deleteDocument, onCollectionChange } from "@/lib/firestore";
+
+// ---------------------------------------------------------------------------
+// External notification dispatch (email + WhatsApp) — fire-and-forget
+// ---------------------------------------------------------------------------
+
+async function dispatchExternalNotifications(
+  recipients: Array<{ email?: string; phone?: string; countryCode?: string }>,
+  template: string,
+  data: Record<string, unknown>,
+  language?: string
+) {
+  const promises: Promise<unknown>[] = [];
+
+  for (const recipient of recipients) {
+    if (recipient.email) {
+      promises.push(
+        fetch("/api/notifications/email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to: recipient.email, template, data, language: language ?? "es" }),
+        }).catch((err) => console.warn("[Mila] External email dispatch failed:", err))
+      );
+    }
+
+    if (recipient.phone) {
+      promises.push(
+        fetch("/api/notifications/whatsapp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone: recipient.phone,
+            countryCode: recipient.countryCode ?? "+507",
+            template,
+            data,
+            language: language ?? "es",
+          }),
+        }).catch((err) => console.warn("[Mila] External WhatsApp dispatch failed:", err))
+      );
+    }
+  }
+
+  await Promise.allSettled(promises);
+}
+
+/** Look up a user from the local registry by id */
+function findUserById(userId: string | null): User | undefined {
+  if (!userId) return undefined;
+  const users = getStoredData<User[]>("mila-users", []);
+  return users.find((u) => u.id === userId);
+}
+
+/** Look up a stylist (seed + custom) by id */
+function findStylistById(stylistId: string): Stylist | undefined {
+  const custom = getStoredData<Stylist[]>("mila-staff-custom", []);
+  return seedStylists.find((s) => s.id === stylistId) || custom.find((s) => s.id === stylistId);
+}
+
+/** Resolve contact info for a stylist: try linked user first, then fall back */
+function getStylistContact(stylistId: string): { email?: string; phone?: string; countryCode?: string } | undefined {
+  const stylist = findStylistById(stylistId);
+  if (!stylist) return undefined;
+  // Try linked user in registry
+  if (stylist.linkedPhone) {
+    const linkedUser = getStoredData<User[]>("mila-users", []).find((u) => u.phone === stylist.linkedPhone);
+    if (linkedUser) return { email: linkedUser.email, phone: linkedUser.phone, countryCode: linkedUser.countryCode };
+  }
+  return undefined;
+}
 
 interface NotificationContextValue {
   notifications: AppNotification[];
@@ -108,14 +177,31 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     });
   }, [user, persist]);
 
+  const [deletedNotifIds, setDeletedNotifIds] = useState<string[]>(() =>
+    getStoredData<string[]>("mila-notifications-deleted", [])
+  );
+
   const clearNotification = useCallback(
-    (notificationId: string) => {
+    async (notificationId: string) => {
+      // Track deleted ID so the listener doesn't re-add it
+      setDeletedNotifIds((prev) => {
+        if (prev.includes(notificationId)) return prev;
+        const next = [...prev, notificationId];
+        setStoredData("mila-notifications-deleted", next);
+        return next;
+      });
+
       setAllNotifications((prev) => {
         const next = prev.filter((n) => n.id !== notificationId);
         persist(next);
         return next;
       });
-      deleteDocument("notifications", notificationId).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
+
+      try {
+        await deleteDocument("notifications", notificationId);
+      } catch (err) {
+        console.warn("[Mila] Firestore sync failed:", err);
+      }
     },
     [persist]
   );
@@ -124,11 +210,17 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsub = onCollectionChange<AppNotification>("notifications", (firestoreNotifs) => {
       if (firestoreNotifs.length > 0) {
+        const currentDeleted = getStoredData<string[]>("mila-notifications-deleted", []);
         setAllNotifications((prev) => {
           const merged = new Map<string, AppNotification>();
           for (const n of prev) merged.set(n.id, n);
-          for (const n of firestoreNotifs) merged.set(n.id, n);
-          const next = Array.from(merged.values());
+          for (const n of firestoreNotifs) {
+            if (!currentDeleted.includes(n.id)) {
+              merged.set(n.id, n);
+            }
+          }
+          // Also filter out any that are in the deleted list from prev
+          const next = Array.from(merged.values()).filter((n) => !currentDeleted.includes(n.id));
           persist(next);
           return next;
         });
@@ -184,6 +276,21 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           });
           const { id, ...notifData } = newNotif;
           setDocument("notifications", id, notifData).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
+
+          // --- External: invoice-sent to client ---
+          const invoiceClient = findUserById(invoice.clientId);
+          if (invoiceClient) {
+            dispatchExternalNotifications(
+              [{ email: invoiceClient.email, phone: invoiceClient.phone, countryCode: invoiceClient.countryCode }],
+              "invoice-sent",
+              {
+                clientName: invoiceClient.name,
+                invoiceId: invoice.id,
+                amount: invoice.amount,
+                dueDate: invoice.dueDate,
+              }
+            );
+          }
         }
       }),
       on("invoice:paid", (payload) => {
@@ -230,6 +337,20 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           const { id: clientId, ...clientData } = clientNotif;
           setDocument("notifications", adminId, adminData).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
           setDocument("notifications", clientId, clientData).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
+
+          // --- External: payment-confirmed to client ---
+          const paidClient = findUserById(invoice.clientId);
+          if (paidClient) {
+            dispatchExternalNotifications(
+              [{ email: paidClient.email, phone: paidClient.phone, countryCode: paidClient.countryCode }],
+              "payment-confirmed",
+              {
+                clientName: paidClient.name,
+                invoiceId: invoice.id,
+                amount: invoice.amount,
+              }
+            );
+          }
         }
       }),
       on("booking:updated", (payload) => {
@@ -336,6 +457,47 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
         if (notifs.length > 0) {
           createBookingNotifications(notifs);
+        }
+
+        // --- External notifications (email + WhatsApp) ---
+        const client = findUserById(booking.clientId);
+        const bookingData: Record<string, unknown> = {
+          clientName: client?.name ?? booking.guestName ?? "Client",
+          date: booking.date,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+          bookingId: booking.id,
+        };
+
+        if (booking.status === "confirmed" || booking.status === "pending") {
+          // New / confirmed booking → confirmation to client
+          if (client) {
+            dispatchExternalNotifications(
+              [{ email: client.email, phone: client.phone, countryCode: client.countryCode }],
+              "booking-confirmation",
+              bookingData
+            );
+          }
+        } else if (booking.status === "cancelled") {
+          // Cancellation → notify client + stylist
+          const recipients: Array<{ email?: string; phone?: string; countryCode?: string }> = [];
+          if (client) recipients.push({ email: client.email, phone: client.phone, countryCode: client.countryCode });
+          if (booking.stylistId) {
+            const stylistContact = getStylistContact(booking.stylistId);
+            if (stylistContact) recipients.push(stylistContact);
+          }
+          if (recipients.length > 0) {
+            dispatchExternalNotifications(recipients, "booking-cancellation", bookingData);
+          }
+        } else if (booking.date) {
+          // Rescheduled → confirmation with updated details to client
+          if (client) {
+            dispatchExternalNotifications(
+              [{ email: client.email, phone: client.phone, countryCode: client.countryCode }],
+              "booking-confirmation",
+              bookingData
+            );
+          }
         }
       }),
       on("notification:created", () => {

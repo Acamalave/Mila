@@ -16,15 +16,15 @@ import Button from "@/components/ui/Button";
 import InvoiceFormModal from "@/components/admin/InvoiceFormModal";
 import DeleteConfirmModal from "@/components/admin/DeleteConfirmModal";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
-import { DollarSign, CheckCircle2, Clock, Plus, Send, Edit2, Trash2, FileText, Percent } from "lucide-react";
+import { DollarSign, CheckCircle2, Clock, Plus, Send, Edit2, Trash2, FileText, Percent, XCircle } from "lucide-react";
 import type { Invoice, InvoiceStatus } from "@/types";
 
-type FilterTab = "all" | "draft" | "sent" | "paid";
+type FilterTab = "all" | "draft" | "sent" | "paid" | "declined";
 
 export default function AdminBillingPage() {
   const { language, t } = useLanguage();
   const { addToast } = useToast();
-  const { invoices, addInvoice, updateInvoice, sendInvoice, deleteInvoice, markAsPaid } = useInvoices();
+  const { invoices, addInvoice, updateInvoice, sendInvoice, deleteInvoice, markAsPaid, markAsDeclined } = useInvoices();
   const { commissions, markCommissionPaid, markAllPaidForStylist } = useCommissions();
   const { allStylists } = useStaff();
 
@@ -135,6 +135,8 @@ export default function AdminBillingPage() {
         return "success" as const;
       case "overdue":
         return "warning" as const;
+      case "declined":
+        return "error" as const;
       default:
         return "default" as const;
     }
@@ -150,6 +152,8 @@ export default function AdminBillingPage() {
         return t("admin", "paid");
       case "overdue":
         return language === "es" ? "Vencida" : "Overdue";
+      case "declined":
+        return language === "es" ? "Rechazada" : "Declined";
       default:
         return status;
     }
@@ -171,6 +175,10 @@ export default function AdminBillingPage() {
     {
       key: "paid",
       label: t("admin", "paid"),
+    },
+    {
+      key: "declined",
+      label: language === "es" ? "Rechazadas" : "Declined",
     },
   ];
 
@@ -263,20 +271,20 @@ export default function AdminBillingPage() {
       {/* Summary */}
       <motion.div
         variants={fadeInUp}
-        className="grid grid-cols-1 sm:grid-cols-3 gap-4"
+        className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4"
       >
         {summaryCards.map((card) => {
           const Icon = card.icon;
           return (
-            <Card key={card.label} className="flex items-center gap-4">
-              <div className={cn("p-3 rounded-xl", card.bg)}>
-                <Icon size={22} className={card.color} />
+            <Card key={card.label} className="flex flex-col items-center text-center gap-1.5 p-2.5 sm:flex-row sm:text-left sm:items-center sm:gap-4 sm:p-5">
+              <div className={cn("p-1.5 sm:p-3 rounded-lg sm:rounded-xl", card.bg)}>
+                <Icon size={14} className={cn(card.color, "sm:w-[22px] sm:h-[22px]")} />
               </div>
-              <div>
-                <p className="text-2xl font-bold text-text-primary">
+              <div className="min-w-0">
+                <p className="text-base sm:text-2xl font-bold text-text-primary truncate">
                   {card.value}
                 </p>
-                <p className="text-sm text-text-secondary">{card.label}</p>
+                <p className="text-[10px] sm:text-sm text-text-secondary truncate leading-tight">{card.label}</p>
               </div>
             </Card>
           );
@@ -309,25 +317,25 @@ export default function AdminBillingPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border-default text-left">
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider">
                     {t("admin", "invoiceId")}
                   </th>
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider">
                     {language === "es" ? "Cliente" : "Client"}
                   </th>
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden md:table-cell">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider hidden md:table-cell">
                     {language === "es" ? "Servicio" : "Service"}
                   </th>
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">
                     {language === "es" ? "Fecha" : "Date"}
                   </th>
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider text-right">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-right">
                     {t("admin", "amount")}
                   </th>
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider text-center">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-center">
                     {t("admin", "status")}
                   </th>
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider text-center">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-center">
                     {language === "es" ? "Acciones" : "Actions"}
                   </th>
                 </tr>
@@ -351,36 +359,78 @@ export default function AdminBillingPage() {
                       : null;
                     const canSend =
                       invoice.status === "draft" ||
-                      invoice.status === "sent";
+                      invoice.status === "sent" ||
+                      invoice.status === "declined";
+                    const canMarkPaid =
+                      invoice.status === "sent" ||
+                      invoice.status === "overdue" ||
+                      invoice.status === "declined";
+                    const canDecline =
+                      invoice.status === "sent" ||
+                      invoice.status === "overdue";
                     return (
                       <tr
                         key={invoice.id}
                         className="hover:bg-white/5 transition-colors"
                       >
-                        <td className="px-6 py-4 text-sm font-mono text-text-primary font-medium">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm font-mono text-text-primary font-medium">
                           {invoice.id}
                         </td>
-                        <td className="px-6 py-4 text-sm text-text-secondary">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-text-secondary">
                           {invoice.clientName}
                         </td>
-                        <td className="px-6 py-4 text-sm text-text-secondary hidden md:table-cell">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-text-secondary hidden md:table-cell">
                           {service
                             ? service.name[language]
                             : invoice.serviceId || "-"}
                         </td>
-                        <td className="px-6 py-4 text-sm text-text-secondary hidden lg:table-cell">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-text-secondary hidden lg:table-cell">
                           {formatShortDate(invoice.date, language)}
                         </td>
-                        <td className="px-6 py-4 text-sm font-medium text-text-primary text-right">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm font-medium text-text-primary text-right">
                           {formatPrice(invoice.amount)}
                         </td>
-                        <td className="px-6 py-4 text-center">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 text-center">
                           <Badge variant={statusBadgeVariant(invoice.status)}>
                             {statusLabel(invoice.status)}
                           </Badge>
                         </td>
-                        <td className="px-6 py-4 text-center">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 text-center">
                           <div className="flex items-center justify-center gap-1">
+                            {canMarkPaid && (
+                              <button
+                                onClick={() => {
+                                  markAsPaid(invoice.id, `manual-${Date.now()}`);
+                                  addToast(
+                                    language === "es"
+                                      ? "Factura marcada como pagada"
+                                      : "Invoice marked as paid",
+                                    "success"
+                                  );
+                                }}
+                                title={language === "es" ? "Marcar Pagado" : "Mark as Paid"}
+                                className="p-2 rounded-lg hover:bg-success/10 transition-colors text-text-muted hover:text-success cursor-pointer"
+                              >
+                                <CheckCircle2 size={16} />
+                              </button>
+                            )}
+                            {canDecline && (
+                              <button
+                                onClick={() => {
+                                  markAsDeclined(invoice.id);
+                                  addToast(
+                                    language === "es"
+                                      ? "Factura marcada como rechazada"
+                                      : "Invoice marked as declined",
+                                    "error"
+                                  );
+                                }}
+                                title={language === "es" ? "Marcar Rechazada" : "Mark as Declined"}
+                                className="p-2 rounded-lg hover:bg-red-500/10 transition-colors text-text-muted hover:text-red-500 cursor-pointer"
+                              >
+                                <XCircle size={16} />
+                              </button>
+                            )}
                             {canSend && (
                               <button
                                 onClick={() => handleSendInvoice(invoice.id)}
@@ -440,32 +490,32 @@ export default function AdminBillingPage() {
       {view === "commissions" && (
         <>
           {/* Commission Summary */}
-          <motion.div variants={fadeInUp} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card className="flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-mila-gold/10">
-                <DollarSign size={22} className="text-mila-gold" />
+          <motion.div variants={fadeInUp} className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
+            <Card className="flex flex-col items-center text-center gap-1.5 p-2.5 sm:flex-row sm:text-left sm:items-center sm:gap-4 sm:p-5">
+              <div className="p-1.5 sm:p-3 rounded-lg sm:rounded-xl bg-mila-gold/10">
+                <DollarSign size={14} className="text-mila-gold sm:w-[22px] sm:h-[22px]" />
               </div>
-              <div>
-                <p className="text-2xl font-bold text-text-primary">{formatPrice(commissionSummary.total)}</p>
-                <p className="text-sm text-text-secondary">{t("admin", "totalCommissions")}</p>
-              </div>
-            </Card>
-            <Card className="flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-warning/10">
-                <Clock size={22} className="text-warning" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-text-primary">{formatPrice(commissionSummary.pending)}</p>
-                <p className="text-sm text-text-secondary">{t("admin", "pendingCommissions")}</p>
+              <div className="min-w-0">
+                <p className="text-base sm:text-2xl font-bold text-text-primary truncate">{formatPrice(commissionSummary.total)}</p>
+                <p className="text-[10px] sm:text-sm text-text-secondary truncate leading-tight">{t("admin", "totalCommissions")}</p>
               </div>
             </Card>
-            <Card className="flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-success/10">
-                <CheckCircle2 size={22} className="text-success" />
+            <Card className="flex flex-col items-center text-center gap-1.5 p-2.5 sm:flex-row sm:text-left sm:items-center sm:gap-4 sm:p-5">
+              <div className="p-1.5 sm:p-3 rounded-lg sm:rounded-xl bg-warning/10">
+                <Clock size={14} className="text-warning sm:w-[22px] sm:h-[22px]" />
               </div>
-              <div>
-                <p className="text-2xl font-bold text-text-primary">{formatPrice(commissionSummary.paid)}</p>
-                <p className="text-sm text-text-secondary">{t("admin", "paidCommissions")}</p>
+              <div className="min-w-0">
+                <p className="text-base sm:text-2xl font-bold text-text-primary truncate">{formatPrice(commissionSummary.pending)}</p>
+                <p className="text-[10px] sm:text-sm text-text-secondary truncate leading-tight">{t("admin", "pendingCommissions")}</p>
+              </div>
+            </Card>
+            <Card className="flex flex-col items-center text-center gap-1.5 p-2.5 sm:flex-row sm:text-left sm:items-center sm:gap-4 sm:p-5">
+              <div className="p-1.5 sm:p-3 rounded-lg sm:rounded-xl bg-success/10">
+                <CheckCircle2 size={14} className="text-success sm:w-[22px] sm:h-[22px]" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-base sm:text-2xl font-bold text-text-primary truncate">{formatPrice(commissionSummary.paid)}</p>
+                <p className="text-[10px] sm:text-sm text-text-secondary truncate leading-tight">{t("admin", "paidCommissions")}</p>
               </div>
             </Card>
           </motion.div>
@@ -493,13 +543,13 @@ export default function AdminBillingPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-border-default text-left">
-                      <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">{language === "es" ? "Estilista" : "Stylist"}</th>
-                      <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden md:table-cell">{language === "es" ? "Servicio" : "Service"}</th>
-                      <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider text-right hidden lg:table-cell">{language === "es" ? "Precio" : "Price"}</th>
-                      <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider text-center">{language === "es" ? "Tasa" : "Rate"}</th>
-                      <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider text-right">{t("admin", "commission")}</th>
-                      <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider text-center">{t("admin", "status")}</th>
-                      <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider text-center">{language === "es" ? "Acciones" : "Actions"}</th>
+                      <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider">{language === "es" ? "Estilista" : "Stylist"}</th>
+                      <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider hidden md:table-cell">{language === "es" ? "Servicio" : "Service"}</th>
+                      <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-right hidden lg:table-cell">{language === "es" ? "Precio" : "Price"}</th>
+                      <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-center">{language === "es" ? "Tasa" : "Rate"}</th>
+                      <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-right">{t("admin", "commission")}</th>
+                      <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-center">{t("admin", "status")}</th>
+                      <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-center">{language === "es" ? "Acciones" : "Actions"}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-subtle">
@@ -515,17 +565,17 @@ export default function AdminBillingPage() {
                         const service = services.find((s) => s.id === c.serviceId);
                         return (
                           <tr key={c.id} className="hover:bg-white/5 transition-colors">
-                            <td className="px-6 py-4 text-sm font-medium text-text-primary">{stylist?.name ?? c.stylistId}</td>
-                            <td className="px-6 py-4 text-sm text-text-secondary hidden md:table-cell">{service?.name[language] ?? c.serviceId}</td>
-                            <td className="px-6 py-4 text-sm text-text-secondary text-right hidden lg:table-cell">{formatPrice(c.serviceAmount)}</td>
-                            <td className="px-6 py-4 text-sm text-text-secondary text-center">{c.commissionRate}%</td>
-                            <td className="px-6 py-4 text-sm font-medium text-text-primary text-right">{formatPrice(c.commissionAmount)}</td>
-                            <td className="px-6 py-4 text-center">
+                            <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm font-medium text-text-primary">{stylist?.name ?? c.stylistId}</td>
+                            <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-text-secondary hidden md:table-cell">{service?.name[language] ?? c.serviceId}</td>
+                            <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-text-secondary text-right hidden lg:table-cell">{formatPrice(c.serviceAmount)}</td>
+                            <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-text-secondary text-center">{c.commissionRate}%</td>
+                            <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm font-medium text-text-primary text-right">{formatPrice(c.commissionAmount)}</td>
+                            <td className="px-3 sm:px-6 py-2 sm:py-4 text-center">
                               <Badge variant={c.status === "paid" ? "success" : "warning"}>
                                 {c.status === "paid" ? (language === "es" ? "Pagada" : "Paid") : (language === "es" ? "Pendiente" : "Pending")}
                               </Badge>
                             </td>
-                            <td className="px-6 py-4 text-center">
+                            <td className="px-3 sm:px-6 py-2 sm:py-4 text-center">
                               {c.status === "pending" && (
                                 <button
                                   onClick={() => {

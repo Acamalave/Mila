@@ -39,7 +39,7 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
   const [nameError, setNameError] = useState("");
   const [phoneError, setPhoneError] = useState("");
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setNameError("");
     setPhoneError("");
@@ -60,9 +60,13 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
 
     if (hasError) return;
 
-    loginByPhone(cleanPhone, selectedCountry.code, trimmedName);
-    onSuccess?.();
-    onClose();
+    try {
+      await loginByPhone(cleanPhone, selectedCountry.code, trimmedName);
+      onSuccess?.();
+      onClose();
+    } catch {
+      setPhoneError(language === "es" ? "Error al iniciar sesi\u00f3n" : "Login failed. Please try again.");
+    }
   };
 
   const handlePhoneChange = (value: string) => {
@@ -293,17 +297,6 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
       </form>
 
       {/* Demo hint */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.3 }}
-        className="mt-4 p-2.5 rounded-lg"
-        style={{ background: "var(--color-accent-subtle)" }}
-      >
-        <p className="text-xs text-center" style={{ color: "var(--color-text-muted)", lineHeight: 1.4 }}>
-          {t("auth", "demoHint")}
-        </p>
-      </motion.div>
     </Modal>
   );
 }

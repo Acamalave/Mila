@@ -3,21 +3,32 @@ import { es, enUS } from "date-fns/locale";
 import type { TimeSlot, Booking } from "@/types";
 import type { StylistSchedule } from "@/types/stylist";
 
+function parseLocalDate(date: string): Date {
+  // Parse "YYYY-MM-DD" as local date, not UTC
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
 export function formatDate(date: string, locale: string = "en"): string {
-  const d = new Date(date);
+  if (!date) return "—";
+  const d = date.includes("T") ? new Date(date) : parseLocalDate(date);
+  if (isNaN(d.getTime())) return "—";
   return format(d, "EEEE, MMMM d, yyyy", {
     locale: locale === "es" ? es : enUS,
   });
 }
 
 export function formatShortDate(date: string, locale: string = "en"): string {
-  const d = new Date(date);
+  if (!date) return "—";
+  const d = date.includes("T") ? new Date(date) : parseLocalDate(date);
+  if (isNaN(d.getTime())) return "—";
   return format(d, "MMM d, yyyy", {
     locale: locale === "es" ? es : enUS,
   });
 }
 
 export function formatTime(time: string): string {
+  if (!time) return "—";
   const [hours, minutes] = time.split(":").map(Number);
   const period = hours >= 12 ? "PM" : "AM";
   const displayHours = hours % 12 || 12;
@@ -31,7 +42,7 @@ export function generateTimeSlots(
   date: string
 ): TimeSlot[] {
   const slots: TimeSlot[] = [];
-  const dateObj = new Date(date);
+  const dateObj = parseLocalDate(date);
   const dayOfWeek = getDay(dateObj);
 
   if (!schedule.isAvailable || schedule.dayOfWeek !== dayOfWeek) {

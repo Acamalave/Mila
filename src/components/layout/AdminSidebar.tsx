@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
@@ -51,10 +52,8 @@ export default function AdminSidebar() {
 
       {/* Brand */}
       <div className="mb-8 pb-6 border-b border-white/[0.04]">
-        <h2 className="text-lg font-bold tracking-[0.2em] text-mila-ivory font-[family-name:var(--font-display)]">
-          MILA
-        </h2>
-        <p className="text-[9px] tracking-[0.5em] text-mila-gold uppercase -mt-0.5">
+        <Image src="/logo-mila-brand.png" alt="Milà Concept" width={100} height={40} className="h-8 w-auto object-contain mb-1" />
+        <p className="text-[9px] tracking-[0.5em] text-mila-gold uppercase">
           Admin
         </p>
       </div>

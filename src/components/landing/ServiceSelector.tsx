@@ -2,12 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Calendar, Check, X, Clock, Plus } from "lucide-react";
+import { Calendar, Check, X, Clock, Plus, CreditCard } from "lucide-react";
 import { useStaff } from "@/providers/StaffProvider";
 import { services } from "@/data/services";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useBooking } from "@/providers/BookingProvider";
 import { formatPrice, formatServicePrice, getStoredData } from "@/lib/utils";
+import type { ServiceDepositConfig } from "@/types/service";
+
+type DepositOverrides = Record<string, ServiceDepositConfig>;
 
 interface ServiceSelectorProps {
   stylistId: string;
@@ -24,6 +27,8 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
 
   const durationOverrides = useMemo(() =>
     getStoredData<Record<string, number>>("mila-service-duration-overrides", {}), []);
+  const depositOverrides = useMemo<DepositOverrides>(() =>
+    getStoredData<DepositOverrides>("mila-service-deposit-overrides", {}), []);
 
   const availableServices = useMemo(() => {
     if (!stylist) return [];
@@ -271,19 +276,27 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                   {service.name[language]}
                 </p>
 
-                {/* Price + Info button */}
+                {/* Price + Deposit badge + Info button */}
                 <div className="flex items-center justify-between">
-                  <span
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: isSelected ? "var(--color-accent)" : "rgba(196, 169, 106, 0.7)",
-                      fontFamily: "var(--font-display)",
-                      transition: "color 0.3s ease",
-                    }}
-                  >
-                    {formatServicePrice(service.price, service.priceMax)}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: isSelected ? "var(--color-accent)" : "rgba(196, 169, 106, 0.7)",
+                        fontFamily: "var(--font-display)",
+                        transition: "color 0.3s ease",
+                      }}
+                    >
+                      {formatServicePrice(service.price, service.priceMax)}
+                    </span>
+                    {depositOverrides[service.id]?.requiresDeposit && (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-medium" style={{ background: "rgba(196,169,106,0.15)", color: "var(--color-accent)", border: "1px solid rgba(196,169,106,0.25)" }}>
+                        <CreditCard size={8} />
+                        {language === "es" ? "Anticipo" : "Deposit"}
+                      </span>
+                    )}
+                  </div>
                   <motion.button
                     whileHover={{ scale: 1.15 }}
                     whileTap={{ scale: 0.9 }}

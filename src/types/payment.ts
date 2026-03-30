@@ -20,6 +20,7 @@ export interface PaymentTransaction {
   paymentMethodId: string;
   paymentMethod?: "card" | "counter";
   counterNote?: string;
-  status: "completed" | "failed";
+  status: "processing" | "completed" | "failed";
+  idempotencyKey?: string;
   createdAt: string;
 }

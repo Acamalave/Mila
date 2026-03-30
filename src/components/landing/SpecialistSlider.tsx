@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -19,20 +19,30 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(0);
 
+  // Only show staff marked as public (visible to clients for booking)
+  const publicStylists = useMemo(
+    () => allStylists.filter((s) => s.isPublic !== false),
+    [allStylists]
+  );
+
   const selectedId = state.selectedStylistId;
 
+  // Guard: no public stylists loaded yet
+  if (publicStylists.length === 0) return null;
+
   const goTo = useCallback((index: number, dir: number) => {
-    const wrapped = ((index % allStylists.length) + allStylists.length) % allStylists.length;
+    if (publicStylists.length === 0) return;
+    const wrapped = ((index % publicStylists.length) + publicStylists.length) % publicStylists.length;
     setDirection(dir);
     setCurrentIndex(wrapped);
-  }, [allStylists.length]);
+  }, [publicStylists.length]);
 
   const handleSelect = useCallback((id: string) => {
     dispatch({ type: "SET_STYLIST", payload: id });
     onSelect?.(id);
   }, [dispatch, onSelect]);
 
-  const currentStylist = allStylists[currentIndex];
+  const currentStylist = publicStylists[currentIndex];
 
   const variants = {
     enter: (dir: number) => ({
@@ -160,7 +170,7 @@ export default function SpecialistSlider({ onSelect }: SpecialistSliderProps) {
           <div className="max-w-lg mx-auto">
             {/* Dot indicators with names */}
             <div className="flex items-center justify-center gap-2 sm:gap-5 mb-5 overflow-x-auto max-w-full">
-              {allStylists.map((s, i) => (
+              {publicStylists.map((s, i) => (
                 <motion.button
                   key={s.id}
                   onClick={() => goTo(i, i > currentIndex ? 1 : -1)}

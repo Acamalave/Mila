@@ -15,13 +15,21 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useEventBus } from "@/providers/EventBusProvider";
 import { setDocument, deleteDocument, onCollectionChange } from "@/lib/firestore";
 
+export interface CardPaymentDetails {
+  cardNumber: string;
+  cardExpMonth: string;
+  cardExpYear: string;
+  cardCvv: string;
+  cardholderName: string;
+}
+
 interface PaymentContextValue {
   savedCards: CreditCard[];
   transactions: PaymentTransaction[];
   addCard: (card: Omit<CreditCard, "id" | "createdAt">) => void;
   removeCard: (cardId: string) => void;
   setDefaultCard: (cardId: string) => void;
-  processPayment: (invoiceId: string, cardId: string, amount: number) => PaymentTransaction;
+  processPayment: (invoiceId: string, cardId: string, amount: number, cardDetails?: CardPaymentDetails) => Promise<PaymentTransaction>;
   processCounterPayment: (invoiceId: string, amount: number, note: string) => PaymentTransaction;
   getClientCards: (clientId: string) => CreditCard[];
 }
@@ -110,8 +118,51 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
   );
 
   const processPayment = useCallback(
-    (invoiceId: string, cardId: string, amount: number): PaymentTransaction => {
+    async (invoiceId: string, cardId: string, amount: number, cardDetails?: CardPaymentDetails): Promise<PaymentTransaction> => {
       if (!user) throw new Error("User must be authenticated to process payment");
+
+      // Call Paguelo Facil via our API route
+      if (cardDetails) {
+        const res = await fetch("/api/payments/process", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount,
+            description: `Mila Concept - Invoice ${invoiceId}`,
+            clientName: cardDetails.cardholderName,
+            clientEmail: user.email || "",
+            clientPhone: user.phone || "",
+            cardNumber: cardDetails.cardNumber,
+            cardExpMonth: cardDetails.cardExpMonth,
+            cardExpYear: cardDetails.cardExpYear,
+            cardCvv: cardDetails.cardCvv,
+            invoiceId,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          // Record the failed transaction attempt
+          const failedTxn: PaymentTransaction = {
+            id: `txn-${generateId()}`,
+            userId: user.id,
+            invoiceId,
+            amount,
+            paymentMethodId: cardId,
+            status: "failed",
+            createdAt: new Date().toISOString(),
+          };
+          setAllTransactions((prev) => {
+            const next = [...prev, failedTxn];
+            setStoredData("mila-payment-transactions", next);
+            return next;
+          });
+          const { id: fId, ...fData } = failedTxn;
+          setDocument("payments", fId, fData).catch(() => {});
+          emit("payment:failed", failedTxn);
+          throw new Error(data.error || data.message || "Payment declined");
+        }
+      }
 
       const transaction: PaymentTransaction = {
         id: `txn-${generateId()}`,

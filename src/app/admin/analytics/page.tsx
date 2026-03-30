@@ -7,7 +7,7 @@ import { cn, formatPrice, getStoredData, setStoredData } from "@/lib/utils";
 import { services, serviceCategories } from "@/data/services";
 import { useStaff } from "@/providers/StaffProvider";
 import { useCommissions } from "@/providers/CommissionProvider";
-import { reviews as mockReviews } from "@/data/reviews";
+import { mockReviews } from "@/data/reviews";
 import { getInitialDemoAppointments } from "@/data/appointments";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
@@ -254,25 +254,25 @@ export default function AdminAnalyticsPage() {
       {/* Metric cards */}
       <motion.div
         variants={fadeInUp}
-        className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4"
+        className="grid grid-cols-2 xl:grid-cols-4 gap-2 sm:gap-4"
       >
         {metricCards.map((card) => {
           const Icon = card.icon;
           return (
-            <Card key={card.label} className="flex items-center gap-4">
-              <div className={cn("p-3 rounded-xl", card.bg)}>
-                <Icon size={22} className={card.color} />
+            <Card key={card.label} className="flex flex-col items-center text-center gap-1.5 p-2.5 sm:flex-row sm:text-left sm:items-center sm:gap-4 sm:p-5">
+              <div className={cn("p-1.5 sm:p-3 rounded-lg sm:rounded-xl", card.bg)}>
+                <Icon size={14} className={cn(card.color, "sm:w-[22px] sm:h-[22px]")} />
               </div>
               <div className="min-w-0">
                 <p
                   className={cn(
                     "font-bold text-text-primary truncate",
-                    card.isText ? "text-base" : "text-2xl"
+                    card.isText ? "text-xs sm:text-base" : "text-base sm:text-2xl"
                   )}
                 >
                   {card.value}
                 </p>
-                <p className="text-sm text-text-secondary">{card.label}</p>
+                <p className="text-[10px] sm:text-sm text-text-secondary truncate leading-tight">{card.label}</p>
               </div>
             </Card>
           );
@@ -280,7 +280,7 @@ export default function AdminAnalyticsPage() {
       </motion.div>
 
       {/* Charts row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
         {/* Revenue by category */}
         <motion.div variants={fadeInUp}>
           <Card>
@@ -414,7 +414,7 @@ export default function AdminAnalyticsPage() {
       {/* Commission Breakdown */}
       <motion.div variants={fadeInUp}>
         <Card padding="none">
-          <div className="p-6 border-b border-border-default flex items-center gap-2">
+          <div className="p-4 sm:p-6 border-b border-border-default flex items-center gap-2">
             <DollarSign size={18} className="text-mila-gold" />
             <h2 className="text-lg font-semibold font-[family-name:var(--font-display)]">
               {t("admin", "commissionBreakdown")}
@@ -424,16 +424,16 @@ export default function AdminAnalyticsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border-default text-left">
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider">
                     {language === "es" ? "Estilista" : "Stylist"}
                   </th>
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider text-right">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-right">
                     {t("admin", "totalCommissions")}
                   </th>
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider text-right hidden md:table-cell">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-right hidden md:table-cell">
                     {t("admin", "pendingCommissions")}
                   </th>
-                  <th className="px-6 py-3 text-xs font-medium text-text-muted uppercase tracking-wider text-right hidden md:table-cell">
+                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-right hidden md:table-cell">
                     {t("admin", "paidCommissions")}
                   </th>
                 </tr>
@@ -448,14 +448,14 @@ export default function AdminAnalyticsPage() {
                 ) : (
                   commissionByStylist.map((row) => (
                     <tr key={row.stylistId} className="hover:bg-white/5 transition-colors">
-                      <td className="px-6 py-4 text-sm font-medium text-text-primary">{row.name}</td>
-                      <td className="px-6 py-4 text-sm font-medium text-text-primary text-right">
+                      <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm font-medium text-text-primary">{row.name}</td>
+                      <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm font-medium text-text-primary text-right">
                         {formatPrice(row.total)}
                       </td>
-                      <td className="px-6 py-4 text-sm text-warning text-right hidden md:table-cell">
+                      <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-warning text-right hidden md:table-cell">
                         {formatPrice(row.pending)}
                       </td>
-                      <td className="px-6 py-4 text-sm text-success text-right hidden md:table-cell">
+                      <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-success text-right hidden md:table-cell">
                         {formatPrice(row.paid)}
                       </td>
                     </tr>

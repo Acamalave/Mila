@@ -7,6 +7,7 @@ import Modal from "@/components/ui/Modal";
 import CreditCardForm, { type CardFormData } from "@/components/payment/CreditCardForm";
 import { usePayment, detectCardBrand } from "@/providers/PaymentProvider";
 import { useInvoices } from "@/providers/InvoiceProvider";
+import { XCircle, RefreshCw } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useToast } from "@/providers/ToastProvider";
@@ -21,7 +22,7 @@ interface PaymentModalProps {
   onDecline?: () => void;
 }
 
-type PaymentStep = "invoice" | "new-card" | "processing" | "success";
+type PaymentStep = "invoice" | "new-card" | "processing" | "success" | "failed";
 
 const BRAND_COLORS: Record<string, string> = {
   visa: "#1A1F71",
@@ -47,7 +48,7 @@ export default function PaymentModal({
   onDecline,
 }: PaymentModalProps) {
   const { savedCards, addCard, removeCard, processPayment } = usePayment();
-  const { markAsPaid } = useInvoices();
+  const { markAsPaid, markAsDeclined } = useInvoices();
   const { user } = useAuth();
   const { language, t } = useLanguage();
   const { addToast } = useToast();
@@ -57,6 +58,7 @@ export default function PaymentModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [wantsNewCard, setWantsNewCard] = useState(false);
   const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idempotencyKeyRef = useRef<string>("");
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -66,6 +68,8 @@ export default function PaymentModal({
       setStep("invoice");
       setIsProcessing(false);
       setWantsNewCard(false);
+      // Generate a fresh idempotency key per modal open
+      idempotencyKeyRef.current = `pay-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     }
     return () => {
       if (autoCloseTimerRef.current) {
@@ -76,12 +80,20 @@ export default function PaymentModal({
 
   const handleProcessPayment = useCallback(
     async (cardId: string, saveCardData?: CardFormData) => {
-      if (!invoice || !user) return;
+      if (!invoice || !user) {
+        addToast(t("payment", "paymentFailed"), "error");
+        return;
+      }
+
+      // Prevent double-submission
+      if (isProcessing) return;
+
+      // Capture values before async operations in case invoice becomes null
+      const invoiceId = invoice.id;
+      const invoiceAmount = invoice.amount;
 
       setStep("processing");
       setIsProcessing(true);
-
-      await new Promise((resolve) => setTimeout(resolve, 1500));
 
       try {
         if (saveCardData?.saveCard) {
@@ -96,8 +108,8 @@ export default function PaymentModal({
           });
         }
 
-        const transaction = processPayment(invoice.id, cardId, invoice.amount);
-        markAsPaid(invoice.id, transaction.id);
+        const transaction = await processPayment(invoiceId, cardId, invoiceAmount);
+        markAsPaid(invoiceId, transaction.id);
 
         setStep("success");
         addToast(t("payment", "paymentSuccessful"), "success");
@@ -107,9 +119,8 @@ export default function PaymentModal({
           onClose();
         }, 2000);
       } catch {
-        setStep("invoice");
+        setStep("failed");
         setIsProcessing(false);
-        addToast(t("payment", "paymentFailed"), "error");
       }
     },
     [invoice, user, savedCards.length, addCard, processPayment, markAsPaid, addToast, t, onPaymentComplete, onClose]
@@ -133,9 +144,12 @@ export default function PaymentModal({
   );
 
   const handleDecline = useCallback(() => {
+    if (invoice) {
+      markAsDeclined(invoice.id);
+    }
     onDecline?.();
     onClose();
-  }, [onDecline, onClose]);
+  }, [invoice, markAsDeclined, onDecline, onClose]);
 
   if (!invoice) return null;
 
@@ -793,6 +807,127 @@ export default function PaymentModal({
                 pointerEvents: "none",
               }}
             />
+          </motion.div>
+        )}
+        {/* ═══════════════════════════════════════════
+            FAILED / DECLINED BY GATEWAY STATE
+            ═══════════════════════════════════════════ */}
+        {step === "failed" && (
+          <motion.div
+            key="failed"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            className="flex flex-col items-center justify-center py-12 gap-6"
+          >
+            {/* Error icon */}
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+              className="flex items-center justify-center"
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: "50%",
+                background: "rgba(239, 68, 68, 0.1)",
+                border: "2px solid rgba(239, 68, 68, 0.3)",
+              }}
+            >
+              <XCircle size={32} style={{ color: "#ef4444" }} strokeWidth={2} />
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25 }}
+              className="text-center space-y-2"
+            >
+              <p
+                style={{
+                  fontFamily: "var(--font-accent)",
+                  fontSize: "clamp(20px, 4vw, 26px)",
+                  fontWeight: 400,
+                  fontStyle: "italic",
+                  color: "var(--color-text-primary)",
+                }}
+              >
+                {language === "es" ? "Pago rechazado" : "Payment declined"}
+              </p>
+              <p
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: 12,
+                  color: "var(--color-text-muted)",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                {language === "es"
+                  ? "Tu banco rechazó el cargo. Puedes intentar con otra tarjeta."
+                  : "Your bank declined the charge. You can try with a different card."}
+              </p>
+            </motion.div>
+
+            {/* Retry button */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.35 }}
+              className="flex flex-col gap-3 w-full"
+            >
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  setStep("invoice");
+                  setIsProcessing(false);
+                }}
+                style={{
+                  width: "100%",
+                  height: 52,
+                  borderRadius: 12,
+                  background: "var(--gradient-accent)",
+                  boxShadow: "var(--shadow-glow)",
+                  border: "none",
+                  color: "var(--color-text-inverse)",
+                  fontFamily: "var(--font-display)",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase" as const,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                }}
+              >
+                <RefreshCw size={15} />
+                {language === "es" ? "Intentar de nuevo" : "Try again"}
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
+                onClick={onClose}
+                style={{
+                  width: "100%",
+                  height: 44,
+                  borderRadius: 12,
+                  background: "transparent",
+                  border: "1px solid var(--color-border-default)",
+                  color: "var(--color-text-muted)",
+                  fontFamily: "var(--font-display)",
+                  fontSize: 12,
+                  fontWeight: 500,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase" as const,
+                  cursor: "pointer",
+                }}
+              >
+                {language === "es" ? "Cancelar" : "Cancel"}
+              </motion.button>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

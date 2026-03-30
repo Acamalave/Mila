@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Montserrat, Cormorant_Garamond } from "next/font/google";
 import "./globals.css";
 import AppProviders from "@/providers/AppProviders";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const inter = Inter({
   variable: "--font-body",
@@ -32,8 +33,11 @@ export const metadata: Metadata = {
   title: "MILA CONCEPT | Luxury Beauty Salon",
   description:
     "An exclusive salon experience where art meets beauty. Book your appointment with our master artisans.",
-  icons: {
-    icon: "/icon.svg",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Milà Concept",
   },
 };
 
@@ -47,7 +51,9 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${montserrat.variable} ${cormorant.variable} antialiased`}
       >
-        <AppProviders>{children}</AppProviders>
+        <ErrorBoundary>
+          <AppProviders>{children}</AppProviders>
+        </ErrorBoundary>
       </body>
     </html>
   );

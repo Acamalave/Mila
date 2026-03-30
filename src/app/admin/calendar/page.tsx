@@ -125,13 +125,15 @@ export default function AdminCalendarPage() {
 
   const updateBookingStatus = useCallback(
     (bookingId: string, newStatus: BookingStatus) => {
+      const fullBooking = bookings.find((b) => b.id === bookingId);
       const updated = bookings.map((b) =>
         b.id === bookingId ? { ...b, status: newStatus } : b
       );
       setBookings(updated);
       setStoredData("mila-bookings", updated);
       setDocument("bookings", bookingId, { status: newStatus }).catch((err) => console.warn("[Mila] Booking sync failed:", err));
-      emit("booking:updated", { id: bookingId, status: newStatus });
+      // Emit full booking object so CommissionProvider can generate commissions
+      emit("booking:updated", { ...fullBooking, status: newStatus });
 
       const statusMessages: Record<BookingStatus, { en: string; es: string }> = {
         confirmed: { en: "Booking confirmed", es: "Reserva confirmada" },
@@ -223,7 +225,7 @@ export default function AdminCalendarPage() {
       {/* Week grid */}
       <motion.div
         variants={fadeInUp}
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-4"
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-2 sm:gap-4"
       >
         {weekDays.map((day) => {
           const dateStr = toDateString(day);
@@ -238,7 +240,7 @@ export default function AdminCalendarPage() {
             >
               <div
                 className={cn(
-                  "px-4 py-3 border-b border-border-default",
+                  "px-3 sm:px-4 py-2 sm:py-3 border-b border-border-default",
                   isToday ? "bg-mila-gold/10" : "bg-white/5"
                 )}
               >
@@ -264,7 +266,7 @@ export default function AdminCalendarPage() {
                 )}
               </div>
 
-              <div className="p-3 space-y-2 min-h-[120px]">
+              <div className="p-2 sm:p-3 space-y-2 min-h-[100px] sm:min-h-[120px]">
                 {dayBookings.length === 0 ? (
                   <p className="text-xs text-text-muted text-center py-6">
                     {language === "es" ? "Sin citas" : "No bookings"}

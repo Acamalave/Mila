@@ -10,6 +10,8 @@ export interface ServiceCommission {
   percentage: number;
 }
 
+export type StaffSystemRole = "admin" | "stylist";
+
 export interface Stylist {
   id: string;
   name: string;
@@ -26,4 +28,8 @@ export interface Stylist {
   serviceCommissions?: ServiceCommission[];
   linkedUserId?: string;
   linkedPhone?: string;
+  /** System access role: "admin" gets full admin panel, "stylist" gets stylist dashboard */
+  systemRole?: StaffSystemRole;
+  /** Whether this person appears publicly on the booking page as a specialist */
+  isPublic?: boolean;
 }

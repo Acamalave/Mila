@@ -25,13 +25,7 @@ import {
   ShoppingCart,
 } from "lucide-react";
 
-const CATEGORIES = [
-  { value: "all", labelEn: "All", labelEs: "Todos" },
-  { value: "hair-care", labelEn: "Hair Care", labelEs: "Cabello" },
-  { value: "skin-care", labelEn: "Skin Care", labelEs: "Piel" },
-  { value: "styling", labelEn: "Styling", labelEs: "Estilizado" },
-  { value: "tools", labelEn: "Tools", labelEs: "Herramientas" },
-];
+/* Categories are now dynamic — loaded from useProducts().categories */
 
 export default function ShopPage() {
   const { language, t } = useLanguage();
@@ -39,7 +33,12 @@ export default function ShopPage() {
   const { addToast } = useToast();
   const { user } = useAuth();
   const { invoices, addInvoice } = useInvoices();
-  const { allProducts } = useProducts();
+  const { allProducts, categories } = useProducts();
+
+  const CATEGORIES = [
+    { value: "all", labelEn: "All", labelEs: "Todos" },
+    ...categories.map((cat) => ({ value: cat.value, labelEn: cat.labelEn, labelEs: cat.labelEs })),
+  ];
   const [activeCategory, setActiveCategory] = useState("all");
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutInvoice, setCheckoutInvoice] = useState<Invoice | null>(null);

@@ -13,7 +13,23 @@ import type { Product } from "@/types";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { products as seedProducts } from "@/data/products";
 import { useEventBus } from "@/providers/EventBusProvider";
-import { setDocument, deleteDocument, onCollectionChange, syncArrayToDoc, onDocumentChange } from "@/lib/firestore";
+import { setDocument, deleteDocument, onCollectionChange, onDocumentChange } from "@/lib/firestore";
+
+/* ── Product categories ──────────────────────────────────────────── */
+export interface ProductCategory {
+  id: string;
+  value: string; // slug like "hair-care"
+  labelEn: string;
+  labelEs: string;
+}
+
+const DEFAULT_CATEGORIES: ProductCategory[] = [
+  { id: "cat-1", value: "hair-care", labelEn: "Hair Care", labelEs: "Cuidado Capilar" },
+  { id: "cat-2", value: "skin-care", labelEn: "Skin Care", labelEs: "Cuidado de Piel" },
+  { id: "cat-3", value: "styling", labelEn: "Styling", labelEs: "Estilismo" },
+  { id: "cat-4", value: "tools", labelEn: "Tools", labelEs: "Herramientas" },
+  { id: "cat-5", value: "nails", labelEn: "Nails", labelEs: "Uñas" },
+];
 
 interface ProductContextValue {
   allProducts: Product[];
@@ -21,6 +37,10 @@ interface ProductContextValue {
   updateProduct: (id: string, updates: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
   updateStock: (id: string, quantity: number) => void;
+  categories: ProductCategory[];
+  addCategory: (cat: Omit<ProductCategory, "id">) => void;
+  updateCategory: (id: string, updates: Partial<ProductCategory>) => void;
+  deleteCategory: (id: string) => void;
 }
 
 const ProductContext = createContext<ProductContextValue | null>(null);
@@ -31,8 +51,9 @@ function mergeProducts(
   seedOverrides: Record<string, Partial<Product>>,
   deletedIds: string[]
 ): Product[] {
+  const safeDeleted = Array.isArray(deletedIds) ? deletedIds : [];
   const base = seedProducts
-    .filter((p) => !deletedIds.includes(p.id))
+    .filter((p) => !safeDeleted.includes(p.id))
     .map((p) => {
       let merged = { ...p };
       const overrides = seedOverrides[p.id];
@@ -46,7 +67,7 @@ function mergeProducts(
       return merged;
     });
 
-  const custom = customProducts.filter((p) => !deletedIds.includes(p.id));
+  const custom = customProducts.filter((p) => !safeDeleted.includes(p.id));
   return [...base, ...custom];
 }
 
@@ -64,6 +85,10 @@ export function ProductProvider({ children }: { children: ReactNode }) {
   );
   const [deletedIds, setDeletedIds] = useState<string[]>(() =>
     getStoredData<string[]>("mila-products-deleted", [])
+  );
+
+  const [categories, setCategories] = useState<ProductCategory[]>(() =>
+    getStoredData<ProductCategory[]>("mila-product-categories", DEFAULT_CATEGORIES)
   );
 
   const allProducts = useMemo(
@@ -112,22 +137,29 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     emit("product:updated", { id, updates });
   }, [customProducts, emit]);
 
-  const deleteProduct = useCallback((id: string) => {
+  const deleteProduct = useCallback(async (id: string) => {
     const isCustom = customProducts.some((p) => p.id === id);
+
+    // Always track in deletedIds so the listener never re-adds it
+    setDeletedIds((prev) => {
+      if (prev.includes(id)) return prev;
+      const next = [...prev, id];
+      setStoredData("mila-products-deleted", next);
+      setDocument("products-config", "deleted", { ids: next }).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
+      return next;
+    });
+
     if (isCustom) {
       setCustomProducts((prev) => {
         const next = prev.filter((p) => p.id !== id);
         setStoredData("mila-products-custom", next);
         return next;
       });
-      deleteDocument("products", id).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
-    } else {
-      setDeletedIds((prev) => {
-        const next = [...prev, id];
-        setStoredData("mila-products-deleted", next);
-        setDocument("products-config", "deleted", { ids: next }).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
-        return next;
-      });
+      try {
+        await deleteDocument("products", id);
+      } catch (err) {
+        console.warn("[Mila] Firestore sync failed:", err);
+      }
     }
     emit("product:deleted", id);
   }, [customProducts, emit]);
@@ -153,16 +185,54 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     emit("product:updated", { id, stockQuantity: quantity });
   }, [customProducts, emit]);
 
+  /* ── Category CRUD ──────────────────────────────────────────────── */
+  const syncCategoriesToFirestore = useCallback((cats: ProductCategory[]) => {
+    setStoredData("mila-product-categories", cats);
+    setDocument("products-config", "categories", { items: cats }).catch((err) =>
+      console.warn("[Mila] Firestore category sync failed:", err)
+    );
+  }, []);
+
+  const addCategory = useCallback((cat: Omit<ProductCategory, "id">) => {
+    setCategories((prev) => {
+      const next = [...prev, { ...cat, id: `cat-${generateId()}` }];
+      syncCategoriesToFirestore(next);
+      return next;
+    });
+  }, [syncCategoriesToFirestore]);
+
+  const updateCategory = useCallback((id: string, updates: Partial<ProductCategory>) => {
+    setCategories((prev) => {
+      const next = prev.map((c) => (c.id === id ? { ...c, ...updates } : c));
+      syncCategoriesToFirestore(next);
+      return next;
+    });
+  }, [syncCategoriesToFirestore]);
+
+  const deleteCategory = useCallback((id: string) => {
+    setCategories((prev) => {
+      const next = prev.filter((c) => c.id !== id);
+      syncCategoriesToFirestore(next);
+      return next;
+    });
+  }, [syncCategoriesToFirestore]);
+
   // Firestore real-time sync
   useEffect(() => {
     const unsubs = [
       onCollectionChange<Product>("products", (firestoreProducts) => {
         if (firestoreProducts.length > 0) {
+          // Read current deletedIds to filter out deleted products before merging
+          const currentDeleted = getStoredData<string[]>("mila-products-deleted", []);
           setCustomProducts((prev) => {
             const merged = new Map<string, Product>();
             for (const p of prev) merged.set(p.id, p);
-            for (const p of firestoreProducts) merged.set(p.id, p);
-            const next = Array.from(merged.values());
+            for (const p of firestoreProducts) {
+              if (!currentDeleted.includes(p.id)) {
+                merged.set(p.id, p);
+              }
+            }
+            const next = Array.from(merged.values()).filter((p) => !currentDeleted.includes(p.id));
             setStoredData("mila-products-custom", next);
             return next;
           });
@@ -190,6 +260,12 @@ export function ProductProvider({ children }: { children: ReactNode }) {
           setStoredData("mila-products-deleted", data.ids);
         }
       }),
+      onDocumentChange<{ items?: ProductCategory[] }>("products-config", "categories", (data) => {
+        if (data && data.items && data.items.length > 0) {
+          setCategories(data.items);
+          setStoredData("mila-product-categories", data.items);
+        }
+      }),
     ];
     return () => unsubs.forEach((u) => u());
   }, []);
@@ -213,7 +289,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
   }, [on]);
 
   return (
-    <ProductContext.Provider value={{ allProducts, addProduct, updateProduct, deleteProduct, updateStock }}>
+    <ProductContext.Provider value={{ allProducts, addProduct, updateProduct, deleteProduct, updateStock, categories, addCategory, updateCategory, deleteCategory }}>
       {children}
     </ProductContext.Provider>
   );

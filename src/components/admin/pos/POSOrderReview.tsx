@@ -1,11 +1,13 @@
 "use client";
 
 import { useLanguage } from "@/providers/LanguageProvider";
+import { useStaff } from "@/providers/StaffProvider";
 import { formatPrice, calculateTaxBreakdown } from "@/lib/utils";
 import {
   Scissors,
   ShoppingBag,
   Receipt,
+  User,
 } from "lucide-react";
 import type { InvoiceItem } from "@/types";
 import type { POSClient } from "./POSClientSelector";
@@ -13,13 +15,18 @@ import type { POSClient } from "./POSClientSelector";
 interface POSOrderReviewProps {
   client: POSClient;
   items: InvoiceItem[];
+  selectedStylistId?: string | null;
+  onStylistChange?: (stylistId: string | null) => void;
 }
 
 export default function POSOrderReview({
   client,
   items,
+  selectedStylistId,
+  onStylistChange,
 }: POSOrderReviewProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const { allStylists } = useStaff();
 
   const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const { subtotal, taxAmount } = calculateTaxBreakdown(total);
@@ -68,6 +75,43 @@ export default function POSOrderReview({
           )}
         </div>
       </div>
+
+      {/* Stylist selector (for service items) */}
+      {items.some((i) => i.type === "service") && onStylistChange && (
+        <div
+          className="rounded-xl p-4 space-y-2"
+          style={{
+            background: "var(--color-bg-glass)",
+            border: "1px solid var(--color-border-default)",
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <User size={14} style={{ color: "var(--color-accent)" }} />
+            <span
+              className="text-xs font-semibold uppercase tracking-wider"
+              style={{ color: "var(--color-accent)" }}
+            >
+              {language === "es" ? "Estilista" : "Stylist"}
+            </span>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {allStylists.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => onStylistChange(selectedStylistId === s.id ? null : s.id)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer"
+                style={{
+                  background: selectedStylistId === s.id ? "var(--color-accent-subtle)" : "var(--color-bg-glass-hover)",
+                  border: selectedStylistId === s.id ? "1px solid var(--color-border-accent)" : "1px solid var(--color-border-default)",
+                  color: selectedStylistId === s.id ? "var(--color-accent)" : "var(--color-text-secondary)",
+                }}
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Items list */}
       <div

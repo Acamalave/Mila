@@ -19,12 +19,27 @@ interface InvoiceContextValue {
   updateInvoice: (id: string, updates: Partial<Invoice>) => void;
   sendInvoice: (invoiceId: string) => void;
   markAsPaid: (invoiceId: string, transactionId: string) => void;
+  markAsDeclined: (invoiceId: string) => void;
   deleteInvoice: (invoiceId: string) => void;
   getInvoicesForClient: (clientId: string) => Invoice[];
   createAndPayInvoice: (data: Omit<Invoice, "id" | "createdAt">, transactionId: string) => Invoice;
 }
 
 const InvoiceContext = createContext<InvoiceContextValue | null>(null);
+
+/* ── Valid invoice status transitions ── */
+const VALID_TRANSITIONS: Record<string, string[]> = {
+  draft: ["sent", "paid"],
+  sent: ["paid", "overdue", "declined"],
+  overdue: ["paid", "sent", "declined"],
+  declined: ["sent"], // admin can resend a declined invoice
+  // paid is terminal — no transitions out
+};
+
+function isValidTransition(from: string, to: string): boolean {
+  if (from === to) return true; // no-op
+  return VALID_TRANSITIONS[from]?.includes(to) ?? false;
+}
 
 export function InvoiceProvider({ children }: { children: ReactNode }) {
   const { emit, on } = useEventBus();
@@ -56,6 +71,11 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
 
   const updateInvoice = useCallback((id: string, updates: Partial<Invoice>) => {
     setInvoices((prev) => {
+      const current = prev.find((inv) => inv.id === id);
+      if (current && updates.status && !isValidTransition(current.status, updates.status)) {
+        console.warn(`[Mila] Invalid invoice transition: ${current.status} → ${updates.status}`);
+        return prev;
+      }
       const next = prev.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv));
       persist(next);
       return next;
@@ -67,6 +87,11 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
   const sendInvoice = useCallback((invoiceId: string) => {
     const sentAt = new Date().toISOString();
     setInvoices((prev) => {
+      const current = prev.find((inv) => inv.id === invoiceId);
+      if (current && !isValidTransition(current.status, "sent")) {
+        console.warn(`[Mila] Cannot send invoice: invalid transition from ${current.status}`);
+        return prev;
+      }
       const next = prev.map((inv) =>
         inv.id === invoiceId
           ? { ...inv, status: "sent" as const, sentAt }
@@ -103,6 +128,29 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
       return next;
     });
     setDocument("invoices", invoiceId, { status: "paid", paidAt, paymentTransactionId: transactionId }).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
+  }, [emit, persist]);
+
+  const markAsDeclined = useCallback((invoiceId: string) => {
+    const declinedAt = new Date().toISOString();
+    setInvoices((prev) => {
+      const current = prev.find((inv) => inv.id === invoiceId);
+      if (current && !isValidTransition(current.status, "declined")) {
+        console.warn(`[Mila] Cannot decline invoice: invalid transition from ${current.status}`);
+        return prev;
+      }
+      const next = prev.map((inv) =>
+        inv.id === invoiceId
+          ? { ...inv, status: "declined" as const, declinedAt }
+          : inv
+      );
+      persist(next);
+      const declined = next.find((inv) => inv.id === invoiceId);
+      if (declined) {
+        emit("invoice:declined", declined);
+      }
+      return next;
+    });
+    setDocument("invoices", invoiceId, { status: "declined", declinedAt }).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
   }, [emit, persist]);
 
   const deleteInvoice = useCallback((invoiceId: string) => {
@@ -145,12 +193,15 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
 
   // Firestore real-time sync
   useEffect(() => {
+    const deletedIds = getStoredData<string[]>("mila-invoices-deleted", []);
+    const deletedSet = new Set(deletedIds);
+
     const unsub = onCollectionChange<Invoice>("invoices", (firestoreInvoices) => {
       if (firestoreInvoices.length > 0) {
         setInvoices((prev) => {
           const merged = new Map<string, Invoice>();
-          for (const inv of prev) merged.set(inv.id, inv);
-          for (const inv of firestoreInvoices) merged.set(inv.id, inv);
+          for (const inv of prev) if (!deletedSet.has(inv.id)) merged.set(inv.id, inv);
+          for (const inv of firestoreInvoices) if (!deletedSet.has(inv.id)) merged.set(inv.id, inv);
           const next = Array.from(merged.values());
           persist(next);
           return next;
@@ -166,13 +217,14 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
       on("invoice:updated", () => setInvoices(getStoredData<Invoice[]>("mila-invoices", []))),
       on("invoice:sent", () => setInvoices(getStoredData<Invoice[]>("mila-invoices", []))),
       on("invoice:paid", () => setInvoices(getStoredData<Invoice[]>("mila-invoices", []))),
+      on("invoice:declined", () => setInvoices(getStoredData<Invoice[]>("mila-invoices", []))),
     ];
     return () => unsubs.forEach((u) => u());
   }, [on]);
 
   return (
     <InvoiceContext.Provider
-      value={{ invoices, addInvoice, updateInvoice, sendInvoice, markAsPaid, deleteInvoice, getInvoicesForClient, createAndPayInvoice }}
+      value={{ invoices, addInvoice, updateInvoice, sendInvoice, markAsPaid, markAsDeclined, deleteInvoice, getInvoicesForClient, createAndPayInvoice }}
     >
       {children}
     </InvoiceContext.Provider>

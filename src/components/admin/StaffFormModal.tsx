@@ -8,7 +8,7 @@ import { useLanguage } from "@/providers/LanguageProvider";
 import { services } from "@/data/services";
 import { formatServicePrice } from "@/lib/utils";
 import { Upload, X, ImageIcon } from "lucide-react";
-import type { Stylist, StylistSchedule, ServiceCommission } from "@/types";
+import type { Stylist, StylistSchedule, ServiceCommission, StaffSystemRole } from "@/types";
 
 interface StaffFormModalProps {
   isOpen: boolean;
@@ -49,6 +49,8 @@ export default function StaffFormModal({
   const [instagram, setInstagram] = useState("");
   const [defaultCommission, setDefaultCommission] = useState(40);
   const [linkedPhone, setLinkedPhone] = useState("");
+  const [systemRole, setSystemRole] = useState<StaffSystemRole>("stylist");
+  const [isPublic, setIsPublic] = useState(true);
   const [serviceCommissionOverrides, setServiceCommissionOverrides] = useState<Record<string, number>>({});
   const [schedule, setSchedule] = useState<StylistSchedule[]>(getDefaultSchedule());
   const [errors, setErrors] = useState<{ name?: string; services?: string }>({});
@@ -70,6 +72,8 @@ export default function StaffFormModal({
         setInstagram(stylist.instagram || "");
         setDefaultCommission(stylist.defaultCommission ?? 40);
         setLinkedPhone(stylist.linkedPhone || "");
+        setSystemRole(stylist.systemRole || "stylist");
+        setIsPublic(stylist.isPublic !== false);
         setServiceCommissionOverrides(
           (stylist.serviceCommissions || []).reduce((acc, sc) => ({ ...acc, [sc.serviceId]: sc.percentage }), {} as Record<string, number>)
         );
@@ -90,6 +94,8 @@ export default function StaffFormModal({
         setInstagram("");
         setDefaultCommission(40);
         setLinkedPhone("");
+        setSystemRole("stylist");
+        setIsPublic(true);
         setServiceCommissionOverrides({});
         setSchedule(getDefaultSchedule());
       }
@@ -181,6 +187,8 @@ export default function StaffFormModal({
       ...(instagram.trim() ? { instagram: instagram.trim() } : {}),
       defaultCommission,
       ...(linkedPhone.trim() ? { linkedPhone: linkedPhone.trim() } : {}),
+      systemRole,
+      isPublic,
       serviceCommissions: Object.entries(serviceCommissionOverrides)
         .filter(([serviceId, pct]) => selectedServiceIds.includes(serviceId) && pct !== defaultCommission)
         .map(([serviceId, percentage]) => ({ serviceId, percentage })),
@@ -515,8 +523,65 @@ export default function StaffFormModal({
           label={t("admin", "linkedPhone")}
           value={linkedPhone}
           onChange={(e) => setLinkedPhone(e.target.value.replace(/\D/g, ""))}
-          placeholder="5552003000"
+          placeholder="6000 0000"
         />
+
+        {/* System Role & Visibility */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
+              {language === "es" ? "Acceso al sistema" : "System Access"}
+            </label>
+            <select
+              value={systemRole}
+              onChange={(e) => setSystemRole(e.target.value as StaffSystemRole)}
+              className="w-full px-4 py-3 rounded-lg text-sm"
+              style={{
+                background: "var(--color-bg-input)",
+                color: "var(--color-text-primary)",
+                border: "1px solid var(--color-border-default)",
+                outline: "none",
+              }}
+            >
+              <option value="stylist">{language === "es" ? "Estilista" : "Stylist"}</option>
+              <option value="admin">{language === "es" ? "Administrador" : "Administrator"}</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
+              {language === "es" ? "Visible al público" : "Public Visibility"}
+            </label>
+            <label
+              className="flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer"
+              style={{
+                background: "var(--color-bg-input)",
+                border: `1px solid ${isPublic ? "var(--color-accent)" : "var(--color-border-default)"}`,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={isPublic}
+                onChange={(e) => setIsPublic(e.target.checked)}
+                className="sr-only"
+              />
+              <div
+                className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+                style={{
+                  background: isPublic ? "var(--gradient-accent)" : "transparent",
+                  border: isPublic ? "none" : "2px solid var(--color-border-default)",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                {isPublic && <span className="text-xs" style={{ color: "var(--color-text-inverse)" }}>✓</span>}
+              </div>
+              <span className="text-sm" style={{ color: "var(--color-text-primary)" }}>
+                {isPublic
+                  ? (language === "es" ? "Sí, aparece en reservas" : "Yes, shown in bookings")
+                  : (language === "es" ? "No, solo interno" : "No, internal only")}
+              </span>
+            </label>
+          </div>
+        </div>
 
         {/* Default Commission */}
         <div>

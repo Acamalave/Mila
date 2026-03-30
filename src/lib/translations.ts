@@ -110,10 +110,6 @@ export const translations = {
     registerButton: { en: "Create Account", es: "Crear Cuenta" },
     noAccount: { en: "Don't have an account?", es: "¿No tienes cuenta?" },
     hasAccount: { en: "Already have an account?", es: "¿Ya tienes cuenta?" },
-    demoHint: {
-      en: "Demo: 5551002000 (admin) · 5552003000 (stylist) · 5553004000 (client)",
-      es: "Demo: 5551002000 (admin) · 5552003000 (estilista) · 5553004000 (cliente)",
-    },
     enterPhone: { en: "Enter your phone number to continue", es: "Ingresa tu número de teléfono para continuar" },
   },
   dashboard: {
@@ -380,7 +376,7 @@ export const translations = {
     sunday: { en: "WhatsApp: +507 6583-0099", es: "WhatsApp: +507 6583-0099" },
     rights: { en: "All rights reserved.", es: "Todos los derechos reservados." },
     location: { en: "Our Location", es: "Ubícanos" },
-    promo: { en: "Special Benefit %", es: "Beneficio Especial %" },
+    promo: { en: "Special Benefit 10%", es: "Beneficio Especial 10%" },
   },
   brandStory: {
     title: { en: "Our Story", es: "Nuestra Historia" },
