@@ -186,7 +186,7 @@ export default function StaffFormModal({
       schedule,
       ...(instagram.trim() ? { instagram: instagram.trim() } : {}),
       defaultCommission,
-      ...(linkedPhone.trim() ? { linkedPhone: linkedPhone.trim() } : {}),
+      linkedPhone: linkedPhone.trim(),
       systemRole,
       isPublic,
       serviceCommissions: Object.entries(serviceCommissionOverrides)
@@ -519,12 +519,21 @@ export default function StaffFormModal({
         />
 
         {/* Linked Phone */}
-        <Input
-          label={t("admin", "linkedPhone")}
-          value={linkedPhone}
-          onChange={(e) => setLinkedPhone(e.target.value.replace(/\D/g, ""))}
-          placeholder="6000 0000"
-        />
+        <div>
+          <Input
+            label={t("admin", "linkedPhone")}
+            value={linkedPhone}
+            onChange={(e) => setLinkedPhone(e.target.value.replace(/\D/g, ""))}
+            placeholder="6000 0000"
+          />
+          {systemRole === "admin" && !linkedPhone.trim() && (
+            <p className="mt-1 text-xs" style={{ color: "var(--color-accent)" }}>
+              {language === "es"
+                ? "⚠ Se requiere un teléfono vinculado para que el rol de Administrador se aplique al iniciar sesión."
+                : "⚠ A linked phone is required for the Administrator role to apply on login."}
+            </p>
+          )}
+        </div>
 
         {/* System Role & Visibility */}
         <div className="grid grid-cols-2 gap-4">

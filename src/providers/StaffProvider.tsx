@@ -138,13 +138,15 @@ export function StaffProvider({ children }: { children: ReactNode }) {
       });
     }
 
-    // If systemRole changed, update the linked user's role in registry + Firestore
-    if (updates.systemRole !== undefined) {
+    // If systemRole or linkedPhone changed, update the linked user's role in registry + Firestore
+    if (updates.systemRole !== undefined || updates.linkedPhone !== undefined) {
       const allStylists = mergeStylists(customStylists, {}, {}, []);
       const stylist = allStylists.find((s) => s.id === id);
-      const linkedPhone = updates.linkedPhone ?? stylist?.linkedPhone;
+      // Prefer the incoming linkedPhone (may be freshly set), fall back to existing
+      const linkedPhone = (updates.linkedPhone || "").trim() || (stylist?.linkedPhone || "").trim();
       if (linkedPhone) {
-        const newRole = updates.systemRole as "admin" | "stylist";
+        // Use the new systemRole if provided, otherwise use the existing stylist role
+        const newRole = ((updates.systemRole ?? stylist?.systemRole) || "stylist") as "admin" | "stylist";
         const userId = `user-${linkedPhone}`;
         const registry = getStoredData<User[]>("mila-users", []);
         const updatedRegistry = registry.map((u) =>
