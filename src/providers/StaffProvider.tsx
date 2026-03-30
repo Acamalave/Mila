@@ -94,11 +94,12 @@ export function StaffProvider({ children }: { children: ReactNode }) {
 
     // Auto-create user account for the stylist if linkedPhone is provided
     if (data.linkedPhone) {
+      const staffRole = (data.systemRole || "stylist") as "admin" | "stylist";
       const userRecord: Omit<User, "id"> = {
         name: data.name,
         phone: data.linkedPhone,
         countryCode: "+507",
-        role: "stylist",
+        role: staffRole,
         createdAt: new Date().toISOString(),
       };
       // Add to local user registry
@@ -108,8 +109,8 @@ export function StaffProvider({ children }: { children: ReactNode }) {
         registry.push({ id: userId!, ...userRecord });
         setStoredData("mila-users", registry);
       } else {
-        // Update existing user's role to stylist
-        const updated = registry.map((u) => u.phone === data.linkedPhone ? { ...u, role: "stylist" as const, name: data.name } : u);
+        // Update existing user's role to match systemRole
+        const updated = registry.map((u) => u.phone === data.linkedPhone ? { ...u, role: staffRole, name: data.name } : u);
         setStoredData("mila-users", updated);
       }
       // Sync to Firestore
@@ -136,6 +137,24 @@ export function StaffProvider({ children }: { children: ReactNode }) {
         return next;
       });
     }
+
+    // If systemRole changed, update the linked user's role in registry + Firestore
+    if (updates.systemRole !== undefined) {
+      const allStylists = mergeStylists(customStylists, {}, {}, []);
+      const stylist = allStylists.find((s) => s.id === id);
+      const linkedPhone = updates.linkedPhone ?? stylist?.linkedPhone;
+      if (linkedPhone) {
+        const newRole = updates.systemRole as "admin" | "stylist";
+        const userId = `user-${linkedPhone}`;
+        const registry = getStoredData<User[]>("mila-users", []);
+        const updatedRegistry = registry.map((u) =>
+          u.phone === linkedPhone ? { ...u, role: newRole } : u
+        );
+        setStoredData("mila-users", updatedRegistry);
+        setDocument("users", userId, { role: newRole }).catch((err) => console.warn("[Mila] User role sync failed:", err));
+      }
+    }
+
     emit("staff:updated", { id, updates });
   }, [customStylists, emit]);
 
