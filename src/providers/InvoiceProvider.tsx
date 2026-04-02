@@ -159,6 +159,11 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
       persist(next);
       return next;
     });
+    // Soft-delete so Firestore listener won't re-add it
+    const deletedIds = getStoredData<string[]>("mila-invoices-deleted", []);
+    if (!deletedIds.includes(invoiceId)) {
+      setStoredData("mila-invoices-deleted", [...deletedIds, invoiceId]);
+    }
     deleteDocument("invoices", invoiceId).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
   }, [persist]);
 
@@ -193,15 +198,14 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
 
   // Firestore real-time sync
   useEffect(() => {
-    const deletedIds = getStoredData<string[]>("mila-invoices-deleted", []);
-    const deletedSet = new Set(deletedIds);
-
     const unsub = onCollectionChange<Invoice>("invoices", (firestoreInvoices) => {
       if (firestoreInvoices.length > 0) {
+        // Re-read deleted IDs fresh on every sync
+        const currentDeleted = new Set(getStoredData<string[]>("mila-invoices-deleted", []));
         setInvoices((prev) => {
           const merged = new Map<string, Invoice>();
-          for (const inv of prev) if (!deletedSet.has(inv.id)) merged.set(inv.id, inv);
-          for (const inv of firestoreInvoices) if (!deletedSet.has(inv.id)) merged.set(inv.id, inv);
+          for (const inv of prev) if (!currentDeleted.has(inv.id)) merged.set(inv.id, inv);
+          for (const inv of firestoreInvoices) if (!currentDeleted.has(inv.id)) merged.set(inv.id, inv);
           const next = Array.from(merged.values());
           persist(next);
           return next;
