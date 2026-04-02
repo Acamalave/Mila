@@ -84,9 +84,17 @@ function createUserFromPhone(phone: string, countryCode: string, providedName?: 
   const existingUser = registry.find((u) => u.phone === phone);
 
   // Check if this phone belongs to a staff member (seed or custom)
+  // Also apply detail overrides so admin-configured linkedPhone on seed stylists is respected
+  const detailOverrides = getStoredData<Record<string, Partial<{ linkedPhone: string; systemRole: string; name: string }>>>("mila-staff-detail-overrides", {});
   const allStaffCustom = getStoredData<Array<{ linkedPhone?: string; name: string; systemRole?: string }>>("mila-staff-custom", []);
+
+  const mergedSeedStylists = seedStylists.map((s) => {
+    const ov = detailOverrides[s.id];
+    return ov ? { ...s, ...ov } : s;
+  });
+
   const linkedStaff =
-    seedStylists.find((s) => s.linkedPhone === phone) ||
+    mergedSeedStylists.find((s) => s.linkedPhone === phone) ||
     allStaffCustom.find((s) => s.linkedPhone === phone);
 
   // Deterministic ID based on phone to ensure consistency across devices
