@@ -90,6 +90,13 @@ export default function POSItemSelector({
     onItemsChange(items.filter((_, i) => i !== index));
   };
 
+  const updateItemPrice = (index: number, price: number) => {
+    if (price < 0) return;
+    onItemsChange(
+      items.map((li, i) => (i === index ? { ...li, price: Math.round(price * 100) / 100 } : li))
+    );
+  };
+
   return (
     <div className="space-y-4">
       {/* Tabs */}
@@ -303,42 +310,55 @@ export default function POSItemSelector({
               >
                 {item.name}
               </span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => updateQty(idx, item.quantity - 1)}
-                  className="w-7 h-7 rounded flex items-center justify-center cursor-pointer"
+                  className="w-6 h-6 rounded flex items-center justify-center cursor-pointer"
                   style={{
                     border: "1px solid var(--color-border-default)",
                     background: "none",
                     color: "var(--color-text-primary)",
                   }}
                 >
-                  <Minus size={12} />
+                  <Minus size={11} />
                 </button>
                 <span
-                  className="w-6 text-center text-sm font-medium tabular-nums"
+                  className="w-5 text-center text-sm font-medium tabular-nums"
                   style={{ color: "var(--color-text-primary)" }}
                 >
                   {item.quantity}
                 </span>
                 <button
                   onClick={() => updateQty(idx, item.quantity + 1)}
-                  className="w-7 h-7 rounded flex items-center justify-center cursor-pointer"
+                  className="w-6 h-6 rounded flex items-center justify-center cursor-pointer"
                   style={{
                     border: "1px solid var(--color-border-default)",
                     background: "none",
                     color: "var(--color-text-primary)",
                   }}
                 >
-                  <Plus size={12} />
+                  <Plus size={11} />
                 </button>
               </div>
-              <span
-                className="text-sm font-medium w-20 text-right tabular-nums"
-                style={{ color: "var(--color-accent)" }}
-              >
-                {formatPrice(item.price * item.quantity)}
-              </span>
+              {/* Editable unit price */}
+              <div className="flex items-center gap-0.5">
+                <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>$</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={item.price}
+                  onChange={(e) => updateItemPrice(idx, parseFloat(e.target.value) || 0)}
+                  className="w-16 text-right text-sm tabular-nums rounded px-1 py-0.5"
+                  style={{
+                    background: "var(--color-bg-input)",
+                    border: "1px solid var(--color-border-default)",
+                    color: "var(--color-accent)",
+                    outline: "none",
+                  }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-accent)"; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-border-default)"; }}
+                /></div>
               <button
                 onClick={() => removeItem(idx)}
                 className="p-1.5 rounded transition-colors cursor-pointer"
@@ -352,7 +372,7 @@ export default function POSItemSelector({
               </button>
             </div>
           ))}
-          {/* Total bar */}
+          {/* Subtotal bar */}
           <div
             className="flex items-center justify-between px-4 py-3 font-semibold"
             style={{
@@ -360,7 +380,7 @@ export default function POSItemSelector({
               background: "var(--color-accent-subtle)",
             }}
           >
-            <span style={{ color: "var(--color-text-primary)" }}>Total</span>
+            <span style={{ color: "var(--color-text-primary)" }}>Subtotal</span>
             <span style={{ color: "var(--color-accent)" }}>
               {formatPrice(total)}
             </span>

@@ -48,10 +48,11 @@ export default function POSPage() {
   const { processCounterPayment } = usePayment();
   const { addToast } = useToast();
 
-  const savedCart = getStoredData<{ client: POSClient | null; items: InvoiceItem[]; stylistId: string | null } | null>("mila-pos-cart", null);
+  const savedCart = getStoredData<{ client: POSClient | null; items: InvoiceItem[]; stylistId: string | null; discount: number } | null>("mila-pos-cart", null);
   const [step, setStep] = useState<Step>(savedCart?.items?.length ? "items" : "client");
   const [client, setClient] = useState<POSClient | null>(savedCart?.client ?? null);
   const [items, setItems] = useState<InvoiceItem[]>(savedCart?.items ?? []);
+  const [discount, setDiscount] = useState<number>(savedCart?.discount ?? 0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastPaymentMethod, setLastPaymentMethod] = useState<"card" | "counter">("counter");
   const [lastInvoiceId, setLastInvoiceId] = useState<string | null>(null);
@@ -62,11 +63,12 @@ export default function POSPage() {
     if (step === "success" || step === "pending") {
       setStoredData("mila-pos-cart", null);
     } else {
-      setStoredData("mila-pos-cart", { client, items, stylistId });
+      setStoredData("mila-pos-cart", { client, items, stylistId, discount });
     }
-  }, [client, items, stylistId, step]);
+  }, [client, items, stylistId, discount, step]);
 
-  const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const { discountAmount, afterDiscount, taxAmount, taxRate, total } = calculateTaxBreakdown(subtotal, discount);
   const currentStepIndex = STEPS.indexOf(step);
 
   const canGoNext = useCallback(() => {
@@ -102,8 +104,6 @@ export default function POSPage() {
 
     await new Promise((r) => setTimeout(r, 500));
 
-    const { subtotal, taxAmount, taxRate } = calculateTaxBreakdown(total);
-
     // Create paid invoice in one step
     const invoice = createAndPayInvoice(
       {
@@ -111,6 +111,9 @@ export default function POSPage() {
         clientName: client.name,
         amount: total,
         subtotal,
+        discount,
+        discountAmount,
+        afterDiscount,
         taxAmount,
         taxRate,
         items,
@@ -144,15 +147,15 @@ export default function POSPage() {
   const handleSendRequest = () => {
     if (!client) return;
 
-    const { subtotal, taxAmount, taxRate } = calculateTaxBreakdown(total);
-
-    // Create invoice as "sent" — this triggers NotificationProvider
-    // to send a payment request to the client's dashboard
+    // Create invoice as "sent" — triggers payment request to client's dashboard
     const newInv = addInvoice({
       clientId: client.id,
       clientName: client.name,
       amount: total,
       subtotal,
+      discount,
+      discountAmount,
+      afterDiscount,
       taxAmount,
       taxRate,
       items,
@@ -185,6 +188,7 @@ export default function POSPage() {
     setClient(null);
     setItems([]);
     setStylistId(null);
+    setDiscount(0);
     setIsProcessing(false);
     setStoredData("mila-pos-cart", null);
   };
@@ -348,6 +352,8 @@ export default function POSPage() {
                   items={items}
                   selectedStylistId={stylistId}
                   onStylistChange={setStylistId}
+                  discount={discount}
+                  onDiscountChange={setDiscount}
                 />
               )}
 

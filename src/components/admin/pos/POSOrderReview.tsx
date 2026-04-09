@@ -8,6 +8,7 @@ import {
   ShoppingBag,
   Receipt,
   User,
+  Tag,
 } from "lucide-react";
 import type { InvoiceItem } from "@/types";
 import type { POSClient } from "./POSClientSelector";
@@ -17,6 +18,8 @@ interface POSOrderReviewProps {
   items: InvoiceItem[];
   selectedStylistId?: string | null;
   onStylistChange?: (stylistId: string | null) => void;
+  discount: number;
+  onDiscountChange: (discount: number) => void;
 }
 
 export default function POSOrderReview({
@@ -24,12 +27,14 @@ export default function POSOrderReview({
   items,
   selectedStylistId,
   onStylistChange,
+  discount,
+  onDiscountChange,
 }: POSOrderReviewProps) {
   const { t, language } = useLanguage();
   const { allStylists } = useStaff();
 
-  const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const { subtotal, taxAmount } = calculateTaxBreakdown(total);
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const { discountAmount, afterDiscount, taxAmount, total } = calculateTaxBreakdown(subtotal, discount);
 
   return (
     <div className="space-y-4">
@@ -66,17 +71,14 @@ export default function POSOrderReview({
             {client.name}
           </p>
           {client.phone && (
-            <p
-              className="text-xs"
-              style={{ color: "var(--color-text-muted)" }}
-            >
+            <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
               {client.phone}
             </p>
           )}
         </div>
       </div>
 
-      {/* Stylist selector (for service items) */}
+      {/* Stylist selector */}
       {items.some((i) => i.type === "service") && onStylistChange && (
         <div
           className="rounded-xl p-4 space-y-2"
@@ -156,10 +158,7 @@ export default function POSOrderReview({
               {item.type === "service" ? (
                 <Scissors size={13} style={{ color: "var(--color-accent)" }} />
               ) : (
-                <ShoppingBag
-                  size={13}
-                  style={{ color: "var(--color-accent)" }}
-                />
+                <ShoppingBag size={13} style={{ color: "var(--color-accent)" }} />
               )}
             </div>
             <div className="flex-1 min-w-0">
@@ -170,10 +169,7 @@ export default function POSOrderReview({
                 {item.name}
               </span>
               {item.quantity > 1 && (
-                <span
-                  className="text-xs"
-                  style={{ color: "var(--color-text-muted)" }}
-                >
+                <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
                   {formatPrice(item.price)} x {item.quantity}
                 </span>
               )}
@@ -188,6 +184,57 @@ export default function POSOrderReview({
         ))}
       </div>
 
+      {/* Discount input */}
+      <div
+        className="flex items-center gap-3 px-4 py-3 rounded-xl"
+        style={{
+          background: "var(--color-bg-glass)",
+          border: "1px solid var(--color-border-default)",
+        }}
+      >
+        <Tag size={14} style={{ color: "var(--color-accent)" }} />
+        <span className="text-sm flex-1" style={{ color: "var(--color-text-secondary)" }}>
+          {language === "es" ? "Descuento" : "Discount"} (%)
+        </span>
+        <div className="flex items-center gap-1.5">
+          {[0, 5, 10, 15, 20].map((pct) => (
+            <button
+              key={pct}
+              onClick={() => onDiscountChange(pct)}
+              className="px-2 py-1 rounded-md text-xs font-medium transition-all cursor-pointer"
+              style={{
+                background: discount === pct ? "var(--color-accent)" : "var(--color-bg-glass-hover)",
+                border: discount === pct ? "none" : "1px solid var(--color-border-default)",
+                color: discount === pct ? "white" : "var(--color-text-secondary)",
+              }}
+            >
+              {pct === 0 ? "—" : `${pct}%`}
+            </button>
+          ))}
+          <input
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            value={discount || ""}
+            onChange={(e) => {
+              const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+              onDiscountChange(val);
+            }}
+            placeholder="0"
+            className="w-12 text-center text-sm rounded-md px-2 py-1"
+            style={{
+              background: "var(--color-bg-input)",
+              border: "1px solid var(--color-border-default)",
+              color: "var(--color-text-primary)",
+              outline: "none",
+            }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-accent)"; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-border-default)"; }}
+          />
+        </div>
+      </div>
+
       {/* Tax breakdown */}
       <div
         className="rounded-xl overflow-hidden"
@@ -198,30 +245,42 @@ export default function POSOrderReview({
       >
         <div className="px-4 py-3 space-y-2">
           <div className="flex items-center justify-between">
-            <span
-              className="text-sm"
-              style={{ color: "var(--color-text-secondary)" }}
-            >
+            <span className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
               {t("pos", "subtotal")}
             </span>
-            <span
-              className="text-sm font-medium tabular-nums"
-              style={{ color: "var(--color-text-primary)" }}
-            >
+            <span className="text-sm font-medium tabular-nums" style={{ color: "var(--color-text-primary)" }}>
               {formatPrice(subtotal)}
             </span>
           </div>
+
+          {discountAmount > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm flex items-center gap-1.5" style={{ color: "#22c55e" }}>
+                <Tag size={12} />
+                {language === "es" ? `Descuento ${discount}%` : `Discount ${discount}%`}
+              </span>
+              <span className="text-sm font-medium tabular-nums" style={{ color: "#22c55e" }}>
+                -{formatPrice(discountAmount)}
+              </span>
+            </div>
+          )}
+
+          {discountAmount > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+                {language === "es" ? "Después de descuento" : "After discount"}
+              </span>
+              <span className="text-sm font-medium tabular-nums" style={{ color: "var(--color-text-primary)" }}>
+                {formatPrice(afterDiscount)}
+              </span>
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
-            <span
-              className="text-sm"
-              style={{ color: "var(--color-text-secondary)" }}
-            >
-              {t("pos", "itbms")}
+            <span className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+              {t("pos", "itbms")} (7%)
             </span>
-            <span
-              className="text-sm font-medium tabular-nums"
-              style={{ color: "var(--color-text-primary)" }}
-            >
+            <span className="text-sm font-medium tabular-nums" style={{ color: "var(--color-text-primary)" }}>
               {formatPrice(taxAmount)}
             </span>
           </div>
@@ -240,17 +299,9 @@ export default function POSOrderReview({
             {formatPrice(total)}
           </span>
         </div>
-        <div
-          className="px-4 py-2 text-center"
-          style={{
-            borderTop: "1px solid var(--color-border-accent)",
-          }}
-        >
-          <p
-            className="text-[11px]"
-            style={{ color: "var(--color-text-muted)" }}
-          >
-            {t("pos", "taxIncluded")}
+        <div className="px-4 py-2 text-center" style={{ borderTop: "1px solid var(--color-border-accent)" }}>
+          <p className="text-[11px]" style={{ color: "var(--color-text-muted)" }}>
+            {language === "es" ? "ITBMS incluido en el total" : "ITBMS included in total"}
           </p>
         </div>
       </div>

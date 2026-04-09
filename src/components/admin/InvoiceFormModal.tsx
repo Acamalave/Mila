@@ -7,8 +7,8 @@ import Input from "@/components/ui/Input";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useProducts } from "@/providers/ProductProvider";
 import { services } from "@/data/services";
-import { formatPrice } from "@/lib/utils";
-import { Plus, Trash2, ShoppingBag, Scissors } from "lucide-react";
+import { formatPrice, calculateTaxBreakdown } from "@/lib/utils";
+import { Plus, Trash2, ShoppingBag, Scissors, Tag } from "lucide-react";
 import type { Invoice, InvoiceStatus, InvoiceItem } from "@/types";
 
 interface InvoiceFormModalProps {
@@ -43,6 +43,7 @@ export default function InvoiceFormModal({
   const [status, setStatus] = useState<InvoiceStatus>("draft");
   const [lineItems, setLineItems] = useState<InvoiceItem[]>([]);
   const [manualAmount, setManualAmount] = useState("");
+  const [discount, setDiscount] = useState(0);
   const [errors, setErrors] = useState<{ clientName?: string; amount?: string }>({});
 
   // Item picker state
@@ -67,7 +68,8 @@ export default function InvoiceFormModal({
         setDueDate(invoice.dueDate || todayStr());
         setStatus(invoice.status);
         setLineItems(invoice.items ?? []);
-        setManualAmount(String(invoice.amount));
+        setManualAmount(String(invoice.subtotal ?? invoice.amount));
+        setDiscount(invoice.discount ?? 0);
       } else {
         setClientName("");
         setClientId("");
@@ -76,6 +78,7 @@ export default function InvoiceFormModal({
         setStatus("draft");
         setLineItems([]);
         setManualAmount("");
+        setDiscount(0);
       }
       setErrors({});
       setShowItemPicker(false);
@@ -89,13 +92,17 @@ export default function InvoiceFormModal({
     }
   }, [clientName, isEditing]);
 
-  // Computed total from line items
+  // Computed subtotal from line items or manual entry
   const itemsTotal = useMemo(
     () => lineItems.reduce((sum, item) => sum + item.price * item.quantity, 0),
     [lineItems]
   );
 
-  const finalAmount = lineItems.length > 0 ? itemsTotal : Number(manualAmount) || 0;
+  const baseSubtotal = lineItems.length > 0 ? itemsTotal : Number(manualAmount) || 0;
+  const { discountAmount, afterDiscount, taxAmount, taxRate, total: finalAmount } = useMemo(
+    () => calculateTaxBreakdown(baseSubtotal, discount),
+    [baseSubtotal, discount]
+  );
 
   /* ── Add item helpers ────────────────────────────────────────── */
   const addService = (serviceId: string) => {
@@ -158,6 +165,12 @@ export default function InvoiceFormModal({
     );
   };
 
+  const updateItemPrice = (index: number, price: number) => {
+    setLineItems((prev) =>
+      prev.map((li, i) => (i === index ? { ...li, price: Math.max(0, Math.round(price * 100) / 100) } : li))
+    );
+  };
+
   /* ── Submit ──────────────────────────────────────────────────── */
   const handleSubmit = () => {
     const newErrors: { clientName?: string; amount?: string } = {};
@@ -182,6 +195,12 @@ export default function InvoiceFormModal({
       clientName: clientName.trim(),
       clientId: clientId.trim() || generateClientId(clientName),
       amount: finalAmount,
+      subtotal: baseSubtotal,
+      discount,
+      discountAmount,
+      afterDiscount,
+      taxAmount,
+      taxRate,
       status,
       date: new Date().toISOString().split("T")[0],
       ...(description.trim() ? { description: description.trim() } : {}),
@@ -442,15 +461,13 @@ export default function InvoiceFormModal({
                   >
                     {item.name}
                   </span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <input
                       type="number"
                       min="1"
                       value={item.quantity}
-                      onChange={(e) =>
-                        updateItemQty(idx, parseInt(e.target.value, 10) || 1)
-                      }
-                      className="w-12 px-2 py-1 rounded text-center text-xs"
+                      onChange={(e) => updateItemQty(idx, parseInt(e.target.value, 10) || 1)}
+                      className="w-10 px-1 py-1 rounded text-center text-xs"
                       style={{
                         background: "var(--color-bg-input)",
                         color: "var(--color-text-primary)",
@@ -458,8 +475,26 @@ export default function InvoiceFormModal({
                         outline: "none",
                       }}
                     />
+                    <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>×</span>
+                    <div className="flex items-center gap-0.5">
+                      <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>$</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.price}
+                        onChange={(e) => updateItemPrice(idx, parseFloat(e.target.value) || 0)}
+                        className="w-16 px-1 py-1 rounded text-right text-xs"
+                        style={{
+                          background: "var(--color-bg-input)",
+                          color: "var(--color-accent)",
+                          border: "1px solid var(--color-border-default)",
+                          outline: "none",
+                        }}
+                      />
+                    </div>
                     <span
-                      className="text-sm font-medium w-16 text-right"
+                      className="text-sm font-medium w-14 text-right"
                       style={{ color: "var(--color-accent)" }}
                     >
                       {formatPrice(item.price * item.quantity)}
@@ -567,30 +602,120 @@ export default function InvoiceFormModal({
           </div>
         </div>
 
-        {/* Amount Preview */}
-        {finalAmount > 0 && (
+        {/* Discount field */}
+        {baseSubtotal > 0 && (
           <div
-            className="flex items-center justify-between px-4 py-3 rounded-lg"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl"
             style={{
               background: "var(--color-bg-glass)",
               border: "1px solid var(--color-border-default)",
             }}
           >
-            <span
-              className="text-sm"
-              style={{ color: "var(--color-text-secondary)" }}
-            >
-              {language === "en" ? "Invoice Total" : "Total de Factura"}
+            <Tag size={14} style={{ color: "var(--color-accent)" }} />
+            <span className="text-sm flex-1" style={{ color: "var(--color-text-secondary)" }}>
+              {language === "es" ? "Descuento (%)" : "Discount (%)"}
             </span>
-            <span
-              className="text-lg font-semibold"
+            <div className="flex items-center gap-1.5">
+              {[0, 5, 10, 15, 20].map((pct) => (
+                <button
+                  key={pct}
+                  type="button"
+                  onClick={() => setDiscount(pct)}
+                  className="px-2 py-1 rounded-md text-xs font-medium transition-all cursor-pointer"
+                  style={{
+                    background: discount === pct ? "var(--color-accent)" : "var(--color-bg-glass-hover)",
+                    border: discount === pct ? "none" : "1px solid var(--color-border-default)",
+                    color: discount === pct ? "white" : "var(--color-text-secondary)",
+                  }}
+                >
+                  {pct === 0 ? "—" : `${pct}%`}
+                </button>
+              ))}
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                value={discount || ""}
+                onChange={(e) => setDiscount(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                placeholder="0"
+                className="w-12 text-center text-sm rounded-md px-2 py-1"
+                style={{
+                  background: "var(--color-bg-input)",
+                  border: "1px solid var(--color-border-default)",
+                  color: "var(--color-text-primary)",
+                  outline: "none",
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Tax breakdown preview */}
+        {baseSubtotal > 0 && (
+          <div
+            className="rounded-xl overflow-hidden"
+            style={{
+              border: "1px solid var(--color-border-accent)",
+              background: "var(--color-bg-glass)",
+            }}
+          >
+            <div className="px-4 py-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+                  {language === "es" ? "Subtotal" : "Subtotal"}
+                </span>
+                <span className="text-sm tabular-nums" style={{ color: "var(--color-text-primary)" }}>
+                  {formatPrice(baseSubtotal)}
+                </span>
+              </div>
+              {discountAmount > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm flex items-center gap-1" style={{ color: "#22c55e" }}>
+                    <Tag size={11} />
+                    {language === "es" ? `Descuento ${discount}%` : `Discount ${discount}%`}
+                  </span>
+                  <span className="text-sm tabular-nums" style={{ color: "#22c55e" }}>
+                    -{formatPrice(discountAmount)}
+                  </span>
+                </div>
+              )}
+              {discountAmount > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+                    {language === "es" ? "Después de descuento" : "After discount"}
+                  </span>
+                  <span className="text-sm tabular-nums" style={{ color: "var(--color-text-primary)" }}>
+                    {formatPrice(afterDiscount)}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+                  ITBMS (7%)
+                </span>
+                <span className="text-sm tabular-nums" style={{ color: "var(--color-text-primary)" }}>
+                  +{formatPrice(taxAmount)}
+                </span>
+              </div>
+            </div>
+            <div
+              className="flex items-center justify-between px-4 py-3"
               style={{
-                fontFamily: "var(--font-display)",
-                color: "var(--color-accent)",
+                borderTop: "1px solid var(--color-border-accent)",
+                background: "var(--color-accent-subtle)",
               }}
             >
-              {formatPrice(finalAmount)}
-            </span>
+              <span className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                {language === "es" ? "Total a cobrar" : "Invoice Total"}
+              </span>
+              <span
+                className="text-lg font-bold"
+                style={{ fontFamily: "var(--font-display)", color: "var(--color-accent)" }}
+              >
+                {formatPrice(finalAmount)}
+              </span>
+            </div>
           </div>
         )}
 

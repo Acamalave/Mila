@@ -12,8 +12,11 @@ export interface Invoice {
   items?: InvoiceItem[];
   date: string;
   dueDate?: string;
-  amount: number;
-  subtotal?: number;
+  amount: number;       // Grand total (after discount + ITBMS)
+  subtotal?: number;    // Base amount before discount and tax
+  discount?: number;    // Discount percentage applied (0-100)
+  discountAmount?: number; // Computed discount amount
+  afterDiscount?: number;  // Subtotal after discount, before tax
   taxAmount?: number;
   taxRate?: number;
   status: InvoiceStatus;

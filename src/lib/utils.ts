@@ -51,14 +51,29 @@ export function generateId(): string {
   return Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
 }
 
-const ITBMS_RATE = 0.07;
+export const ITBMS_RATE = 0.07;
 
-export function calculateTaxBreakdown(totalWithTax: number): {
+/**
+ * Calculates ITBMS (7%) forward from a base subtotal.
+ * Formula: subtotal → discount → afterDiscount → +7% ITBMS → total
+ *
+ * @param subtotal    Base amount before any discount or tax (sum of item prices)
+ * @param discountPct Discount percentage to apply (0–100), default 0
+ */
+export function calculateTaxBreakdown(
+  subtotal: number,
+  discountPct: number = 0
+): {
   subtotal: number;
+  discountAmount: number;
+  afterDiscount: number;
   taxAmount: number;
+  total: number;
   taxRate: number;
 } {
-  const subtotal = Math.round((totalWithTax / (1 + ITBMS_RATE)) * 100) / 100;
-  const taxAmount = Math.round((totalWithTax - subtotal) * 100) / 100;
-  return { subtotal, taxAmount, taxRate: ITBMS_RATE };
+  const discountAmount = Math.round(subtotal * (discountPct / 100) * 100) / 100;
+  const afterDiscount = Math.round((subtotal - discountAmount) * 100) / 100;
+  const taxAmount = Math.round(afterDiscount * ITBMS_RATE * 100) / 100;
+  const total = Math.round((afterDiscount + taxAmount) * 100) / 100;
+  return { subtotal, discountAmount, afterDiscount, taxAmount, total, taxRate: ITBMS_RATE };
 }
