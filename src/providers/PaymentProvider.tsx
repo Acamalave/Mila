@@ -121,6 +121,11 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
     async (invoiceId: string, cardId: string, amount: number, cardDetails?: CardPaymentDetails): Promise<PaymentTransaction> => {
       if (!user) throw new Error("User must be authenticated to process payment");
 
+      // Card details are required — counter payments use processCounterPayment instead
+      if (!cardDetails) {
+        throw new Error("Card details are required to process a card payment");
+      }
+
       // Call Paguelo Facil via our API route
       if (cardDetails) {
         const res = await fetch("/api/payments/process", {

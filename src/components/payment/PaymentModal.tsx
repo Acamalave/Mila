@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Check, CreditCard, ArrowLeft, Plus, X } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import CreditCardForm, { type CardFormData } from "@/components/payment/CreditCardForm";
-import { usePayment, detectCardBrand } from "@/providers/PaymentProvider";
+import { usePayment, detectCardBrand, type CardPaymentDetails } from "@/providers/PaymentProvider";
 import { useInvoices } from "@/providers/InvoiceProvider";
 import { XCircle, RefreshCw } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
@@ -96,6 +96,17 @@ export default function PaymentModal({
       setIsProcessing(true);
 
       try {
+        // Build card details for the payment gateway
+        const cardDetailsForGateway: CardPaymentDetails | undefined = saveCardData
+          ? {
+              cardNumber: saveCardData.cardNumber,
+              cardExpMonth: saveCardData.expiryMonth,
+              cardExpYear: saveCardData.expiryYear,
+              cardCvv: saveCardData.cvv,
+              cardholderName: saveCardData.cardholderName,
+            }
+          : undefined;
+
         if (saveCardData?.saveCard) {
           addCard({
             userId: user.id,
@@ -108,7 +119,7 @@ export default function PaymentModal({
           });
         }
 
-        const transaction = await processPayment(invoiceId, cardId, invoiceAmount);
+        const transaction = await processPayment(invoiceId, cardId, invoiceAmount, cardDetailsForGateway);
         markAsPaid(invoiceId, transaction.id);
 
         setStep("success");
@@ -127,13 +138,10 @@ export default function PaymentModal({
   );
 
   const handlePayFromInvoice = useCallback(() => {
-    if (wantsNewCard || savedCards.length === 0) {
-      setStep("new-card");
-      return;
-    }
-    if (!selectedCardId) return;
-    handleProcessPayment(selectedCardId);
-  }, [wantsNewCard, savedCards.length, selectedCardId, handleProcessPayment]);
+    // Always collect full card details — Paguelo Fácil doesn't tokenize saved cards,
+    // so we can't charge without the full card number and CVV.
+    setStep("new-card");
+  }, []);
 
   const handleNewCardSubmit = useCallback(
     (data: CardFormData) => {
