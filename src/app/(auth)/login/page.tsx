@@ -7,7 +7,11 @@ import { motion } from "motion/react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useStaff } from "@/providers/StaffProvider";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, User } from "lucide-react";
+
+function isPlaceholderName(name: string) {
+  return !name || /^User\s\d+$/i.test(name.trim());
+}
 
 const countryCodes = [
   { code: "+507", flag: "\u{1F1F5}\u{1F1E6}", name: "PA" },
@@ -25,8 +29,8 @@ const countryCodes = [
 
 export default function LoginPage() {
   const router = useRouter();
-  const { loginByPhone, isAuthenticated, hydrated, user } = useAuth();
-  const { t } = useLanguage();
+  const { loginByPhone, updateProfile, isAuthenticated, hydrated, user } = useAuth();
+  const { t, language } = useLanguage();
   const { getStylistByPhone } = useStaff();
 
   const [phone, setPhone] = useState("");
@@ -34,17 +38,26 @@ export default function LoginPage() {
   const [showCountries, setShowCountries] = useState(false);
   const [error, setError] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [needsName, setNeedsName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [nameError, setNameError] = useState("");
   const hasRedirected = useRef(false);
 
-  // Redirect if already authenticated
+  const doRedirect = (role: string) => {
+    if (role === "admin") router.push("/admin");
+    else if (role === "stylist") router.push("/stylist");
+    else router.push("/dashboard");
+  };
+
+  // Redirect if already authenticated and has a real name
   useEffect(() => {
-    if (hydrated && isAuthenticated && user && !hasRedirected.current) {
-      hasRedirected.current = true;
-      if (user.role === "admin") router.push("/admin");
-      else if (user.role === "stylist") router.push("/stylist");
-      else router.push("/dashboard");
+    if (hydrated && isAuthenticated && user && !hasRedirected.current && !needsName) {
+      if (!isPlaceholderName(user.name)) {
+        hasRedirected.current = true;
+        doRedirect(user.role);
+      }
     }
-  }, [hydrated, isAuthenticated, user, router]);
+  }, [hydrated, isAuthenticated, user, needsName, router]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -59,12 +72,94 @@ export default function LoginPage() {
     setIsLoggingIn(true);
     try {
       await loginByPhone(cleanPhone, selectedCountry.code);
-      // Let the useEffect handle the redirect based on user state
+      // After login, check if user needs to provide their name
+      // (checked in the useEffect below via user state update)
     } catch {
       setError("Login failed. Please try again.");
     } finally {
       setIsLoggingIn(false);
     }
+  }
+
+  // After loginByPhone resolves and user state updates, check if name is needed
+  useEffect(() => {
+    if (isAuthenticated && user && user.role === "client" && isPlaceholderName(user.name)) {
+      setNeedsName(true);
+    }
+  }, [isAuthenticated, user]);
+
+  function handleNameSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!nameInput.trim()) {
+      setNameError(language === "es" ? "El nombre es requerido" : "Name is required");
+      return;
+    }
+    updateProfile({ name: nameInput.trim() });
+    hasRedirected.current = true;
+    router.push("/dashboard");
+  }
+
+  // Name collection step — shown after successful login for new clients
+  if (needsName) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden" style={{ background: "var(--color-bg-page)" }}>
+        <div className="fixed inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 50% 30%, rgba(196, 169, 106, 0.06) 0%, transparent 60%)" }} />
+        <motion.div
+          initial={{ opacity: 0, y: 20, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full max-w-md relative z-10"
+        >
+          <div className="p-8 sm:p-10" style={{ background: "var(--color-bg-card)", borderRadius: 20, boxShadow: "var(--shadow-float)", border: "1px solid var(--color-border-default)", backdropFilter: "blur(20px)" }}>
+            <div className="text-center mb-8">
+              <div className="flex justify-center mb-4">
+                <Image src="/logo-mila-brand.png" alt="Mila Concept" width={120} height={48} className="h-10 w-auto object-contain" priority />
+              </div>
+              <div style={{ width: 40, height: 1, background: "var(--gradient-accent-h)", margin: "0 auto 20px", borderRadius: 1 }} />
+              <div className="flex justify-center mb-4">
+                <div className="p-3 rounded-full" style={{ background: "var(--color-accent-subtle)", border: "1px solid var(--color-border-accent)" }}>
+                  <User size={24} style={{ color: "var(--color-accent)" }} />
+                </div>
+              </div>
+              <h2 style={{ fontFamily: "var(--font-accent)", fontSize: "clamp(28px, 7vw, 36px)", fontWeight: 400, fontStyle: "italic", color: "var(--color-text-primary)", lineHeight: 1.1, margin: 0 }}>
+                {language === "es" ? "¿Cómo te llamas?" : "What's your name?"}
+              </h2>
+              <p style={{ fontFamily: "var(--font-display)", fontSize: 11, fontWeight: 500, color: "var(--color-text-muted)", letterSpacing: "0.12em", textTransform: "uppercase", marginTop: 10 }}>
+                {language === "es" ? "Para personalizar tu experiencia" : "To personalize your experience"}
+              </p>
+            </div>
+            <form onSubmit={handleNameSubmit} className="space-y-5">
+              <div>
+                <label className="block mb-1.5" style={{ fontFamily: "var(--font-display)", fontSize: 11, fontWeight: 500, color: "var(--color-text-secondary)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                  {language === "es" ? "Nombre completo" : "Full name"}
+                </label>
+                <input
+                  type="text"
+                  value={nameInput}
+                  onChange={(e) => { setNameInput(e.target.value); setNameError(""); }}
+                  placeholder={language === "es" ? "Ej. María González" : "E.g. Maria González"}
+                  autoFocus
+                  className="w-full px-4 py-3 rounded-lg"
+                  style={{ background: "var(--color-bg-input)", border: nameError ? "1px solid #9B4D4D" : "1px solid var(--color-border-default)", color: "var(--color-text-primary)", fontSize: 15, outline: "none", transition: "all 0.3s ease" }}
+                  onFocus={(e) => { if (!nameError) e.currentTarget.style.borderColor = "var(--color-accent)"; e.currentTarget.style.boxShadow = "0 0 0 2px var(--color-accent-glow)"; }}
+                  onBlur={(e) => { if (!nameError) e.currentTarget.style.borderColor = "var(--color-border-default)"; e.currentTarget.style.boxShadow = "none"; }}
+                />
+                {nameError && <p className="mt-1 text-sm" style={{ color: "#9B4D4D" }}>{nameError}</p>}
+              </div>
+              <motion.button
+                type="submit"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full py-3.5 rounded-xl"
+                style={{ background: "var(--gradient-accent)", color: "var(--color-text-inverse)", boxShadow: "var(--shadow-glow)", border: "none", cursor: "pointer", fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" as const }}
+              >
+                {language === "es" ? "Continuar" : "Continue"}
+              </motion.button>
+            </form>
+          </div>
+        </motion.div>
+      </div>
+    );
   }
 
   return (

@@ -116,7 +116,7 @@ function createUserFromPhone(phone: string, countryCode: string, providedName?: 
   // Regular user: always a client (roles are managed from Staff panel, not here)
   return {
     id: determinedId,
-    name: existingUser?.name || providedName || `User ${phone.slice(-4)}`,
+    name: (existingUser?.name && !existingUser.name.startsWith("User ")) ? existingUser.name : (providedName || existingUser?.name || `User ${phone.slice(-4)}`),
     phone,
     countryCode,
     role: existingUser?.role || "client",
