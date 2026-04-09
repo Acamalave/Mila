@@ -50,18 +50,17 @@ export default function AdminClientsPage() {
 
     loadLocal();
 
-    const deletedUserIds = getStoredData<string[]>("mila-users-deleted", []);
-    const deletedUserSet = new Set(deletedUserIds);
-    const deletedBookingIds = getStoredData<string[]>("mila-bookings-deleted", []);
-    const deletedBookingSet = new Set(deletedBookingIds);
+    const getDeletedUserSet = () => new Set(getStoredData<string[]>("mila-users-deleted", []));
+    const getDeletedBookingSet = () => new Set(getStoredData<string[]>("mila-bookings-deleted", []));
 
     // Eagerly fetch ALL users from Firestore on mount
     getCollection<User>("users").then((firestoreUsers) => {
       if (firestoreUsers.length > 0) {
+        const deletedSet = getDeletedUserSet();
         const localUsers = getStoredData<User[]>("mila-users", []);
         const merged = new Map<string, User>();
-        for (const u of localUsers) if (u.id && !deletedUserSet.has(u.id)) merged.set(u.id, u);
-        for (const u of firestoreUsers) if (u.id && !deletedUserSet.has(u.id)) merged.set(u.id, u);
+        for (const u of localUsers) if (u.id && !deletedSet.has(u.id)) merged.set(u.id, u);
+        for (const u of firestoreUsers) if (u.id && !deletedSet.has(u.id)) merged.set(u.id, u);
         const allUsers = Array.from(merged.values());
         setUsers(allUsers);
         setStoredData("mila-users", allUsers);
@@ -70,10 +69,11 @@ export default function AdminClientsPage() {
 
     // Subscribe to Firestore real-time updates for users
     const unsubUsers = onCollectionChange<User>("users", (firestoreUsers) => {
+      const deletedSet = getDeletedUserSet();
       const localUsers = getStoredData<User[]>("mila-users", []);
       const merged = new Map<string, User>();
-      for (const u of localUsers) if (u.id && !deletedUserSet.has(u.id)) merged.set(u.id, u);
-      for (const u of firestoreUsers) if (u.id && !deletedUserSet.has(u.id)) merged.set(u.id, u);
+      for (const u of localUsers) if (u.id && !deletedSet.has(u.id)) merged.set(u.id, u);
+      for (const u of firestoreUsers) if (u.id && !deletedSet.has(u.id)) merged.set(u.id, u);
       const allUsers = Array.from(merged.values());
       setUsers(allUsers);
       setStoredData("mila-users", allUsers);
@@ -81,10 +81,11 @@ export default function AdminClientsPage() {
 
     // Subscribe to Firestore real-time updates for bookings
     const unsubBookings = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
+      const deletedSet = getDeletedBookingSet();
       const localBookings = getStoredData<Booking[]>("mila-bookings", []);
       const merged = new Map<string, Booking>();
-      for (const b of localBookings) if (b.id && !deletedBookingSet.has(b.id)) merged.set(b.id, b);
-      for (const b of firestoreBookings) if (b.id && !deletedBookingSet.has(b.id)) merged.set(b.id, b);
+      for (const b of localBookings) if (b.id && !deletedSet.has(b.id)) merged.set(b.id, b);
+      for (const b of firestoreBookings) if (b.id && !deletedSet.has(b.id)) merged.set(b.id, b);
       const allBookings = Array.from(merged.values());
       setBookings(allBookings);
       setStoredData("mila-bookings", allBookings);
@@ -199,7 +200,7 @@ export default function AdminClientsPage() {
     if (!deletedIds.includes(deleteConfirmId)) {
       const next = [...deletedIds, deleteConfirmId];
       setStoredData("mila-users-deleted", next);
-      setDocument("staff-config", "users-deleted", { ids: next }).catch(() => {});
+      setDocument("users-config", "deleted", { ids: next }).catch(() => {});
     }
     deleteDocument("users", deleteConfirmId).catch(() => {});
     if (selectedUser?.id === deleteConfirmId) setSelectedUser(null);
