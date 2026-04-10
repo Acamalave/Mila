@@ -15,6 +15,7 @@ import {
   PackageOpen,
 } from "lucide-react";
 import type { InvoiceItem } from "@/types";
+import { useStaff } from "@/providers/StaffProvider";
 
 interface POSItemSelectorProps {
   items: InvoiceItem[];
@@ -27,7 +28,19 @@ export default function POSItemSelector({
 }: POSItemSelectorProps) {
   const { language, t } = useLanguage();
   const { allProducts } = useProducts();
+  const { allStylists } = useStaff();
   const [tab, setTab] = useState<"services" | "products">("services");
+
+  const updateItemStylist = (index: number, stylistId: string) => {
+    const stylist = allStylists.find((s) => s.id === stylistId);
+    onItemsChange(
+      items.map((li, i) =>
+        i === index
+          ? { ...li, stylistId: stylistId || undefined, stylistName: stylist?.name || undefined }
+          : li
+      )
+    );
+  };
 
   const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
@@ -278,7 +291,7 @@ export default function POSItemSelector({
           {items.map((item, idx) => (
             <div
               key={`${item.type}-${item.id}-${idx}`}
-              className="flex items-center gap-3 px-4 py-3"
+              className="px-4 py-3"
               style={{
                 borderBottom:
                   idx < items.length - 1
@@ -286,6 +299,7 @@ export default function POSItemSelector({
                     : "none",
               }}
             >
+              <div className="flex items-center gap-3">
               <div
                 className="flex items-center justify-center flex-shrink-0"
                 style={{
@@ -370,6 +384,31 @@ export default function POSItemSelector({
               >
                 <Trash2 size={14} />
               </button>
+              </div>
+              {/* Stylist selector — services only */}
+              {item.type === "service" && allStylists.length > 0 && (
+                <div className="mt-1.5 flex items-center gap-2 pl-10">
+                  <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                    {language === "es" ? "Estilista:" : "Stylist:"}
+                  </span>
+                  <select
+                    value={item.stylistId ?? ""}
+                    onChange={(e) => updateItemStylist(idx, e.target.value)}
+                    className="text-xs rounded-md px-2 py-1 flex-1"
+                    style={{
+                      background: "var(--color-bg-input)",
+                      border: "1px solid var(--color-border-default)",
+                      color: item.stylistId ? "var(--color-text-primary)" : "var(--color-text-muted)",
+                      outline: "none",
+                    }}
+                  >
+                    <option value="">{language === "es" ? "Sin asignar" : "Unassigned"}</option>
+                    {allStylists.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           ))}
           {/* Subtotal bar */}

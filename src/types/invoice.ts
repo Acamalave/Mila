@@ -35,4 +35,6 @@ export interface InvoiceItem {
   name: string;
   price: number;
   quantity: number;
+  stylistId?: string;
+  stylistName?: string;
 }

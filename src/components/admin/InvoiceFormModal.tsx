@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useProducts } from "@/providers/ProductProvider";
+import { useStaff } from "@/providers/StaffProvider";
 import { services } from "@/data/services";
 import { formatPrice, calculateTaxBreakdown } from "@/lib/utils";
 import { Plus, Trash2, ShoppingBag, Scissors, Tag } from "lucide-react";
@@ -34,6 +35,7 @@ export default function InvoiceFormModal({
 }: InvoiceFormModalProps) {
   const { language, t } = useLanguage();
   const { allProducts } = useProducts();
+  const { allStylists } = useStaff();
   const isEditing = !!invoice;
 
   const [clientName, setClientName] = useState("");
@@ -168,6 +170,17 @@ export default function InvoiceFormModal({
   const updateItemPrice = (index: number, price: number) => {
     setLineItems((prev) =>
       prev.map((li, i) => (i === index ? { ...li, price: Math.max(0, Math.round(price * 100) / 100) } : li))
+    );
+  };
+
+  const updateItemStylist = (index: number, stylistId: string) => {
+    const stylist = allStylists.find((s) => s.id === stylistId);
+    setLineItems((prev) =>
+      prev.map((li, i) =>
+        i === index
+          ? { ...li, stylistId: stylistId || undefined, stylistName: stylist?.name || undefined }
+          : li
+      )
     );
   };
 
@@ -432,7 +445,7 @@ export default function InvoiceFormModal({
               {lineItems.map((item, idx) => (
                 <div
                   key={`${item.type}-${item.id}-${idx}`}
-                  className="flex items-center gap-3 px-4 py-2.5"
+                  className="px-4 py-2.5"
                   style={{
                     borderBottom:
                       idx < lineItems.length - 1
@@ -440,6 +453,7 @@ export default function InvoiceFormModal({
                         : "none",
                   }}
                 >
+                  <div className="flex items-center gap-3">
                   <div
                     className="flex items-center justify-center flex-shrink-0"
                     style={{
@@ -511,6 +525,31 @@ export default function InvoiceFormModal({
                       <Trash2 size={14} />
                     </button>
                   </div>
+                  </div>
+                  {/* Stylist selector — services only */}
+                  {item.type === "service" && allStylists.length > 0 && (
+                    <div className="mt-1 flex items-center gap-2 pl-8">
+                      <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                        {language === "es" ? "Estilista:" : "Stylist:"}
+                      </span>
+                      <select
+                        value={item.stylistId ?? ""}
+                        onChange={(e) => updateItemStylist(idx, e.target.value)}
+                        className="text-xs rounded-md px-2 py-1 flex-1"
+                        style={{
+                          background: "var(--color-bg-input)",
+                          border: "1px solid var(--color-border-default)",
+                          color: item.stylistId ? "var(--color-text-primary)" : "var(--color-text-muted)",
+                          outline: "none",
+                        }}
+                      >
+                        <option value="">{language === "es" ? "Sin asignar" : "Unassigned"}</option>
+                        {allStylists.map((s) => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
