@@ -7,7 +7,42 @@ import { setDocument } from "@/lib/firestore";
 // Receives payment status updates from Paguelo Facil.
 // Updates the invoice status in Firestore so real-time listeners pick it up.
 // Returns 200 immediately so the gateway does not retry.
+//
+// Authentication
+// --------------
+// Paguelo Facil does not sign webhook bodies; the only proof of origin is
+// either (a) a shared-secret query param / header configured in the merchant
+// dashboard, or (b) the source IP. We check both, configurable via env:
+//   PAGUELO_WEBHOOK_SECRET — required, sent as `?secret=…` or `X-Webhook-Secret`
+//   PAGUELO_WEBHOOK_IPS    — optional comma-separated allow-list of source IPs
+// Without a secret configured we refuse to mark anything as paid (silent
+// no-op), so misconfiguration is fail-closed instead of fail-open.
 // ---------------------------------------------------------------------------
+
+function isAuthorized(request: NextRequest): boolean {
+  const expectedSecret = (process.env.PAGUELO_WEBHOOK_SECRET ?? "").trim();
+  if (!expectedSecret) {
+    console.warn("[Webhook] PAGUELO_WEBHOOK_SECRET is not set — refusing all webhook updates");
+    return false;
+  }
+
+  const headerSecret = request.headers.get("x-webhook-secret")?.trim();
+  const querySecret = request.nextUrl.searchParams.get("secret")?.trim();
+  const provided = headerSecret || querySecret || "";
+  if (provided !== expectedSecret) return false;
+
+  const allowList = (process.env.PAGUELO_WEBHOOK_IPS ?? "")
+    .split(",")
+    .map((ip) => ip.trim())
+    .filter(Boolean);
+  if (allowList.length === 0) return true;
+
+  const sourceIp =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    request.headers.get("x-real-ip")?.trim() ??
+    "";
+  return allowList.includes(sourceIp);
+}
 
 interface WebhookPayload {
   codOper?: string;
@@ -36,6 +71,11 @@ function mapStatus(pgfStatus: string | undefined): "paid" | "failed" | null {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!isAuthorized(request)) {
+      console.warn("[Webhook] Rejected unauthorized webhook call");
+      return NextResponse.json({ received: false }, { status: 401 });
+    }
+
     const payload: WebhookPayload = await request.json();
 
     console.log("[Webhook] Paguelo Facil payment update received:", {

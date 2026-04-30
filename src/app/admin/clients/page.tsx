@@ -91,24 +91,22 @@ export default function AdminClientsPage() {
       setStoredData("mila-bookings", allBookings);
     });
 
-    // Listen for localStorage changes from other tabs (same browser)
+    // Listen for localStorage changes from OTHER tabs (same browser).
+    // Same-tab updates arrive via the Firestore listener above, so we don't
+    // need to poll — the previous setInterval(3000) caused flicker and could
+    // overwrite fresh remote state with stale local state.
     const handleStorage = (e: StorageEvent) => {
       if (e.key === "mila-users") {
-        setUsers(getStoredData<User[]>("mila-users", []));
+        const deletedSet = getDeletedUserSet();
+        setUsers(getStoredData<User[]>("mila-users", []).filter((u) => u.id && !deletedSet.has(u.id)));
       }
     };
     window.addEventListener("storage", handleStorage);
-
-    // Poll localStorage every 3s to catch same-tab changes
-    const poll = setInterval(() => {
-      setUsers(getStoredData<User[]>("mila-users", []));
-    }, 3000);
 
     return () => {
       unsubUsers();
       unsubBookings();
       window.removeEventListener("storage", handleStorage);
-      clearInterval(poll);
     };
   }, []);
 

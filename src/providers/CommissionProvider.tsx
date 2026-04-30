@@ -9,18 +9,25 @@ import {
   useEffect,
   type ReactNode,
 } from "react";
-import type { CommissionRecord, Booking, Invoice } from "@/types";
+import type { CommissionRecord, Booking, Invoice, Stylist } from "@/types";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { useEventBus } from "@/providers/EventBusProvider";
-import { setDocument, onCollectionChange } from "@/lib/firestore";
+import { setDocument, deleteDocument, onCollectionChange } from "@/lib/firestore";
 import { useStaff } from "@/providers/StaffProvider";
-import { services } from "@/data/services";
+import { getEffectivePrice } from "@/lib/service-overrides";
+import {
+  getDeletedSet,
+  markDeleted,
+  pushLocalDeletes,
+  subscribeDeletedSet,
+} from "@/lib/deleted-set";
 
 interface CommissionContextValue {
   commissions: CommissionRecord[];
   generateCommission: (booking: Booking) => void;
   markCommissionPaid: (commissionId: string) => void;
   markAllPaidForStylist: (stylistId: string) => void;
+  deleteCommission: (commissionId: string) => void;
   getCommissionsForStylist: (stylistId: string) => CommissionRecord[];
   getStylistEarnings: (stylistId: string, period?: "week" | "month" | "all") => {
     total: number;
@@ -39,6 +46,11 @@ function getStartOfPeriod(period: "week" | "month"): Date {
     return new Date(now.getFullYear(), now.getMonth(), diff, 0, 0, 0);
   }
   return new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+}
+
+function commissionRateFor(stylist: Stylist, serviceId: string): number {
+  const override = stylist.serviceCommissions?.find((sc) => sc.serviceId === serviceId);
+  return override?.percentage ?? stylist.defaultCommission ?? 40;
 }
 
 export function CommissionProvider({ children }: { children: ReactNode }) {
@@ -67,23 +79,19 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
       const newRecords: CommissionRecord[] = [];
 
       for (const serviceId of booking.serviceIds) {
-        const service = services.find((s) => s.id === serviceId);
-        if (!service) continue;
+        // Use admin-overridden price (priceOverrides) — falls back to seed price
+        const servicePrice = getEffectivePrice(serviceId);
+        if (servicePrice <= 0) continue;
 
-        // Find commission rate: specific service override > default
-        const serviceOverride = stylist.serviceCommissions?.find(
-          (sc) => sc.serviceId === serviceId
-        );
-        const rate = serviceOverride?.percentage ?? stylist.defaultCommission ?? 40;
-
-        const commissionAmount = (service.price * rate) / 100;
+        const rate = commissionRateFor(stylist, serviceId);
+        const commissionAmount = (servicePrice * rate) / 100;
 
         newRecords.push({
           id: `comm-${generateId()}`,
           stylistId: stylist.id,
           bookingId: booking.id,
           serviceId,
-          serviceAmount: service.price,
+          serviceAmount: servicePrice,
           commissionRate: rate,
           commissionAmount,
           status: "pending",
@@ -106,37 +114,42 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
     [allStylists, commissions, persist]
   );
 
+  // Generate commissions for a paid invoice — per-item stylist attribution.
+  // Each invoice item may carry its own stylistId (set in POS / billing modal);
+  // when missing, falls back to the invoice-level stylistId. This is what the
+  // "per-service stylist assignment" feature needs to correctly split earnings
+  // when a single invoice contains services from multiple stylists.
   const generateCommissionFromInvoice = useCallback(
     (invoice: Invoice) => {
       if (invoice.status !== "paid") return;
-      if (!invoice.stylistId) return;
       if (!invoice.items || invoice.items.length === 0) return;
 
-      // Check if commissions already exist for this invoice
+      // Idempotency: don't double-generate for the same invoice
       const existing = commissions.some((c) => c.invoiceId === invoice.id);
       if (existing) return;
-
-      const stylist = allStylists.find((s) => s.id === invoice.stylistId);
-      if (!stylist) return;
 
       const newRecords: CommissionRecord[] = [];
 
       for (const item of invoice.items) {
         if (item.type !== "service") continue;
 
-        // Find commission rate: specific service override > default
-        const serviceOverride = stylist.serviceCommissions?.find(
-          (sc) => sc.serviceId === item.id
-        );
-        const rate = serviceOverride?.percentage ?? stylist.defaultCommission ?? 40;
-        const commissionAmount = (item.price * item.quantity * rate) / 100;
+        // Per-item attribution wins; fall back to invoice-level stylistId
+        const itemStylistId = item.stylistId ?? invoice.stylistId;
+        if (!itemStylistId) continue;
+
+        const stylist = allStylists.find((s) => s.id === itemStylistId);
+        if (!stylist) continue;
+
+        const rate = commissionRateFor(stylist, item.id);
+        const lineTotal = item.price * item.quantity;
+        const commissionAmount = (lineTotal * rate) / 100;
 
         newRecords.push({
           id: `comm-${generateId()}`,
           stylistId: stylist.id,
           invoiceId: invoice.id,
           serviceId: item.id,
-          serviceAmount: item.price * item.quantity,
+          serviceAmount: lineTotal,
           commissionRate: rate,
           commissionAmount,
           status: "pending",
@@ -146,7 +159,7 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
 
       if (newRecords.length > 0) {
         setCommissions((prev) => {
-          // Double-check no duplicates
+          // Double-check no duplicates (race against concurrent invoice:paid)
           if (prev.some((c) => c.invoiceId === invoice.id)) return prev;
           const next = [...prev, ...newRecords];
           persist(next);
@@ -197,6 +210,16 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
     [persist]
   );
 
+  const deleteCommission = useCallback((commissionId: string) => {
+    setCommissions((prev) => {
+      const next = prev.filter((c) => c.id !== commissionId);
+      persist(next);
+      return next;
+    });
+    markDeleted("commissions", commissionId);
+    deleteDocument("commissions", commissionId).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
+  }, [persist]);
+
   const getCommissionsForStylist = useCallback(
     (stylistId: string) =>
       commissions
@@ -229,22 +252,22 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
 
   // Firestore real-time sync
   useEffect(() => {
-    const deletedIds = getStoredData<string[]>("mila-commissions-deleted", []);
-    const deletedSet = new Set(deletedIds);
+    pushLocalDeletes("commissions");
+    const unsubDeleted = subscribeDeletedSet("commissions");
 
     const unsub = onCollectionChange<CommissionRecord>("commissions", (firestoreCommissions) => {
-      if (firestoreCommissions.length > 0) {
-        setCommissions((prev) => {
-          const merged = new Map<string, CommissionRecord>();
-          for (const c of prev) if (!deletedSet.has(c.id)) merged.set(c.id, c);
-          for (const c of firestoreCommissions) if (!deletedSet.has(c.id)) merged.set(c.id, c);
-          const next = Array.from(merged.values());
-          persist(next);
-          return next;
-        });
-      }
+      // Re-read deleted set fresh — closures over a snapshot would miss runtime deletes
+      const currentDeleted = getDeletedSet("commissions");
+      setCommissions((prev) => {
+        const merged = new Map<string, CommissionRecord>();
+        for (const c of prev) if (!currentDeleted.has(c.id)) merged.set(c.id, c);
+        for (const c of firestoreCommissions) if (!currentDeleted.has(c.id)) merged.set(c.id, c);
+        const next = Array.from(merged.values());
+        persist(next);
+        return next;
+      });
     });
-    return () => unsub();
+    return () => { unsub(); unsubDeleted(); };
   }, [persist]);
 
   // Listen for booking updates to auto-generate commissions
@@ -262,7 +285,7 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsub = on("invoice:paid", (payload) => {
       const invoice = payload as Invoice;
-      if (invoice?.status === "paid" && invoice.stylistId) {
+      if (invoice?.status === "paid") {
         generateCommissionFromInvoice(invoice);
       }
     });
@@ -275,10 +298,11 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
       generateCommission,
       markCommissionPaid,
       markAllPaidForStylist,
+      deleteCommission,
       getCommissionsForStylist,
       getStylistEarnings,
     }),
-    [commissions, generateCommission, markCommissionPaid, markAllPaidForStylist, getCommissionsForStylist, getStylistEarnings]
+    [commissions, generateCommission, markCommissionPaid, markAllPaidForStylist, deleteCommission, getCommissionsForStylist, getStylistEarnings]
   );
 
   return (

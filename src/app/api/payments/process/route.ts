@@ -30,8 +30,31 @@ const REQUIRED_FIELDS: (keyof ProcessPaymentBody)[] = [
   "cardCvv",
 ];
 
+// In-memory idempotency cache. Survives within a single Lambda warm instance,
+// not across cold starts — good enough to dedupe a double-clicked Pay button
+// inside a single user session. Persist to Firestore for cross-instance reuse
+// if/when this becomes a problem.
+const idempotencyCache = new Map<string, { expires: number; response: unknown; status: number }>();
+const IDEMPOTENCY_TTL_MS = 5 * 60 * 1000;
+
+function pruneIdempotencyCache(): void {
+  const now = Date.now();
+  for (const [key, entry] of idempotencyCache.entries()) {
+    if (entry.expires < now) idempotencyCache.delete(key);
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
+    const idempotencyKey = request.headers.get("idempotency-key")?.trim();
+    if (idempotencyKey) {
+      pruneIdempotencyCache();
+      const cached = idempotencyCache.get(idempotencyKey);
+      if (cached) {
+        return NextResponse.json(cached.response, { status: cached.status });
+      }
+    }
+
     const body: ProcessPaymentBody = await request.json();
 
     // --- Validation -----------------------------------------------------------
@@ -72,23 +95,37 @@ export async function POST(request: NextRequest) {
     if (!result.success) {
       // 402 Payment Required for declined / gateway-level failures
       const statusCode = result.status === "ERROR" ? 500 : 402;
-      return NextResponse.json(
-        {
-          success: false,
-          error: result.message,
-          status: result.status,
-          transactionId: result.transactionId,
-        },
-        { status: statusCode }
-      );
+      const errorPayload = {
+        success: false,
+        error: result.message,
+        status: result.status,
+        transactionId: result.transactionId,
+      };
+      // Cache failures too — a double-click after a decline shouldn't re-charge
+      if (idempotencyKey) {
+        idempotencyCache.set(idempotencyKey, {
+          expires: Date.now() + IDEMPOTENCY_TTL_MS,
+          response: errorPayload,
+          status: statusCode,
+        });
+      }
+      return NextResponse.json(errorPayload, { status: statusCode });
     }
 
-    return NextResponse.json({
+    const successPayload = {
       success: true,
       transactionId: result.transactionId,
       status: result.status,
       message: result.message,
-    });
+    };
+    if (idempotencyKey) {
+      idempotencyCache.set(idempotencyKey, {
+        expires: Date.now() + IDEMPOTENCY_TTL_MS,
+        response: successPayload,
+        status: 200,
+      });
+    }
+    return NextResponse.json(successPayload);
   } catch (error: unknown) {
     console.error("[API] /api/payments/process error:", error);
     return NextResponse.json(

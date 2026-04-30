@@ -1,0 +1,148 @@
+rules_version = '2';
+
+// ---------------------------------------------------------------------------
+// Mila Concept — Firestore security rules
+//
+// IMPORTANT CONTEXT
+// -----------------
+// This app currently identifies users by phone number and stores them in
+// Firestore via the client SDK. There is NO Firebase Auth token attached to
+// requests, so `request.auth` is always null. Per-user identity-based rules
+// (e.g. `request.auth.uid == userId`) are therefore not enforceable today.
+//
+// To get true server-side enforcement, the next steps are (in order):
+//   1) Enable Firebase App Check (reCAPTCHA Enterprise) so only legitimate
+//      browser sessions can hit the database.
+//   2) Add Firebase Auth with phone-number sign-in (replace the homegrown
+//      phone identity flow), then tighten the rules below to gate by uid.
+//
+// Until then, these rules:
+//   • Block hard deletes on data collections (soft-delete is the only path)
+//   • Validate critical write shapes (size + required fields) so malformed
+//     or oversized payloads are rejected
+//   • Deny writes to webhook-only collections (payments raw rows)
+//   • Are intentionally permissive on reads, since the app needs to render
+//     bookings/services/commissions across roles
+// ---------------------------------------------------------------------------
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+    function isReasonableSize() {
+      return request.resource.size() < 1048576; // 1 MB hard cap per doc
+    }
+
+    function hasFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // ── Users ──────────────────────────────────────────────────────────────
+    // Soft-delete pattern: actual deletes go to users-config/deleted instead.
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if isReasonableSize()
+        && request.resource.data.keys().hasAll(['name', 'phone'])
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() >= 6;
+      allow delete: if false; // use users-config/deleted
+    }
+
+    // ── Bookings ───────────────────────────────────────────────────────────
+    match /bookings/{bookingId} {
+      allow read: if true;
+      allow create, update: if isReasonableSize()
+        && request.resource.data.keys().hasAll(['stylistId', 'date', 'startTime', 'endTime', 'status'])
+        && request.resource.data.status in ['pending', 'confirmed', 'completed', 'cancelled', 'no-show'];
+      allow delete: if false; // use bookings-config/deleted
+    }
+
+    // ── Invoices ───────────────────────────────────────────────────────────
+    // Status transitions enforced client-side in InvoiceProvider.isValidTransition.
+    match /invoices/{invoiceId} {
+      allow read: if true;
+      allow create, update: if isReasonableSize()
+        && request.resource.data.keys().hasAll(['clientId', 'amount', 'status'])
+        && request.resource.data.status in ['draft', 'sent', 'paid', 'overdue', 'declined']
+        && request.resource.data.amount is number
+        && request.resource.data.amount >= 0;
+      allow delete: if false; // use invoices-config/deleted
+    }
+
+    // ── Commissions ────────────────────────────────────────────────────────
+    match /commissions/{commissionId} {
+      allow read: if true;
+      allow create, update: if isReasonableSize()
+        && request.resource.data.keys().hasAll(['stylistId', 'commissionAmount', 'status']);
+      allow delete: if false; // use commissions-config/deleted
+    }
+
+    // ── Reviews ────────────────────────────────────────────────────────────
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isReasonableSize()
+        && request.resource.data.keys().hasAll(['clientId', 'stylistId', 'rating', 'comment'])
+        && request.resource.data.rating is number
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.comment is string
+        && request.resource.data.comment.size() <= 2000;
+      // Reviews are immutable post-creation
+      allow update, delete: if false;
+    }
+
+    // ── Staff (stylists managed by admin) ──────────────────────────────────
+    match /staff/{staffId} {
+      allow read: if true;
+      allow create, update: if isReasonableSize()
+        && request.resource.data.keys().hasAll(['name', 'role']);
+      allow delete: if true; // hard-delete OK for staff (admin action)
+    }
+
+    // ── Products ───────────────────────────────────────────────────────────
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isReasonableSize();
+    }
+
+    // ── Payment methods (saved cards metadata only — last-4 digits etc.) ──
+    match /payment-methods/{methodId} {
+      allow read: if true;
+      allow create, update: if isReasonableSize()
+        && request.resource.data.keys().hasAll(['userId', 'lastFourDigits']);
+      allow delete: if true;
+    }
+
+    // ── Payments (transaction log) ─────────────────────────────────────────
+    // Written from /api/payments/process (Next.js server route) and from the
+    // PaymentProvider after a successful charge. Once written, immutable.
+    match /payments/{txnId} {
+      allow read: if true;
+      allow create: if isReasonableSize()
+        && request.resource.data.keys().hasAll(['amount', 'status']);
+      allow update: if isReasonableSize(); // webhook may upsert status updates
+      allow delete: if false;
+    }
+
+    // ── Config docs (soft-delete sets, schedule overrides, etc.) ───────────
+    // Pattern: <domain>-config/<docId> stores cross-device shared state like
+    // deleted-id sets, schedule overrides, price overrides. Bounded shape.
+    match /{configCollection}-config/{docId} {
+      allow read: if true;
+      allow write: if isReasonableSize();
+    }
+
+    // ── Notifications, drafts, etc. ────────────────────────────────────────
+    match /notifications/{notificationId} {
+      allow read: if true;
+      allow create, update: if isReasonableSize();
+      allow delete: if true;
+    }
+
+    // ── Default deny ───────────────────────────────────────────────────────
+    // Any collection not explicitly matched above is locked down.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

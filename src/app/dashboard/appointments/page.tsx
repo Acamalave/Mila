@@ -8,6 +8,7 @@ import { useEventBus } from "@/providers/EventBusProvider";
 import { useAuth } from "@/providers/AuthProvider";
 import { getStoredData, setStoredData, formatPrice } from "@/lib/utils";
 import { setDocument, onCollectionChange } from "@/lib/firestore";
+import { getDeletedSet } from "@/lib/deleted-set";
 import { formatShortDate, formatTime } from "@/lib/date-utils";
 import { services } from "@/data/services";
 import { useStaff } from "@/providers/StaffProvider";
@@ -44,11 +45,9 @@ export default function AppointmentsPage() {
   useEffect(() => {
     if (!user) return;
 
-    const deletedIds = getStoredData<string[]>("mila-bookings-deleted", []);
-    const deletedSet = new Set(deletedIds);
-
+    // Re-read deleted set fresh inside the helper so cross-device deletes propagate
     const isMyBooking = (b: Booking) =>
-      !deletedSet.has(b.id) &&
+      !getDeletedSet("bookings").has(b.id) &&
       (b.clientId === user.id ||
         (b.guestPhone && b.guestPhone === user.phone));
 
@@ -56,21 +55,14 @@ export default function AppointmentsPage() {
     setAppointments(stored);
 
     const unsub = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
-      if (firestoreBookings.length > 0) {
-        setAppointments((prev) => {
-          const merged = new Map<string, Booking>();
-          for (const b of prev) if (isMyBooking(b)) merged.set(b.id, b);
-          for (const b of firestoreBookings) if (isMyBooking(b)) merged.set(b.id, b);
-          const next = Array.from(merged.values());
-          // Persist all bookings (unfiltered) to shared localStorage for admin/stylist use
-          const all = getStoredData<Booking[]>("mila-bookings", []);
-          const allMerged = new Map<string, Booking>();
-          for (const b of all) allMerged.set(b.id, b);
-          for (const b of firestoreBookings) allMerged.set(b.id, b);
-          setStoredData("mila-bookings", Array.from(allMerged.values()));
-          return next;
-        });
-      }
+      const currentDeleted = getDeletedSet("bookings");
+      // Always reflect Firestore — including the empty-array case (all deleted)
+      const all = getStoredData<Booking[]>("mila-bookings", []);
+      const allMerged = new Map<string, Booking>();
+      for (const b of all) if (!currentDeleted.has(b.id)) allMerged.set(b.id, b);
+      for (const b of firestoreBookings) if (!currentDeleted.has(b.id)) allMerged.set(b.id, b);
+      setStoredData("mila-bookings", Array.from(allMerged.values()));
+      setAppointments(Array.from(allMerged.values()).filter(isMyBooking));
     });
     return () => unsub();
   }, [user]);

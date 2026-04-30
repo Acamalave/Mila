@@ -1,41 +1,28 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { motion } from "motion/react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useStaff } from "@/providers/StaffProvider";
-import { getStoredData } from "@/lib/utils";
+import { useReviews } from "@/providers/ReviewProvider";
 import { formatShortDate } from "@/lib/date-utils";
 import Card from "@/components/ui/Card";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
 import { Star, MessageSquare } from "lucide-react";
 
-interface Review {
-  id: string;
-  stylistId: string;
-  clientName: string;
-  rating: number;
-  comment: { en: string; es: string } | string;
-  date: string;
-  serviceId?: string;
-}
-
 export default function StylistReviewsPage() {
   const { user } = useAuth();
   const { language, t } = useLanguage();
   const { getStylistByPhone } = useStaff();
+  const { getReviewsForStylist } = useReviews();
 
   const stylist = user?.phone ? getStylistByPhone(user.phone) : undefined;
 
-  const [reviews, setReviews] = useState<Review[]>([]);
-
-  useEffect(() => {
-    const allReviews = getStoredData<Review[]>("mila-reviews", []);
-    if (stylist) {
-      setReviews(allReviews.filter((r) => r.stylistId === stylist.id));
-    }
-  }, [stylist]);
+  const reviews = useMemo(
+    () => (stylist ? getReviewsForStylist(stylist.id) : []),
+    [stylist, getReviewsForStylist]
+  );
 
   const averageRating = useMemo(() => {
     if (reviews.length === 0) return stylist?.rating ?? 0;
@@ -45,13 +32,8 @@ export default function StylistReviewsPage() {
 
   const totalReviews = reviews.length > 0 ? reviews.length : (stylist?.reviewCount ?? 0);
 
-  const getCommentText = (comment: { en: string; es: string } | string): string => {
-    if (typeof comment === "string") return comment;
-    return comment[language as "en" | "es"] ?? comment.en;
-  };
-
   const sortedReviews = useMemo(
-    () => [...reviews].sort((a, b) => b.date.localeCompare(a.date)),
+    () => [...reviews].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [reviews]
   );
 
@@ -126,11 +108,11 @@ export default function StylistReviewsPage() {
                     </div>
                   </div>
                   <span className="text-xs text-text-muted whitespace-nowrap">
-                    {formatShortDate(review.date, language)}
+                    {formatShortDate(review.createdAt.split("T")[0], language)}
                   </span>
                 </div>
                 <p className="text-sm text-text-secondary leading-relaxed">
-                  {getCommentText(review.comment)}
+                  {review.comment}
                 </p>
               </div>
             </Card>

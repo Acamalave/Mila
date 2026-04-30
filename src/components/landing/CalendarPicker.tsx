@@ -137,7 +137,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
     return `${startMonth} ${startDay} - ${endMonth} ${endDay}, ${year}`;
   }, [currentWeekStart, language, locale]);
 
-  // Check if a date is available based on stylist schedule
+  // Check if a date is available based on stylist schedule + blocked dates
   const isDayAvailable = useCallback(
     (date: Date): boolean => {
       if (!stylist) return false;
@@ -146,7 +146,11 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
       const schedule = stylist.schedule.find(
         (s) => s.dayOfWeek === dayOfWeek && s.isAvailable
       );
-      return !!schedule;
+      if (!schedule) return false;
+      // Stylist-managed time off (vacation, day off): "YYYY-MM-DD" strings
+      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      if (stylist.blockedDates?.includes(dateStr)) return false;
+      return true;
     },
     [stylist]
   );
@@ -154,6 +158,8 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
   // Generate time slots for selected date, filtering out conflicts with existing bookings
   const timeSlots = useMemo((): TimeSlot[] => {
     if (!state.selectedDate || !stylist) return [];
+    // Honor blocked dates for time slots too
+    if (stylist.blockedDates?.includes(state.selectedDate)) return [];
     const date = new Date(state.selectedDate + "T12:00:00");
     const dayOfWeek = getDay(date);
     const schedule = stylist.schedule.find(

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
+import { useAuth } from "@/providers/AuthProvider";
 import { CreditCard, Lock, CheckCircle, AlertCircle, X } from "lucide-react";
 import type { ServiceDepositConfig } from "@/types/service";
 
@@ -30,12 +31,15 @@ export default function DepositPaymentModal({
   totalDeposit,
 }: DepositPaymentModalProps) {
   const { language } = useLanguage();
+  const { user } = useAuth();
   const [step, setStep] = useState<"form" | "processing" | "success" | "error">("form");
   const [cardNumber, setCardNumber] = useState("");
   const [cardName, setCardName] = useState("");
   const [expiry, setExpiry] = useState("");
   const [cvv, setCvv] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  // Stable per-attempt key — protects against double-click double-charges
+  const idempotencyKeyRef = useRef<string>("");
 
   const formatCardNumber = (value: string) => {
     const cleaned = value.replace(/\D/g, "").slice(0, 16);
@@ -52,8 +56,17 @@ export default function DepositPaymentModal({
 
   const handleSubmit = async () => {
     if (!isFormValid) return;
+    if (!user?.phone) {
+      setErrorMsg(language === "es" ? "Inicia sesión para pagar el anticipo." : "Please sign in to pay the deposit.");
+      setStep("error");
+      return;
+    }
     setStep("processing");
     setErrorMsg("");
+
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = `dep-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    }
 
     try {
       const cleanCard = cardNumber.replace(/\s/g, "");
@@ -61,16 +74,22 @@ export default function DepositPaymentModal({
 
       const res = await fetch("/api/payments/process", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": idempotencyKeyRef.current,
+        },
         body: JSON.stringify({
           amount: totalDeposit,
           description: `Mila Concept - Booking Deposit`,
           clientName: cardName,
+          // Paguelo Facil requires email + phone — without these the API rejects 400
+          clientEmail: user.email || `${user.phone}@mila.local`,
+          clientPhone: user.phone,
           cardNumber: cleanCard,
           cardExpMonth: expMonth,
           cardExpYear: `20${expYear}`,
           cardCvv: cvv,
-          invoiceId: `deposit-${Date.now()}`,
+          invoiceId: idempotencyKeyRef.current,
         }),
       });
 
@@ -79,15 +98,18 @@ export default function DepositPaymentModal({
       if (res.ok && data.success) {
         setStep("success");
         setTimeout(() => {
-          onPaymentComplete(data.transactionId || `dep-${Date.now()}`);
+          onPaymentComplete(data.transactionId || idempotencyKeyRef.current);
         }, 1500);
       } else {
-        setErrorMsg(data.message || (language === "es" ? "Pago rechazado" : "Payment declined"));
+        setErrorMsg(data.message || data.error || (language === "es" ? "Pago rechazado" : "Payment declined"));
         setStep("error");
+        // Allow retry with a fresh idempotency key
+        idempotencyKeyRef.current = "";
       }
     } catch {
       setErrorMsg(language === "es" ? "Error de conexión. Intenta de nuevo." : "Connection error. Please try again.");
       setStep("error");
+      idempotencyKeyRef.current = "";
     }
   };
 

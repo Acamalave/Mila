@@ -7,7 +7,7 @@ import Input from "@/components/ui/Input";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useProducts } from "@/providers/ProductProvider";
 import { useStaff } from "@/providers/StaffProvider";
-import { services } from "@/data/services";
+import { getEffectiveServices } from "@/lib/service-overrides";
 import { formatPrice, calculateTaxBreakdown } from "@/lib/utils";
 import { Plus, Trash2, ShoppingBag, Scissors, Tag } from "lucide-react";
 import type { Invoice, InvoiceStatus, InvoiceItem } from "@/types";
@@ -51,6 +51,7 @@ export default function InvoiceFormModal({
   // Item picker state
   const [showItemPicker, setShowItemPicker] = useState(false);
   const [itemPickerTab, setItemPickerTab] = useState<"services" | "products">("services");
+  const services = useMemo(() => getEffectiveServices(), []);
 
   // Reset form when modal opens or invoice changes
   useEffect(() => {

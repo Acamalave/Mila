@@ -29,7 +29,7 @@ interface PaymentContextValue {
   addCard: (card: Omit<CreditCard, "id" | "createdAt">) => void;
   removeCard: (cardId: string) => void;
   setDefaultCard: (cardId: string) => void;
-  processPayment: (invoiceId: string, cardId: string, amount: number, cardDetails?: CardPaymentDetails) => Promise<PaymentTransaction>;
+  processPayment: (invoiceId: string, cardId: string, amount: number, cardDetails?: CardPaymentDetails, idempotencyKey?: string) => Promise<PaymentTransaction>;
   processCounterPayment: (invoiceId: string, amount: number, note: string) => PaymentTransaction;
   getClientCards: (clientId: string) => CreditCard[];
 }
@@ -118,7 +118,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
   );
 
   const processPayment = useCallback(
-    async (invoiceId: string, cardId: string, amount: number, cardDetails?: CardPaymentDetails): Promise<PaymentTransaction> => {
+    async (invoiceId: string, cardId: string, amount: number, cardDetails?: CardPaymentDetails, idempotencyKey?: string): Promise<PaymentTransaction> => {
       if (!user) throw new Error("User must be authenticated to process payment");
 
       // Card details are required — counter payments use processCounterPayment instead
@@ -130,12 +130,17 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
       if (cardDetails) {
         const res = await fetch("/api/payments/process", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            // Server caches result for 5 min — guards against double-clicks
+            ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+          },
           body: JSON.stringify({
             amount,
             description: `Mila Concept - Invoice ${invoiceId}`,
             clientName: cardDetails.cardholderName,
-            clientEmail: user.email || "",
+            // Paguelo Facil requires both fields; synthesize email from phone if missing
+            clientEmail: user.email || `${user.phone}@mila.local`,
             clientPhone: user.phone || "",
             cardNumber: cardDetails.cardNumber,
             cardExpMonth: cardDetails.cardExpMonth,

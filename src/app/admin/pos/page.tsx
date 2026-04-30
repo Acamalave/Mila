@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useInvoices } from "@/providers/InvoiceProvider";
 import { usePayment } from "@/providers/PaymentProvider";
+import { useStaff } from "@/providers/StaffProvider";
 import { useToast } from "@/providers/ToastProvider";
-import { calculateTaxBreakdown, generateId, formatPrice, getStoredData, setStoredData } from "@/lib/utils";
+import { calculateTaxBreakdown, generateId, getStoredData, setStoredData } from "@/lib/utils";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import POSClientSelector from "@/components/admin/pos/POSClientSelector";
@@ -46,6 +47,7 @@ export default function POSPage() {
   const { language, t } = useLanguage();
   const { addInvoice, createAndPayInvoice } = useInvoices();
   const { processCounterPayment } = usePayment();
+  const { allStylists } = useStaff();
   const { addToast } = useToast();
 
   const savedCart = getStoredData<{ client: POSClient | null; items: InvoiceItem[]; stylistId: string | null; discount: number } | null>("mila-pos-cart", null);
@@ -70,6 +72,20 @@ export default function POSPage() {
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const { discountAmount, afterDiscount, taxAmount, taxRate, total } = calculateTaxBreakdown(subtotal, discount);
   const currentStepIndex = STEPS.indexOf(step);
+
+  // Fill missing per-item stylist with the invoice-level stylist so commission
+  // generation correctly attributes earnings (CommissionProvider reads
+  // `item.stylistId ?? invoice.stylistId`, but POS clients may want the global
+  // stylist applied to all items by default).
+  const itemsWithStylist = useMemo(() => {
+    if (!stylistId) return items;
+    const stylistName = allStylists.find((s) => s.id === stylistId)?.name;
+    return items.map((item) =>
+      item.type === "service" && !item.stylistId
+        ? { ...item, stylistId, stylistName }
+        : item
+    );
+  }, [items, stylistId, allStylists]);
 
   const canGoNext = useCallback(() => {
     switch (step) {
@@ -116,7 +132,7 @@ export default function POSPage() {
         afterDiscount,
         taxAmount,
         taxRate,
-        items,
+        items: itemsWithStylist,
         paymentMethod: "counter",
         counterNote: note,
         status: "paid",

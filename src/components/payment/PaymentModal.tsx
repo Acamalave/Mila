@@ -119,7 +119,13 @@ export default function PaymentModal({
           });
         }
 
-        const transaction = await processPayment(invoiceId, cardId, invoiceAmount, cardDetailsForGateway);
+        const transaction = await processPayment(
+          invoiceId,
+          cardId,
+          invoiceAmount,
+          cardDetailsForGateway,
+          idempotencyKeyRef.current
+        );
         markAsPaid(invoiceId, transaction.id);
 
         setStep("success");

@@ -12,6 +12,7 @@ import {
   setStoredData,
 } from "@/lib/utils";
 import { setDocument, onCollectionChange } from "@/lib/firestore";
+import { getDeletedSet } from "@/lib/deleted-set";
 import { formatTime } from "@/lib/date-utils";
 import { services } from "@/data/services";
 import { useStaff } from "@/providers/StaffProvider";
@@ -71,7 +72,8 @@ export default function AdminCalendarPage() {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
   useEffect(() => {
-    let stored = getStoredData<Booking[]>("mila-bookings", []);
+    const deletedSet = getDeletedSet("bookings");
+    let stored = getStoredData<Booking[]>("mila-bookings", []).filter((b) => !deletedSet.has(b.id));
     if (stored.length === 0) {
       stored = getInitialDemoAppointments();
       setStoredData("mila-bookings", stored);
@@ -83,16 +85,16 @@ export default function AdminCalendarPage() {
     setBookings(stored);
 
     const unsub = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
-      if (firestoreBookings.length > 0) {
-        setBookings((prev) => {
-          const merged = new Map<string, Booking>();
-          for (const b of prev) merged.set(b.id, b);
-          for (const b of firestoreBookings) merged.set(b.id, b);
-          const next = Array.from(merged.values());
-          setStoredData("mila-bookings", next);
-          return next;
-        });
-      }
+      // Re-read deleted set fresh on every sync — picks up cross-device deletes
+      const currentDeleted = getDeletedSet("bookings");
+      setBookings((prev) => {
+        const merged = new Map<string, Booking>();
+        for (const b of prev) if (!currentDeleted.has(b.id)) merged.set(b.id, b);
+        for (const b of firestoreBookings) if (!currentDeleted.has(b.id)) merged.set(b.id, b);
+        const next = Array.from(merged.values());
+        setStoredData("mila-bookings", next);
+        return next;
+      });
     });
     return () => unsub();
   }, []);

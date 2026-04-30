@@ -7,7 +7,8 @@ import { cn, formatPrice, getStoredData, setStoredData } from "@/lib/utils";
 import { services, serviceCategories } from "@/data/services";
 import { useStaff } from "@/providers/StaffProvider";
 import { useCommissions } from "@/providers/CommissionProvider";
-import { mockReviews } from "@/data/reviews";
+import { useInvoices } from "@/providers/InvoiceProvider";
+import { useReviews } from "@/providers/ReviewProvider";
 import { getInitialDemoAppointments } from "@/data/appointments";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
@@ -22,6 +23,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { onCollectionChange } from "@/lib/firestore";
+import { getDeletedSet } from "@/lib/deleted-set";
 import type { Booking } from "@/types";
 
 const DAY_NAMES_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -31,10 +33,13 @@ export default function AdminAnalyticsPage() {
   const { language, t } = useLanguage();
   const { allStylists } = useStaff();
   const { commissions } = useCommissions();
+  const { invoices } = useInvoices();
+  const { reviews } = useReviews();
   const [bookings, setBookings] = useState<Booking[]>([]);
 
   useEffect(() => {
-    let stored = getStoredData<Booking[]>("mila-bookings", []);
+    const deletedSet = getDeletedSet("bookings");
+    let stored = getStoredData<Booking[]>("mila-bookings", []).filter((b) => !deletedSet.has(b.id));
     if (stored.length === 0) {
       stored = getInitialDemoAppointments();
     }
@@ -42,10 +47,11 @@ export default function AdminAnalyticsPage() {
 
     const unsubBookings = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
       if (firestoreBookings.length > 0) {
+        const currentDeleted = getDeletedSet("bookings");
         const local = getStoredData<Booking[]>("mila-bookings", []);
         const merged = new Map<string, Booking>();
-        for (const b of local) if (b.id) merged.set(b.id, b);
-        for (const b of firestoreBookings) if (b.id) merged.set(b.id, b);
+        for (const b of local) if (b.id && !currentDeleted.has(b.id)) merged.set(b.id, b);
+        for (const b of firestoreBookings) if (b.id && !currentDeleted.has(b.id)) merged.set(b.id, b);
         const all = Array.from(merged.values());
         setBookings(all);
         setStoredData("mila-bookings", all);
@@ -75,12 +81,30 @@ export default function AdminAnalyticsPage() {
     ).length;
   }, [bookings]);
 
-  // Average rating
+  // Average rating from real client-submitted reviews
   const averageRating = useMemo(() => {
-    if (mockReviews.length === 0) return 0;
-    const sum = mockReviews.reduce((acc, r) => acc + r.rating, 0);
-    return Number((sum / mockReviews.length).toFixed(1));
-  }, []);
+    if (reviews.length === 0) return 0;
+    const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
+    return Number((sum / reviews.length).toFixed(1));
+  }, [reviews]);
+
+  // Total revenue: paid invoices (POS + dashboard checkout) — uses invoice
+  // amounts which include ITBMS, but that's the actual money received.
+  // De-duplicate against booking.totalPrice when an invoice already references
+  // the booking, so we don't double-count.
+  const totalRevenue = useMemo(() => {
+    const paidInvoices = invoices.filter((inv) => inv.status === "paid");
+    const invoiceRevenue = paidInvoices.reduce((sum, inv) => sum + (inv.amount ?? 0), 0);
+    const bookingIdsCovered = new Set(
+      paidInvoices.map((inv) => inv.bookingId).filter(Boolean) as string[]
+    );
+    const bookingRevenue = bookings
+      .filter(
+        (b) => (b.status === "completed" || b.status === "confirmed") && !bookingIdsCovered.has(b.id)
+      )
+      .reduce((sum, b) => sum + (b.totalPrice ?? 0), 0);
+    return invoiceRevenue + bookingRevenue;
+  }, [invoices, bookings]);
 
   // Most popular service
   const mostPopularService = useMemo(() => {
@@ -178,7 +202,22 @@ export default function AdminAnalyticsPage() {
       .sort((a, b) => b.total - a.total);
   }, [commissions, allStylists]);
 
-  const metricCards = [
+  const metricCards: Array<{
+    icon: typeof CalendarDays;
+    value: string | number;
+    label: string;
+    color: string;
+    bg: string;
+    isText?: boolean;
+  }> = [
+    {
+      icon: DollarSign,
+      value: formatPrice(totalRevenue),
+      label: language === "es" ? "Ingresos Totales" : "Total Revenue",
+      color: "text-success",
+      bg: "bg-success/10",
+      isText: true,
+    },
     {
       icon: CalendarDays,
       value: bookingsThisWeek,
@@ -254,7 +293,7 @@ export default function AdminAnalyticsPage() {
       {/* Metric cards */}
       <motion.div
         variants={fadeInUp}
-        className="grid grid-cols-2 xl:grid-cols-4 gap-2 sm:gap-4"
+        className="grid grid-cols-2 xl:grid-cols-5 gap-2 sm:gap-4"
       >
         {metricCards.map((card) => {
           const Icon = card.icon;
