@@ -33,10 +33,6 @@ service cloud.firestore {
       return request.resource.size() < 1048576; // 1 MB hard cap per doc
     }
 
-    function hasFields(fields) {
-      return request.resource.data.keys().hasAll(fields);
-    }
-
     // ── Users ──────────────────────────────────────────────────────────────
     // Soft-delete pattern: actual deletes go to users-config/deleted instead.
     // Updates allow partial merges, so we only validate shape on `create`.
