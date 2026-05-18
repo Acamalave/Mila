@@ -168,10 +168,6 @@ export async function processCardPayment(
     });
 
     const rawText = await response.text();
-    console.log(
-      `[PagueloFacil] AUTH_CAPTURE response HTTP ${response.status}:`,
-      rawText.slice(0, 800)
-    );
     let data: Record<string, unknown> | null = null;
     try {
       data = rawText ? JSON.parse(rawText) : null;
@@ -180,7 +176,34 @@ export async function processCardPayment(
     }
 
     const header = (data?.headerStatus ?? {}) as { code?: number; description?: string };
-    const inner = (data?.data ?? {}) as { codOper?: string; messageSys?: string; status?: number };
+    const inner = (data?.data ?? {}) as {
+      codOper?: string;
+      messageSys?: string;
+      status?: number | string;
+      authStatus?: string;
+      inRevision?: boolean;
+      cardToken?: string;
+      totalPay?: string;
+    };
+    const topSuccess = data?.success === true;
+
+    // Log the decisive fields explicitly — the raw response is too large to
+    // slice (binInfo dominates it and hides the transaction status fields).
+    console.log(
+      "[PagueloFacil] AUTH_CAPTURE result:",
+      JSON.stringify({
+        httpStatus: response.status,
+        headerStatus: header,
+        success: data?.success,
+        codOper: inner.codOper,
+        status: inner.status,
+        authStatus: inner.authStatus,
+        inRevision: inner.inRevision,
+        cardToken: inner.cardToken,
+        totalPay: inner.totalPay,
+        messageSys: inner.messageSys,
+      })
+    );
 
     if (!response.ok) {
       console.error(
@@ -199,24 +222,35 @@ export async function processCardPayment(
       };
     }
 
-    const isSuccess = data?.success === true || header.code === 200;
+    // A charge is captured ONLY when the gateway's top-level `success` flag is
+    // true AND the transaction is not held for fraud review. `headerStatus.code
+    // 200` only means the API call itself succeeded — never the charge result.
+    const inReview = inner.inRevision === true;
+    const isSuccess = topSuccess && !inReview;
     const message =
       inner.messageSys ||
+      inner.authStatus ||
       (typeof data?.message === "string" ? data.message : "") ||
       header.description ||
-      (isSuccess ? "Pago aprobado" : "Pago rechazado");
+      (isSuccess ? "Pago aprobado" : inReview ? "Pago en revisión" : "Pago rechazado");
 
     if (!isSuccess) {
       console.error(
-        "[PagueloFacil] AUTH_CAPTURE declined:",
-        JSON.stringify({ headerStatus: header, messageSys: inner.messageSys })
+        "[PagueloFacil] AUTH_CAPTURE not approved:",
+        JSON.stringify({
+          topSuccess,
+          inReview,
+          authStatus: inner.authStatus,
+          status: inner.status,
+          messageSys: inner.messageSys,
+        })
       );
     }
 
     return {
       success: isSuccess,
       transactionId: inner.codOper ?? null,
-      status: isSuccess ? "APPROVED" : "DECLINED",
+      status: isSuccess ? "APPROVED" : inReview ? "IN_REVIEW" : "DECLINED",
       message,
       rawResponse: data ?? undefined,
     };
