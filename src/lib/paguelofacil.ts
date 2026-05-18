@@ -1,10 +1,17 @@
 /**
- * Paguelo Facil Payment Gateway - Server-Side SDK Wrapper
+ * Paguelo Facil Payment Gateway — server-side wrapper.
+ *
+ * Uses the official REST transaction API:
+ *   POST {base}/rest/processTx/AUTH_CAPTURE   (authorize + capture in one step)
+ *   Header: `authorization: <token>`  (raw token — NOT "Bearer <token>")
  *
  * Environment variables required:
- *   PAGUELO_CCLW   - Merchant CCLW key
- *   PAGUELO_TOKEN   - API authentication token
- *   PAGUELO_ENVIRONMENT - "sandbox" | "production"
+ *   PAGUELO_CCLW         - Merchant CCLW key
+ *   PAGUELO_TOKEN        - API authentication token
+ *   PAGUELO_ENVIRONMENT  - "sandbox" | "production"
+ *
+ * sandbox  → https://sandbox.paguelofacil.com   (test cards, no real money)
+ * production → https://secure.paguelofacil.com  (real charges)
  */
 
 // ---------------------------------------------------------------------------
@@ -22,16 +29,6 @@ export interface CardPaymentRequest {
   cardExpYear: string; // YY
   cardCvv: string;
   invoiceId?: string;
-  taxAmount?: number;
-}
-
-export interface PaymentLinkRequest {
-  amount: number;
-  description: string;
-  clientName: string;
-  clientEmail: string;
-  invoiceId?: string;
-  returnUrl?: string;
 }
 
 export interface PagueloFacilResponse {
@@ -46,14 +43,14 @@ export interface PagueloFacilResponse {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const SANDBOX_URL = "https://sandbox.paguelofacil.com/rest/ccapi/v1";
-const PRODUCTION_URL = "https://secure.paguelofacil.com/rest/ccapi/v1";
+const SANDBOX_URL = "https://sandbox.paguelofacil.com";
+const PRODUCTION_URL = "https://secure.paguelofacil.com";
 
 // Sanitize env vars — Vercel may inject trailing newlines/whitespace
 const clean = (v?: string) => (v ?? "").trim();
 
 function getBaseUrl(): string {
-  const env = clean(process.env.PAGUELO_ENVIRONMENT) || "sandbox";
+  const env = clean(process.env.PAGUELO_ENVIRONMENT).toLowerCase() || "sandbox";
   return env === "production" ? PRODUCTION_URL : SANDBOX_URL;
 }
 
@@ -70,8 +67,21 @@ function getCredentials() {
   return { cclw, token };
 }
 
+/** Paguelo Facil's cardType field accepts "VISA" or "MASTERCARD". */
+function detectCardType(cardNumber: string): string {
+  return cardNumber.replace(/\D/g, "").startsWith("4") ? "VISA" : "MASTERCARD";
+}
+
+/** Split a full name into first / last for the gateway's card information. */
+function splitName(full: string): { firstName: string; lastName: string } {
+  const parts = clean(full).split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { firstName: "Cliente", lastName: "Mila" };
+  if (parts.length === 1) return { firstName: parts[0], lastName: parts[0] };
+  return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+}
+
 // ---------------------------------------------------------------------------
-// Card Payment  (direct card charge via CCREQUEST)
+// Card Payment — direct charge via /rest/processTx/AUTH_CAPTURE
 // ---------------------------------------------------------------------------
 
 export async function processCardPayment(
@@ -80,124 +90,97 @@ export async function processCardPayment(
   try {
     const { cclw, token } = getCredentials();
     const baseUrl = getBaseUrl();
+    const cardNumber = req.cardNumber.replace(/\D/g, "");
+    const { firstName, lastName } = splitName(req.clientName);
 
     const body = {
-      CCLW: cclw,
-      CMTN: req.amount.toFixed(2),
-      CDSC: req.description,
-      CCNM: req.cardNumber.replace(/\s/g, ""),
-      CCEM: req.cardExpMonth.replace(/\D/g, "").padStart(2, "0"),
-      // Paguelo Facil expects a 2-digit year (YY) — normalize whether the
-      // caller passes "YY" or "YYYY".
-      CCEY: req.cardExpYear.replace(/\D/g, "").slice(-2).padStart(2, "0"),
-      CCCVV: req.cardCvv,
-      CUSR: req.clientName,
-      CEML: req.clientEmail,
-      CPHN: req.clientPhone.replace(/[^0-9]/g, ""),
-      CTAX: req.taxAmount?.toFixed(2) ?? "0.00",
-      CREF: req.invoiceId ?? "",
+      cclw,
+      amount: Math.round(req.amount * 100) / 100,
+      taxAmount: 0,
+      email: clean(req.clientEmail),
+      phone: req.clientPhone.replace(/\D/g, ""),
+      concept: clean(req.description).slice(0, 50) || "Mila Concept",
+      description: clean(req.description) || "Mila Concept",
+      lang: "ES",
+      cardInformation: {
+        cardNumber,
+        expMonth: req.cardExpMonth.replace(/\D/g, ""),
+        // Gateway expects a 2-digit year (YY) — normalize "YY" or "YYYY".
+        expYear: req.cardExpYear.replace(/\D/g, "").slice(-2),
+        cvv: req.cardCvv.replace(/\D/g, ""),
+        firstName,
+        lastName,
+        cardType: detectCardType(cardNumber),
+      },
+      ...(req.invoiceId
+        ? { customFieldValues: [["invoiceId", "invoiceId", req.invoiceId]] }
+        : {}),
     };
 
-    const response = await fetch(`${baseUrl}/CCREQUEST`, {
+    const url = `${baseUrl}/rest/processTx/AUTH_CAPTURE`;
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
+        // Paguelo Facil expects the raw token in the `authorization` header.
+        Authorization: token,
       },
       body: JSON.stringify(body),
     });
 
+    const rawText = await response.text();
+    let data: Record<string, unknown> | null = null;
+    try {
+      data = rawText ? JSON.parse(rawText) : null;
+    } catch {
+      // non-JSON response — keep data null, rawText surfaces below
+    }
+
+    const header = (data?.headerStatus ?? {}) as { code?: number; description?: string };
+    const inner = (data?.data ?? {}) as { codOper?: string; messageSys?: string; status?: number };
+
     if (!response.ok) {
+      console.error(
+        `[PagueloFacil] AUTH_CAPTURE HTTP ${response.status}:`,
+        rawText.slice(0, 600)
+      );
       return {
         success: false,
         transactionId: null,
         status: "HTTP_ERROR",
-        message: `Paguelo Facil returned HTTP ${response.status}`,
+        message:
+          header.description ||
+          (typeof data?.message === "string" ? data.message : "") ||
+          `Paguelo Facil returned HTTP ${response.status}`,
+        rawResponse: data ?? { raw: rawText.slice(0, 600) },
       };
     }
 
-    const data = await response.json();
+    const isSuccess = data?.success === true || header.code === 200;
+    const message =
+      inner.messageSys ||
+      (typeof data?.message === "string" ? data.message : "") ||
+      header.description ||
+      (isSuccess ? "Pago aprobado" : "Pago rechazado");
 
-    // Paguelo Facil returns headerStatus.code === 200 on success
-    const headerCode = data?.headerStatus?.code;
-    const isSuccess = headerCode === 200 || headerCode === "200";
+    if (!isSuccess) {
+      console.error(
+        "[PagueloFacil] AUTH_CAPTURE declined:",
+        JSON.stringify({ headerStatus: header, messageSys: inner.messageSys })
+      );
+    }
 
     return {
       success: isSuccess,
-      transactionId: data?.data?.codOper ?? data?.data?.transactionId ?? null,
-      status: isSuccess ? "APPROVED" : data?.headerStatus?.description ?? "DECLINED",
-      message:
-        data?.headerStatus?.description ??
-        (isSuccess ? "Payment processed successfully" : "Payment was declined"),
-      rawResponse: data,
+      transactionId: inner.codOper ?? null,
+      status: isSuccess ? "APPROVED" : "DECLINED",
+      message,
+      rawResponse: data ?? undefined,
     };
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : "Unknown error processing payment";
     console.error("[PagueloFacil] processCardPayment error:", message);
-    return {
-      success: false,
-      transactionId: null,
-      status: "ERROR",
-      message,
-    };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Payment Link  (redirect-based flow — alternative to direct card charge)
-// ---------------------------------------------------------------------------
-
-export async function createPaymentLink(
-  req: PaymentLinkRequest
-): Promise<PagueloFacilResponse> {
-  try {
-    const { cclw, token } = getCredentials();
-    const baseUrl = getBaseUrl();
-
-    const body = {
-      CCLW: cclw,
-      CMTN: req.amount.toFixed(2),
-      CDSC: req.description,
-      CUSR: req.clientName,
-      CEML: req.clientEmail,
-      CREF: req.invoiceId ?? "",
-      RETURN_URL: req.returnUrl ?? "",
-    };
-
-    const response = await fetch(`${baseUrl}/CFLINK`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      return {
-        success: false,
-        transactionId: null,
-        status: "HTTP_ERROR",
-        message: `Paguelo Facil returned HTTP ${response.status}`,
-      };
-    }
-
-    const data = await response.json();
-    const headerCode = data?.headerStatus?.code;
-    const isSuccess = headerCode === 200 || headerCode === "200";
-
-    return {
-      success: isSuccess,
-      transactionId: data?.data?.codOper ?? null,
-      status: isSuccess ? "LINK_CREATED" : data?.headerStatus?.description ?? "FAILED",
-      message: data?.data?.url ?? data?.headerStatus?.description ?? "Could not create payment link",
-      rawResponse: data,
-    };
-  } catch (error: unknown) {
-    const message =
-      error instanceof Error ? error.message : "Unknown error creating payment link";
-    console.error("[PagueloFacil] createPaymentLink error:", message);
     return {
       success: false,
       transactionId: null,
