@@ -80,6 +80,16 @@ function splitName(full: string): { firstName: string; lastName: string } {
   return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
 }
 
+/**
+ * The gateway validates the email. Synthetic addresses like
+ * `<phone>@mila.local` are rejected, so fall back to a real domain.
+ */
+function safeEmail(email: string): string {
+  const e = clean(email).toLowerCase();
+  if (/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(e) && !e.endsWith(".local")) return e;
+  return "pagos@milapty.com";
+}
+
 // ---------------------------------------------------------------------------
 // Card Payment — direct charge via /rest/processTx/AUTH_CAPTURE
 // ---------------------------------------------------------------------------
@@ -93,18 +103,26 @@ export async function processCardPayment(
     const cardNumber = req.cardNumber.replace(/\D/g, "");
     const { firstName, lastName } = splitName(req.clientName);
 
+    // Month without a leading zero ("01" → "1"), matching the gateway's
+    // documented examples.
+    const expMonth = String(
+      parseInt(req.cardExpMonth.replace(/\D/g, ""), 10) || ""
+    );
+
+    // Body shape mirrors the official @shoopiapp/paguelofacil library exactly
+    // (no extra fields — the gateway rejects unknown ones with a generic error).
     const body = {
       cclw,
       amount: Math.round(req.amount * 100) / 100,
       taxAmount: 0,
-      email: clean(req.clientEmail),
-      phone: req.clientPhone.replace(/\D/g, ""),
+      email: safeEmail(req.clientEmail),
+      phone: req.clientPhone.replace(/\D/g, "") || "60000000",
       concept: clean(req.description).slice(0, 50) || "Mila Concept",
       description: clean(req.description) || "Mila Concept",
       lang: "ES",
       cardInformation: {
         cardNumber,
-        expMonth: req.cardExpMonth.replace(/\D/g, ""),
+        expMonth,
         // Gateway expects a 2-digit year (YY) — normalize "YY" or "YYYY".
         expYear: req.cardExpYear.replace(/\D/g, "").slice(-2),
         cvv: req.cardCvv.replace(/\D/g, ""),
@@ -112,12 +130,33 @@ export async function processCardPayment(
         lastName,
         cardType: detectCardType(cardNumber),
       },
-      ...(req.invoiceId
-        ? { customFieldValues: [["invoiceId", "invoiceId", req.invoiceId]] }
-        : {}),
     };
 
     const url = `${baseUrl}/rest/processTx/AUTH_CAPTURE`;
+
+    // Diagnostic log — never includes the full card number or CVV.
+    console.log(
+      "[PagueloFacil] AUTH_CAPTURE request:",
+      JSON.stringify({
+        url,
+        cclwPrefix: cclw.slice(0, 8),
+        tokenLength: token.length,
+        amount: body.amount,
+        taxAmount: body.taxAmount,
+        email: body.email,
+        phone: body.phone,
+        concept: body.concept,
+        card: {
+          last4: cardNumber.slice(-4),
+          expMonth,
+          expYear: body.cardInformation.expYear,
+          cardType: body.cardInformation.cardType,
+          firstName,
+          lastName,
+        },
+      })
+    );
+
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -129,6 +168,10 @@ export async function processCardPayment(
     });
 
     const rawText = await response.text();
+    console.log(
+      `[PagueloFacil] AUTH_CAPTURE response HTTP ${response.status}:`,
+      rawText.slice(0, 800)
+    );
     let data: Record<string, unknown> | null = null;
     try {
       data = rawText ? JSON.parse(rawText) : null;
