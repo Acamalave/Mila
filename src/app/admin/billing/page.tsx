@@ -98,22 +98,28 @@ export default function AdminBillingPage() {
 
   const handleSendInvoice = useCallback(
     (invoiceId: string) => {
-      // sendInvoice shows its own toast reflecting actual delivery outcome.
-      sendInvoice(invoiceId).catch((err) =>
-        console.warn("[Mila] sendInvoice rejected:", err)
+      const result = sendInvoice(invoiceId);
+      addToast(
+        result.ok
+          ? language === "es" ? "Factura enviada" : "Invoice sent"
+          : result.error || (language === "es" ? "No se pudo enviar la factura" : "Could not send invoice"),
+        result.ok ? "success" : "error"
       );
     },
-    [sendInvoice]
+    [sendInvoice, addToast, language]
   );
 
   const handleResendInvoice = useCallback(
     (invoiceId: string) => {
-      // sendInvoice shows its own toast reflecting actual delivery outcome.
-      sendInvoice(invoiceId).catch((err) =>
-        console.warn("[Mila] sendInvoice rejected:", err)
+      const result = sendInvoice(invoiceId);
+      addToast(
+        result.ok
+          ? language === "es" ? "Solicitud de pago reenviada" : "Payment request resent"
+          : result.error || (language === "es" ? "No se pudo reenviar" : "Could not resend"),
+        result.ok ? "success" : "error"
       );
     },
-    [sendInvoice]
+    [sendInvoice, addToast, language]
   );
 
   const handleDeleteInvoice = useCallback(() => {
@@ -415,13 +421,22 @@ export default function AdminBillingPage() {
                             {canMarkPaid && (
                               <button
                                 onClick={() => {
-                                  markAsPaid(invoice.id, `manual-${Date.now()}`);
-                                  addToast(
-                                    language === "es"
-                                      ? "Factura marcada como pagada"
-                                      : "Invoice marked as paid",
-                                    "success"
-                                  );
+                                  const result = markAsPaid(invoice.id, `manual-${Date.now()}`);
+                                  if (result.ok) {
+                                    addToast(
+                                      language === "es"
+                                        ? "Factura marcada como pagada"
+                                        : "Invoice marked as paid",
+                                      "success"
+                                    );
+                                  } else {
+                                    addToast(
+                                      language === "es"
+                                        ? `No se puede pagar esta factura (${result.error ?? ""})`
+                                        : `Cannot mark this invoice paid (${result.error ?? ""})`,
+                                      "error"
+                                    );
+                                  }
                                 }}
                                 title={language === "es" ? "Marcar Pagado" : "Mark as Paid"}
                                 className="p-2 rounded-lg hover:bg-success/10 transition-colors text-text-muted hover:text-success cursor-pointer"
@@ -432,13 +447,22 @@ export default function AdminBillingPage() {
                             {canDecline && (
                               <button
                                 onClick={() => {
-                                  markAsDeclined(invoice.id);
-                                  addToast(
-                                    language === "es"
-                                      ? "Factura marcada como rechazada"
-                                      : "Invoice marked as declined",
-                                    "error"
-                                  );
+                                  const result = markAsDeclined(invoice.id);
+                                  if (result.ok) {
+                                    addToast(
+                                      language === "es"
+                                        ? "Factura marcada como rechazada"
+                                        : "Invoice marked as declined",
+                                      "error"
+                                    );
+                                  } else {
+                                    addToast(
+                                      language === "es"
+                                        ? `Transición inválida (${result.error ?? ""})`
+                                        : `Invalid transition (${result.error ?? ""})`,
+                                      "error"
+                                    );
+                                  }
                                 }}
                                 title={language === "es" ? "Marcar Rechazada" : "Mark as Declined"}
                                 className="p-2 rounded-lg hover:bg-red-500/10 transition-colors text-text-muted hover:text-red-500 cursor-pointer"

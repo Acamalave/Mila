@@ -6,18 +6,20 @@ import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
-import { getStoredData, setStoredData, formatPrice, generateId } from "@/lib/utils";
+import { getStoredData, setStoredData, formatPrice } from "@/lib/utils";
 import { setDocument, onCollectionChange } from "@/lib/firestore";
+import { getDeletedSet, markDeleted } from "@/lib/deleted-set";
 import { formatShortDate, formatTime } from "@/lib/date-utils";
 import { services } from "@/data/services";
-import { mockReviews } from "@/data/reviews";
 import { useStaff } from "@/providers/StaffProvider";
 import { useCart } from "@/providers/CartProvider";
 import { useToast } from "@/providers/ToastProvider";
 import { useProducts } from "@/providers/ProductProvider";
 import { useInvoices } from "@/providers/InvoiceProvider";
+import { useReviews } from "@/providers/ReviewProvider";
 import { usePayment, detectCardBrand } from "@/providers/PaymentProvider";
-import type { Booking, BookingStatus, Invoice, Review } from "@/types";
+import { calculateTaxBreakdown } from "@/lib/utils";
+import type { Booking, BookingStatus, Invoice } from "@/types";
 import type { CardFormData } from "@/components/payment/CreditCardForm";
 import type { Variants } from "motion/react";
 import Badge from "@/components/ui/Badge";
@@ -126,6 +128,7 @@ export default function DashboardPage() {
     ...categories.map((cat) => ({ value: cat.value, labelEn: cat.labelEn, labelEs: cat.labelEs })),
   ];
   const { invoices, addInvoice } = useInvoices();
+  const { reviews, addReview, getReviewsForClient } = useReviews();
   const { savedCards, addCard, removeCard, setDefaultCard } = usePayment();
   const [appointments, setAppointments] = useState<Booking[]>([]);
   const [activeTab, setActiveTab] = useState<ActiveTab>("shop");
@@ -137,8 +140,7 @@ export default function DashboardPage() {
   // Map of invoiceId → sentAt shown — allows detecting when admin resends a declined invoice
   const [shownInvoiceSentAt, setShownInvoiceSentAt] = useState<Map<string, string>>(new Map());
 
-  // Reviews state
-  const [reviews, setReviews] = useState<Review[]>([]);
+  // Reviews — sourced from ReviewProvider (Firestore-synced)
   const [selectedBookingId, setSelectedBookingId] = useState("");
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState("");
@@ -159,11 +161,9 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) return;
 
-    const deletedIds = getStoredData<string[]>("mila-bookings-deleted", []);
-    const deletedSet = new Set(deletedIds);
-
+    // Re-read deleted set on every callback so cross-device deletes propagate
     const isMyBooking = (b: Booking) =>
-      !deletedSet.has(b.id) &&
+      !getDeletedSet("bookings").has(b.id) &&
       (b.clientId === user.id ||
         (b.guestPhone && b.guestPhone === user.phone));
 
@@ -171,29 +171,20 @@ export default function DashboardPage() {
     setAppointments(stored);
 
     const unsub = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
-      // Persist all to shared localStorage (admin/stylist need full data)
+      const currentDeleted = getDeletedSet("bookings");
+      // Persist all (non-deleted) to shared localStorage
       const all = getStoredData<Booking[]>("mila-bookings", []);
       const allMerged = new Map<string, Booking>();
-      for (const b of all) allMerged.set(b.id, b);
-      for (const b of firestoreBookings) allMerged.set(b.id, b);
+      for (const b of all) if (!currentDeleted.has(b.id)) allMerged.set(b.id, b);
+      for (const b of firestoreBookings) if (!currentDeleted.has(b.id)) allMerged.set(b.id, b);
       setStoredData("mila-bookings", Array.from(allMerged.values()));
 
-      setAppointments((prev) => {
+      setAppointments(() => {
         const merged = new Map<string, Booking>();
-        for (const b of prev) if (isMyBooking(b)) merged.set(b.id, b);
-        for (const b of firestoreBookings) if (isMyBooking(b)) merged.set(b.id, b);
-        const next = Array.from(merged.values());
-        return next;
+        for (const b of allMerged.values()) if (isMyBooking(b)) merged.set(b.id, b);
+        return Array.from(merged.values());
       });
     });
-
-    const storedReviews = getStoredData<Review[]>("mila-reviews", []);
-    if (storedReviews.length === 0) {
-      setStoredData("mila-reviews", mockReviews);
-      setReviews(mockReviews);
-    } else {
-      setReviews(storedReviews);
-    }
 
     return () => unsub();
   }, [user]);
@@ -240,10 +231,38 @@ export default function DashboardPage() {
 
   function handleCheckout() {
     if (!user) return;
+    // Build itemized invoice with proper ITBMS so the receipt matches what
+    // the admin sees and reports can reconcile.
+    const invoiceItems = items
+      .map((item) => {
+        const product = allProducts.find((p) => p.id === item.productId);
+        if (!product) return null;
+        const effectivePrice =
+          product.discount && product.discount > 0
+            ? Math.round(product.price * (1 - product.discount / 100) * 100) / 100
+            : product.price;
+        return {
+          type: "product" as const,
+          id: product.id,
+          name: product.name,
+          price: effectivePrice,
+          quantity: item.quantity,
+        };
+      })
+      .filter(Boolean) as NonNullable<Invoice["items"]>;
+    const itemsSubtotal = invoiceItems.reduce((sum, it) => sum + it.price * it.quantity, 0);
+    const tax = calculateTaxBreakdown(itemsSubtotal, 0);
     addInvoice({
       clientId: user.id,
       clientName: user.name,
-      amount: cartTotal,
+      amount: tax.total,
+      subtotal: tax.subtotal,
+      discount: 0,
+      discountAmount: tax.discountAmount,
+      afterDiscount: tax.afterDiscount,
+      taxAmount: tax.taxAmount,
+      taxRate: tax.taxRate,
+      items: invoiceItems,
       status: "sent",
       date: new Date().toISOString().split("T")[0],
       sentAt: new Date().toISOString(),
@@ -410,7 +429,7 @@ export default function DashboardPage() {
     return !reviews.some((r) => r.bookingId === a.id);
   });
 
-  const userReviews = reviews.filter((r) => r.clientId === user?.id);
+  const userReviews = user ? getReviewsForClient(user.id) : [];
 
   const getServiceNamesFromIds = (svcIds: string[] | undefined) => {
     if (!svcIds || svcIds.length === 0) return language === "es" ? "Consulta General" : "General Consultation";
@@ -433,8 +452,7 @@ export default function DashboardPage() {
     }
     const booking = appointments.find((a) => a.id === selectedBookingId);
     if (!booking || !user) return;
-    const newReview: Review = {
-      id: generateId(),
+    addReview({
       bookingId: selectedBookingId,
       clientId: user.id,
       clientName: user.name,
@@ -442,11 +460,7 @@ export default function DashboardPage() {
       serviceId: booking.serviceIds?.[0] ?? "",
       rating: reviewRating,
       comment: reviewComment.trim(),
-      createdAt: new Date().toISOString(),
-    };
-    const updatedReviews = [...reviews, newReview];
-    setReviews(updatedReviews);
-    setStoredData("mila-reviews", updatedReviews);
+    });
     setSelectedBookingId("");
     setReviewRating(0);
     setReviewComment("");

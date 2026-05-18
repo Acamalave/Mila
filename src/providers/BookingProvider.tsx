@@ -12,7 +12,8 @@ import {
 } from "react";
 import type { Booking, BookingFlowState, TimeSlot } from "@/types";
 import { getStoredData, setStoredData } from "@/lib/utils";
-import { onCollectionChange, onDocumentChange, setDocument } from "@/lib/firestore";
+import { onCollectionChange } from "@/lib/firestore";
+import { getDeletedSet, pushLocalDeletes, subscribeDeletedSet } from "@/lib/deleted-set";
 
 type BookingAction =
   | { type: "SET_STYLIST"; payload: string }
@@ -119,29 +120,12 @@ export function BookingProvider({ children }: { children: ReactNode }) {
 
   // Firestore real-time listener for bookings collection
   useEffect(() => {
-    // Push any locally-known deleted IDs to Firestore so all devices respect them
-    const localDeleted = getStoredData<string[]>("mila-bookings-deleted", []);
-    if (localDeleted.length > 0) {
-      setDocument("bookings-config", "deleted", { ids: localDeleted }).catch(() => {});
-    }
-
-    // Listen to Firestore-synced deleted IDs so all devices respect deletions
-    const unsubDeleted = onDocumentChange<{ ids?: string[] }>(
-      "bookings-config", "deleted",
-      (data) => {
-        if (data?.ids) {
-          const merged = Array.from(new Set([
-            ...getStoredData<string[]>("mila-bookings-deleted", []),
-            ...data.ids,
-          ]));
-          setStoredData("mila-bookings-deleted", merged);
-        }
-      }
-    );
+    pushLocalDeletes("bookings");
+    const unsubDeleted = subscribeDeletedSet("bookings");
 
     const unsub = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
       // Re-read deleted IDs fresh on every sync to pick up runtime changes
-      const currentDeleted = new Set(getStoredData<string[]>("mila-bookings-deleted", []));
+      const currentDeleted = getDeletedSet("bookings");
       setBookings((prev) => {
         const merged = new Map<string, Booking>();
         for (const b of prev) if (!currentDeleted.has(b.id)) merged.set(b.id, b);

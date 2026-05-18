@@ -1,25 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Image from "next/image";
 import { motion } from "motion/react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useStaff } from "@/providers/StaffProvider";
-import { formatPrice } from "@/lib/utils";
+import { useToast } from "@/providers/ToastProvider";
 import { services } from "@/data/services";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
-import { User, Instagram, Star, Clock, Percent } from "lucide-react";
+import { User, Instagram, Star, Clock, Percent, CalendarOff, Plus, Trash2 } from "lucide-react";
+import type { StylistSchedule } from "@/types";
 
 const DAY_NAMES_EN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const DAY_NAMES_ES = ["Domingo", "Lunes", "Martes", "Mi\u00e9rcoles", "Jueves", "Viernes", "S\u00e1bado"];
+const DAY_NAMES_ES = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+
+const DEFAULT_SCHEDULE: StylistSchedule = {
+  dayOfWeek: 0,
+  startTime: "09:00",
+  endTime: "18:00",
+  isAvailable: false,
+};
+
+function fillSchedule(schedule: StylistSchedule[] | undefined): StylistSchedule[] {
+  // Always return Sun→Sat ordering with defaults filled so the UI shows every day.
+  return [0, 1, 2, 3, 4, 5, 6].map(
+    (dow) => schedule?.find((s) => s.dayOfWeek === dow) ?? { ...DEFAULT_SCHEDULE, dayOfWeek: dow }
+  );
+}
 
 export default function StylistProfilePage() {
   const { user } = useAuth();
   const { language, t } = useLanguage();
-  const { getStylistByPhone, updateStylist } = useStaff();
+  const { addToast } = useToast();
+  const { getStylistByPhone, updateStylist, updateSchedule } = useStaff();
 
   const stylist = user?.phone ? getStylistByPhone(user.phone) : undefined;
 
@@ -29,9 +45,18 @@ export default function StylistProfilePage() {
     bioEn: stylist?.bio?.en ?? "",
     bioEs: stylist?.bio?.es ?? "",
     instagram: stylist?.instagram ?? "",
+    avatar: stylist?.avatar ?? "",
+    specialties: stylist?.specialties ?? [],
   });
+  const [newSpecialty, setNewSpecialty] = useState("");
+
+  const [scheduleEdit, setScheduleEdit] = useState<StylistSchedule[]>(
+    fillSchedule(stylist?.schedule)
+  );
+  const [newBlockedDate, setNewBlockedDate] = useState("");
 
   const dayNames = language === "es" ? DAY_NAMES_ES : DAY_NAMES_EN;
+  const blockedDates = useMemo(() => stylist?.blockedDates ?? [], [stylist]);
 
   const handleStartEdit = () => {
     if (!stylist) return;
@@ -40,7 +65,10 @@ export default function StylistProfilePage() {
       bioEn: stylist.bio?.en ?? "",
       bioEs: stylist.bio?.es ?? "",
       instagram: stylist.instagram ?? "",
+      avatar: stylist.avatar ?? "",
+      specialties: [...stylist.specialties],
     });
+    setScheduleEdit(fillSchedule(stylist.schedule));
     setIsEditing(true);
   };
 
@@ -50,12 +78,50 @@ export default function StylistProfilePage() {
       name: editForm.name,
       bio: { en: editForm.bioEn, es: editForm.bioEs },
       instagram: editForm.instagram,
+      avatar: editForm.avatar,
+      specialties: editForm.specialties,
     });
+    updateSchedule(stylist.id, scheduleEdit);
     setIsEditing(false);
+    addToast(language === "es" ? "Perfil actualizado" : "Profile updated", "success");
   };
 
-  const handleCancel = () => {
-    setIsEditing(false);
+  const handleCancel = () => setIsEditing(false);
+
+  const addSpecialty = () => {
+    const value = newSpecialty.trim();
+    if (!value || editForm.specialties.includes(value)) return;
+    setEditForm((prev) => ({ ...prev, specialties: [...prev.specialties, value] }));
+    setNewSpecialty("");
+  };
+
+  const removeSpecialty = (s: string) => {
+    setEditForm((prev) => ({ ...prev, specialties: prev.specialties.filter((x) => x !== s) }));
+  };
+
+  const updateScheduleField = (
+    dow: number,
+    field: keyof StylistSchedule,
+    value: string | boolean
+  ) => {
+    setScheduleEdit((prev) =>
+      prev.map((s) => (s.dayOfWeek === dow ? { ...s, [field]: value } : s))
+    );
+  };
+
+  const addBlockedDate = () => {
+    if (!stylist || !newBlockedDate) return;
+    if (blockedDates.includes(newBlockedDate)) return;
+    const next = [...blockedDates, newBlockedDate].sort();
+    updateStylist(stylist.id, { blockedDates: next });
+    setNewBlockedDate("");
+    addToast(language === "es" ? "Día bloqueado" : "Date blocked", "success");
+  };
+
+  const removeBlockedDate = (date: string) => {
+    if (!stylist) return;
+    const next = blockedDates.filter((d) => d !== date);
+    updateStylist(stylist.id, { blockedDates: next });
   };
 
   if (!stylist) {
@@ -63,7 +129,7 @@ export default function StylistProfilePage() {
       <div className="flex items-center justify-center min-h-[60vh]">
         <p className="text-text-muted text-lg">
           {language === "es"
-            ? "No se encontr\u00f3 el perfil del estilista."
+            ? "No se encontró el perfil del estilista."
             : "Stylist profile not found."}
         </p>
       </div>
@@ -79,7 +145,7 @@ export default function StylistProfilePage() {
         </h1>
         <p className="text-text-secondary mt-1">
           {language === "es"
-            ? "Visualiza y edita tu informaci\u00f3n de perfil"
+            ? "Visualiza y edita tu información de perfil"
             : "View and edit your profile information"}
         </p>
       </motion.div>
@@ -89,14 +155,24 @@ export default function StylistProfilePage() {
         <Card>
           <div className="flex flex-col sm:flex-row gap-6">
             {/* Avatar */}
-            <div className="flex-shrink-0">
+            <div className="flex-shrink-0 flex flex-col items-center gap-2">
               <Image
-                src={stylist.avatar}
+                src={editForm.avatar || stylist.avatar || "/icon.png"}
                 alt={stylist.name}
                 width={120}
                 height={120}
                 className="rounded-full object-cover"
               />
+              {isEditing && (
+                <input
+                  type="url"
+                  value={editForm.avatar}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, avatar: e.target.value }))}
+                  placeholder={language === "es" ? "URL de tu foto" : "Photo URL"}
+                  className="w-full text-xs px-2 py-1.5 rounded-md focus:outline-none focus:ring-2 focus:ring-mila-gold/30"
+                  style={{ background: "var(--color-bg-input)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
+                />
+              )}
             </div>
 
             {/* Info */}
@@ -143,13 +219,13 @@ export default function StylistProfilePage() {
                         rows={3}
                         className="w-full mt-1 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-mila-gold/30 resize-none"
                         style={{ background: "var(--color-bg-input)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
-                        placeholder="Bio en Espa\u00f1ol..."
+                        placeholder="Bio en Español..."
                       />
                     </div>
                   </div>
                 ) : (
                   <p className="text-sm text-text-secondary mt-1 leading-relaxed">
-                    {stylist.bio?.[language] || (language === "es" ? "Sin biograf\u00eda" : "No bio")}
+                    {stylist.bio?.[language] || (language === "es" ? "Sin biografía" : "No bio")}
                   </p>
                 )}
               </div>
@@ -178,12 +254,41 @@ export default function StylistProfilePage() {
                 <label className="text-xs font-medium text-text-muted uppercase tracking-wider">
                   {language === "es" ? "Especialidades" : "Specialties"}
                 </label>
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {stylist.specialties.map((spec) => (
-                    <Badge key={spec} variant="default">
-                      {spec}
-                    </Badge>
+                <div className="flex flex-wrap gap-1.5 mt-2 items-center">
+                  {(isEditing ? editForm.specialties : stylist.specialties).map((spec) => (
+                    <span key={spec} className="inline-flex items-center gap-1.5">
+                      <Badge variant="default">{spec}</Badge>
+                      {isEditing && (
+                        <button
+                          onClick={() => removeSpecialty(spec)}
+                          className="p-0.5 text-text-muted hover:text-red-400"
+                          title={language === "es" ? "Quitar" : "Remove"}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
+                    </span>
                   ))}
+                  {isEditing && (
+                    <span className="inline-flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={newSpecialty}
+                        onChange={(e) => setNewSpecialty(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSpecialty(); } }}
+                        placeholder={language === "es" ? "Nueva especialidad" : "New specialty"}
+                        className="text-xs px-2 py-1 rounded-md focus:outline-none focus:ring-2 focus:ring-mila-gold/30"
+                        style={{ background: "var(--color-bg-input)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
+                      />
+                      <button
+                        onClick={addSpecialty}
+                        className="p-1 rounded-md text-mila-gold hover:bg-mila-gold/10"
+                        title={language === "es" ? "Agregar" : "Add"}
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -194,7 +299,7 @@ export default function StylistProfilePage() {
                   <span className="text-lg font-semibold text-text-primary">{stylist.rating}</span>
                 </div>
                 <span className="text-sm text-text-muted">
-                  ({stylist.reviewCount} {language === "es" ? "rese\u00f1as" : "reviews"})
+                  ({stylist.reviewCount} {language === "es" ? "reseñas" : "reviews"})
                 </span>
               </div>
 
@@ -245,7 +350,7 @@ export default function StylistProfilePage() {
           {/* Default commission */}
           <div className="flex items-center justify-between py-3 px-4 rounded-lg mb-4" style={{ background: "var(--color-accent-subtle)" }}>
             <span className="text-sm font-medium text-text-primary">
-              {language === "es" ? "Comisi\u00f3n por defecto" : "Default Commission"}
+              {language === "es" ? "Comisión por defecto" : "Default Commission"}
             </span>
             <span className="text-lg font-bold text-mila-gold">
               {stylist.defaultCommission}%
@@ -288,13 +393,13 @@ export default function StylistProfilePage() {
           {/* Admin note */}
           <p className="text-xs text-text-muted mt-4 italic">
             {language === "es"
-              ? "Las tarifas de comisi\u00f3n son configuradas por el administrador"
+              ? "Las tarifas de comisión son configuradas por el administrador"
               : "Commission rates are configured by admin"}
           </p>
         </Card>
       </motion.div>
 
-      {/* Weekly Schedule Card */}
+      {/* Weekly Schedule Card — editable when in edit mode */}
       <motion.div variants={fadeInUp}>
         <Card>
           <div className="flex items-center gap-3 mb-6">
@@ -311,10 +416,13 @@ export default function StylistProfilePage() {
               <thead>
                 <tr className="border-b border-border-default">
                   <th className="text-left py-2.5 px-4 text-text-muted font-medium text-xs uppercase tracking-wider">
-                    {language === "es" ? "D\u00eda" : "Day"}
+                    {language === "es" ? "Día" : "Day"}
                   </th>
                   <th className="text-left py-2.5 px-4 text-text-muted font-medium text-xs uppercase tracking-wider">
-                    {language === "es" ? "Horario" : "Hours"}
+                    {language === "es" ? "Inicio" : "Start"}
+                  </th>
+                  <th className="text-left py-2.5 px-4 text-text-muted font-medium text-xs uppercase tracking-wider">
+                    {language === "es" ? "Fin" : "End"}
                   </th>
                   <th className="text-right py-2.5 px-4 text-text-muted font-medium text-xs uppercase tracking-wider">
                     {language === "es" ? "Estado" : "Status"}
@@ -323,33 +431,130 @@ export default function StylistProfilePage() {
               </thead>
               <tbody>
                 {[1, 2, 3, 4, 5, 6, 0].map((dayOfWeek) => {
-                  const daySched = stylist.schedule.find((s) => s.dayOfWeek === dayOfWeek);
-                  const isAvailable = daySched?.isAvailable ?? false;
+                  const daySched = (isEditing ? scheduleEdit : fillSchedule(stylist.schedule)).find(
+                    (s) => s.dayOfWeek === dayOfWeek
+                  )!;
                   return (
-                    <tr
-                      key={dayOfWeek}
-                      className="border-b border-border-default/50 last:border-0"
-                    >
+                    <tr key={dayOfWeek} className="border-b border-border-default/50 last:border-0">
                       <td className="py-3 px-4 font-medium text-text-primary">
                         {dayNames[dayOfWeek]}
                       </td>
                       <td className="py-3 px-4 text-text-secondary">
-                        {isAvailable && daySched
-                          ? `${daySched.startTime} - ${daySched.endTime}`
-                          : "—"}
+                        {isEditing ? (
+                          <input
+                            type="time"
+                            value={daySched.startTime}
+                            onChange={(e) => updateScheduleField(dayOfWeek, "startTime", e.target.value)}
+                            className="px-2 py-1 rounded-md text-sm"
+                            style={{ background: "var(--color-bg-input)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
+                          />
+                        ) : daySched.isAvailable ? (
+                          daySched.startTime
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-text-secondary">
+                        {isEditing ? (
+                          <input
+                            type="time"
+                            value={daySched.endTime}
+                            onChange={(e) => updateScheduleField(dayOfWeek, "endTime", e.target.value)}
+                            className="px-2 py-1 rounded-md text-sm"
+                            style={{ background: "var(--color-bg-input)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
+                          />
+                        ) : daySched.isAvailable ? (
+                          daySched.endTime
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <Badge variant={isAvailable ? "success" : "error"}>
-                          {isAvailable
-                            ? t("stylistDash", "available")
-                            : t("stylistDash", "unavailable")}
-                        </Badge>
+                        {isEditing ? (
+                          <button
+                            onClick={() => updateScheduleField(dayOfWeek, "isAvailable", !daySched.isAvailable)}
+                            className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${daySched.isAvailable ? "bg-emerald-500/15 text-emerald-500" : "bg-red-500/10 text-red-400"}`}
+                          >
+                            {daySched.isAvailable ? t("stylistDash", "available") : t("stylistDash", "unavailable")}
+                          </button>
+                        ) : (
+                          <Badge variant={daySched.isAvailable ? "success" : "error"}>
+                            {daySched.isAvailable ? t("stylistDash", "available") : t("stylistDash", "unavailable")}
+                          </Badge>
+                        )}
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
+          </div>
+
+          {isEditing && (
+            <p className="text-xs text-text-muted mt-3">
+              {language === "es"
+                ? "Guarda los cambios para aplicar el horario."
+                : "Save changes to apply the schedule."}
+            </p>
+          )}
+        </Card>
+      </motion.div>
+
+      {/* Blocked dates (vacations / time off) */}
+      <motion.div variants={fadeInUp}>
+        <Card>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2.5 rounded-xl bg-red-500/10">
+              <CalendarOff size={20} className="text-red-400" />
+            </div>
+            <h2 className="text-lg font-semibold font-[family-name:var(--font-display)] text-text-primary">
+              {language === "es" ? "Fechas bloqueadas" : "Blocked dates"}
+            </h2>
+          </div>
+
+          <div className="flex flex-wrap gap-2 mb-4">
+            {blockedDates.length === 0 ? (
+              <p className="text-sm text-text-muted">
+                {language === "es"
+                  ? "No tienes fechas bloqueadas. Agrega vacaciones o días libres aquí."
+                  : "No blocked dates. Add vacations or days off here."}
+              </p>
+            ) : (
+              blockedDates.map((date) => (
+                <span
+                  key={date}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium"
+                  style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.3)" }}
+                >
+                  {date}
+                  <button
+                    onClick={() => removeBlockedDate(date)}
+                    className="text-red-400 hover:text-red-500"
+                    title={language === "es" ? "Quitar" : "Remove"}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </span>
+              ))
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={newBlockedDate}
+              onChange={(e) => setNewBlockedDate(e.target.value)}
+              min={new Date().toISOString().split("T")[0]}
+              className="px-3 py-1.5 rounded-md text-sm"
+              style={{ background: "var(--color-bg-input)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
+            />
+            <button
+              onClick={addBlockedDate}
+              disabled={!newBlockedDate}
+              className="px-4 py-1.5 text-sm font-medium rounded-md bg-mila-gold text-white disabled:opacity-50 hover:bg-mila-gold-dark transition-colors"
+            >
+              {language === "es" ? "Bloquear" : "Block"}
+            </button>
           </div>
         </Card>
       </motion.div>

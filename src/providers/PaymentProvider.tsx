@@ -138,13 +138,15 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            // Server caches the result — guards against double-clicks
             "Idempotency-Key": effectiveKey,
           },
           body: JSON.stringify({
             amount,
             description: `Mila Concept - Invoice ${invoiceId}`,
             clientName: cardDetails.cardholderName,
-            clientEmail: user.email || "",
+            // Paguelo Facil requires both fields; synthesize email from phone if missing
+            clientEmail: user.email || `${user.phone}@mila.local`,
             clientPhone: user.phone || "",
             cardNumber: cardDetails.cardNumber,
             cardExpMonth: cardDetails.cardExpMonth,

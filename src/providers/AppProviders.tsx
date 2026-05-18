@@ -15,6 +15,7 @@ import { NotificationProvider } from "@/providers/NotificationProvider";
 import { PaymentProvider } from "@/providers/PaymentProvider";
 import { CartProvider } from "@/providers/CartProvider";
 import { CommissionProvider } from "@/providers/CommissionProvider";
+import { ReviewProvider } from "@/providers/ReviewProvider";
 
 export default function AppProviders({ children }: { children: ReactNode }) {
   return (
@@ -29,11 +30,13 @@ export default function AppProviders({ children }: { children: ReactNode }) {
                     <BookingProvider>
                       <CommissionProvider>
                         <InvoiceProvider>
-                          <NotificationProvider>
-                            <PaymentProvider>
-                              <CartProvider>{children}</CartProvider>
-                            </PaymentProvider>
-                          </NotificationProvider>
+                          <ReviewProvider>
+                            <NotificationProvider>
+                              <PaymentProvider>
+                                <CartProvider>{children}</CartProvider>
+                              </PaymentProvider>
+                            </NotificationProvider>
+                          </ReviewProvider>
                         </InvoiceProvider>
                       </CommissionProvider>
                     </BookingProvider>

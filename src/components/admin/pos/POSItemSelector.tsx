@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useProducts } from "@/providers/ProductProvider";
-import { services } from "@/data/services";
+import { getEffectiveServices } from "@/lib/service-overrides";
 import { formatPrice } from "@/lib/utils";
 import Button from "@/components/ui/Button";
 import {
@@ -30,6 +30,8 @@ export default function POSItemSelector({
   const { allProducts } = useProducts();
   const { allStylists } = useStaff();
   const [tab, setTab] = useState<"services" | "products">("services");
+  // Apply admin price/name overrides — pulled live from localStorage
+  const services = useMemo(() => getEffectiveServices(), []);
 
   const updateItemStylist = (index: number, stylistId: string) => {
     const stylist = allStylists.find((s) => s.id === stylistId);

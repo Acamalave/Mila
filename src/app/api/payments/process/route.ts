@@ -36,40 +36,55 @@ const REQUIRED_FIELDS: (keyof ProcessPaymentBody)[] = [
 // ---------------------------------------------------------------------------
 // In-memory idempotency cache
 // ---------------------------------------------------------------------------
-// Keys live for 15 minutes. Any duplicate key received within 60 seconds of
-// the original request reuses the cached response (rather than re-charging
-// the gateway). After 60 seconds the cache is considered "stale" and a new
-// charge will go through, but the key is still held for 15 min to prevent
-// accidental replays. This guards against double-clicks and retries.
+// Survives within a single warm Lambda instance (not across cold starts) —
+// enough to dedupe a double-clicked Pay button in one session. An in-flight
+// entry lets a concurrent retry await the original charge instead of issuing
+// a second one. Move to Firestore/Redis for cross-instance guarantees.
 
-interface CachedEntry {
-  response: unknown;
-  status: number;
-  createdAt: number;
-  inFlight?: Promise<{ response: unknown; status: number }>;
+type Settled = { response: unknown; status: number };
+interface CacheEntry {
+  expires: number;
+  response?: unknown;
+  status?: number;
+  inFlight?: Promise<Settled>;
 }
 
-const IDEMPOTENCY_TTL_MS = 15 * 60 * 1000; // 15 min
-const IDEMPOTENCY_REPLAY_WINDOW_MS = 60 * 1000; // 60 sec
+const IDEMPOTENCY_TTL_MS = 5 * 60 * 1000;
 
-// Using module-scoped Map so it persists across requests within the same Node
-// process. In a serverless environment this is best-effort per instance.
-const idempotencyCache: Map<string, CachedEntry> = (globalThis as unknown as { __milaIdempotencyCache?: Map<string, CachedEntry> }).__milaIdempotencyCache
-  ?? new Map<string, CachedEntry>();
-(globalThis as unknown as { __milaIdempotencyCache?: Map<string, CachedEntry> }).__milaIdempotencyCache = idempotencyCache;
+const idempotencyCache: Map<string, CacheEntry> =
+  (globalThis as unknown as { __milaIdempotencyCache?: Map<string, CacheEntry> })
+    .__milaIdempotencyCache ?? new Map<string, CacheEntry>();
+(globalThis as unknown as { __milaIdempotencyCache?: Map<string, CacheEntry> })
+  .__milaIdempotencyCache = idempotencyCache;
 
-function pruneExpiredKeys(): void {
+function pruneIdempotencyCache(): void {
   const now = Date.now();
   for (const [key, entry] of idempotencyCache.entries()) {
-    if (now - entry.createdAt > IDEMPOTENCY_TTL_MS) {
-      idempotencyCache.delete(key);
-    }
+    if (entry.expires < now) idempotencyCache.delete(key);
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: ProcessPaymentBody = await request.json();
+
+    // Idempotency key — accepted from the JSON body or the Idempotency-Key header.
+    const idempotencyKey =
+      body.idempotencyKey || request.headers.get("idempotency-key")?.trim() || "";
+
+    if (idempotencyKey) {
+      pruneIdempotencyCache();
+      const cached = idempotencyCache.get(idempotencyKey);
+      if (cached) {
+        // A charge with this key is still running — await it rather than
+        // issuing a second one (guards against a fast double-click).
+        if (cached.inFlight) {
+          const settled = await cached.inFlight;
+          return NextResponse.json(settled.response, { status: settled.status });
+        }
+        return NextResponse.json(cached.response, { status: cached.status ?? 200 });
+      }
+    }
 
     // --- Validation -----------------------------------------------------------
     const missing = REQUIRED_FIELDS.filter(
@@ -128,29 +143,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // --- Idempotency check ----------------------------------------------------
-    // Accept key from either the JSON body or the `Idempotency-Key` header.
-    const idempotencyKey =
-      body.idempotencyKey || request.headers.get("idempotency-key") || "";
-
-    if (idempotencyKey) {
-      pruneExpiredKeys();
-      const cached = idempotencyCache.get(idempotencyKey);
-      if (cached) {
-        const age = Date.now() - cached.createdAt;
-        // If there's an in-flight request with this key, wait for it instead
-        // of kicking off a second charge.
-        if (cached.inFlight) {
-          const settled = await cached.inFlight;
-          return NextResponse.json(settled.response, { status: settled.status });
-        }
-        // Replay the cached response if we're inside the 60-second window.
-        if (age < IDEMPOTENCY_REPLAY_WINDOW_MS) {
-          return NextResponse.json(cached.response, { status: cached.status });
-        }
-      }
-    }
-
     // --- Process payment ------------------------------------------------------
     const paymentReq: CardPaymentRequest = {
       amount: body.amount,
@@ -165,19 +157,16 @@ export async function POST(request: NextRequest) {
       invoiceId: body.invoiceId,
     };
 
-    // Wrap the gateway call in a promise so any concurrent requests with the
-    // same idempotency key can await the same outcome.
-    let resolveInFlight: (v: { response: unknown; status: number }) => void = () => {};
-    const inFlightPromise = new Promise<{ response: unknown; status: number }>((resolve) => {
-      resolveInFlight = resolve;
-    });
-
+    // Register an in-flight entry so concurrent retries with the same key
+    // await this charge instead of starting a second one.
+    let resolveInFlight: (v: Settled) => void = () => {};
     if (idempotencyKey) {
+      const inFlight = new Promise<Settled>((resolve) => {
+        resolveInFlight = resolve;
+      });
       idempotencyCache.set(idempotencyKey, {
-        response: null,
-        status: 0,
-        createdAt: Date.now(),
-        inFlight: inFlightPromise,
+        expires: Date.now() + IDEMPOTENCY_TTL_MS,
+        inFlight,
       });
     }
 
@@ -188,6 +177,7 @@ export async function POST(request: NextRequest) {
       let statusCode: number;
 
       if (!result.success) {
+        // 402 Payment Required for declined / gateway-level failures
         statusCode = result.status === "ERROR" ? 500 : 402;
         responseBody = {
           success: false,
@@ -205,19 +195,19 @@ export async function POST(request: NextRequest) {
         };
       }
 
+      // Cache the outcome (success and decline alike) so a retry does not re-charge.
       if (idempotencyKey) {
         idempotencyCache.set(idempotencyKey, {
+          expires: Date.now() + IDEMPOTENCY_TTL_MS,
           response: responseBody,
           status: statusCode,
-          createdAt: Date.now(),
         });
       }
       resolveInFlight({ response: responseBody, status: statusCode });
 
       return NextResponse.json(responseBody, { status: statusCode });
     } catch (innerErr) {
-      // On unexpected failures, drop the cache entry so retries aren't
-      // blocked by a stale in-flight promise.
+      // Drop the entry so a genuine retry isn't blocked by a stale promise.
       if (idempotencyKey) idempotencyCache.delete(idempotencyKey);
       resolveInFlight({
         response: { success: false, error: "Internal server error" },

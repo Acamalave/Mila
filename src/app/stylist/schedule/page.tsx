@@ -5,21 +5,27 @@ import { motion } from "motion/react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useStaff } from "@/providers/StaffProvider";
+import { useEventBus } from "@/providers/EventBusProvider";
+import { useToast } from "@/providers/ToastProvider";
 import { getStoredData, setStoredData } from "@/lib/utils";
-import { onCollectionChange } from "@/lib/firestore";
+import { onCollectionChange, setDocument } from "@/lib/firestore";
+import { getDeletedSet } from "@/lib/deleted-set";
 import { formatShortDate, formatTime } from "@/lib/date-utils";
 import { getInitialDemoAppointments } from "@/data/appointments";
 import { services } from "@/data/services";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
+import Button from "@/components/ui/Button";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
-import { CalendarDays, Clock } from "lucide-react";
-import type { Booking, StylistSchedule } from "@/types";
+import { CalendarDays, Clock, Check, AlertTriangle } from "lucide-react";
+import type { Booking, BookingStatus, StylistSchedule } from "@/types";
 
 export default function StylistSchedulePage() {
   const { user } = useAuth();
   const { language, t } = useLanguage();
   const { getStylistByPhone, updateSchedule } = useStaff();
+  const { emit } = useEventBus();
+  const { addToast } = useToast();
 
   const stylist = user?.phone ? getStylistByPhone(user.phone) : undefined;
 
@@ -27,7 +33,8 @@ export default function StylistSchedulePage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
 
   useEffect(() => {
-    let stored = getStoredData<Booking[]>("mila-bookings", []);
+    const deletedSet = getDeletedSet("bookings");
+    let stored = getStoredData<Booking[]>("mila-bookings", []).filter((b) => !deletedSet.has(b.id));
     if (stored.length === 0) {
       stored = getInitialDemoAppointments();
     }
@@ -35,10 +42,11 @@ export default function StylistSchedulePage() {
 
     const unsubBookings = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
       if (firestoreBookings.length > 0) {
+        const currentDeleted = getDeletedSet("bookings");
         const local = getStoredData<Booking[]>("mila-bookings", []);
         const merged = new Map<string, Booking>();
-        for (const b of local) if (b.id) merged.set(b.id, b);
-        for (const b of firestoreBookings) if (b.id) merged.set(b.id, b);
+        for (const b of local) if (b.id && !currentDeleted.has(b.id)) merged.set(b.id, b);
+        for (const b of firestoreBookings) if (b.id && !currentDeleted.has(b.id)) merged.set(b.id, b);
         const all = Array.from(merged.values());
         setBookings(all);
         setStoredData("mila-bookings", all);
@@ -46,6 +54,33 @@ export default function StylistSchedulePage() {
     });
     return () => unsubBookings();
   }, []);
+
+  // --- Mark booking complete / no-show ---
+  // Triggers commission generation in CommissionProvider via the booking:updated event.
+  const updateBookingStatus = useCallback(
+    (bookingId: string, newStatus: BookingStatus) => {
+      const target = bookings.find((b) => b.id === bookingId);
+      if (!target) return;
+      const updated: Booking = { ...target, status: newStatus };
+      const next = bookings.map((b) => (b.id === bookingId ? updated : b));
+      setBookings(next);
+      setStoredData("mila-bookings", next);
+      setDocument("bookings", bookingId, { status: newStatus }).catch((err) =>
+        console.warn("[Mila] Booking status sync failed:", err)
+      );
+      // Emit FULL booking so CommissionProvider can read serviceIds + stylistId
+      emit("booking:updated", updated);
+      const labels: Record<BookingStatus, { en: string; es: string }> = {
+        completed: { en: "Marked completed", es: "Marcada como completada" },
+        "no-show": { en: "Marked as no-show", es: "Marcada como no asistió" },
+        cancelled: { en: "Cancelled", es: "Cancelada" },
+        confirmed: { en: "Confirmed", es: "Confirmada" },
+        pending: { en: "Pending", es: "Pendiente" },
+      };
+      addToast(labels[newStatus][language], newStatus === "no-show" || newStatus === "cancelled" ? "error" : "success");
+    },
+    [bookings, emit, addToast, language]
+  );
 
   const myBookings = useMemo(
     () => (stylist ? bookings.filter((b) => b.stylistId === stylist.id) : []),
@@ -91,13 +126,11 @@ export default function StylistSchedulePage() {
   }, [language]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- Appointments for selected day ---
+  // Show ALL statuses for the day so the stylist can review completed/cancelled
+  // history as well as upcoming work. Cancelled is dimmed in the UI.
   const selectedDayBookings = useMemo(() => {
     return myBookings
-      .filter(
-        (b) =>
-          b.date === selectedDate &&
-          (b.status === "confirmed" || b.status === "pending")
-      )
+      .filter((b) => b.date === selectedDate)
       .sort((a, b) => a.startTime.localeCompare(b.startTime));
   }, [myBookings, selectedDate]);
 
@@ -215,36 +248,66 @@ export default function StylistSchedulePage() {
                 {t("stylistDash", "noUpcoming")}
               </div>
             ) : (
-              selectedDayBookings.map((booking) => (
-                <div
-                  key={booking.id}
-                  className="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 hover:bg-white/5 transition-colors"
-                >
-                  {/* Time */}
-                  <div className="flex items-center gap-2 text-mila-gold shrink-0">
-                    <Clock size={16} />
-                    <span className="text-sm font-medium whitespace-nowrap">
-                      {formatTime(booking.startTime)} &ndash;{" "}
-                      {formatTime(booking.endTime)}
-                    </span>
-                  </div>
+              selectedDayBookings.map((booking) => {
+                const canMarkDone =
+                  booking.status === "confirmed" || booking.status === "pending";
+                const isInactive =
+                  booking.status === "cancelled" || booking.status === "no-show";
+                return (
+                  <div
+                    key={booking.id}
+                    className={`px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 hover:bg-white/5 transition-colors ${isInactive ? "opacity-60" : ""}`}
+                  >
+                    {/* Time */}
+                    <div className="flex items-center gap-2 text-mila-gold shrink-0">
+                      <Clock size={16} />
+                      <span className="text-sm font-medium whitespace-nowrap">
+                        {formatTime(booking.startTime)} &ndash;{" "}
+                        {formatTime(booking.endTime)}
+                      </span>
+                    </div>
 
-                  {/* Details */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-text-primary truncate">
-                      {booking.guestName ?? booking.clientId ?? "---"}
-                    </p>
-                    <p className="text-xs text-text-secondary mt-0.5 truncate">
-                      {getServiceNames(booking.serviceIds)}
-                    </p>
-                  </div>
+                    {/* Details */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-text-primary truncate">
+                        {booking.guestName ?? booking.clientId ?? "---"}
+                      </p>
+                      <p className="text-xs text-text-secondary mt-0.5 truncate">
+                        {getServiceNames(booking.serviceIds)}
+                      </p>
+                    </div>
 
-                  {/* Status */}
-                  <Badge variant={statusBadgeVariant(booking.status)}>
-                    {booking.status}
-                  </Badge>
-                </div>
-              ))
+                    {/* Status badge */}
+                    <Badge variant={statusBadgeVariant(booking.status)}>
+                      {booking.status}
+                    </Badge>
+
+                    {/* Mark complete / no-show — only while pending or confirmed */}
+                    {canMarkDone && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={() => updateBookingStatus(booking.id, "completed")}
+                          title={language === "es" ? "Marcar completada" : "Mark completed"}
+                        >
+                          <Check size={14} />
+                          {language === "es" ? "Completada" : "Done"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => updateBookingStatus(booking.id, "no-show")}
+                          title={language === "es" ? "Marcar como no asistió" : "Mark as no-show"}
+                        >
+                          <AlertTriangle size={14} />
+                          {language === "es" ? "No asistió" : "No-show"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
 

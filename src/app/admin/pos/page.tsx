@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useInvoices } from "@/providers/InvoiceProvider";
 import { usePayment } from "@/providers/PaymentProvider";
 import { useCommissions } from "@/providers/CommissionProvider";
+import { useStaff } from "@/providers/StaffProvider";
 import { useToast } from "@/providers/ToastProvider";
-import { calculateTaxBreakdown, generateId, formatPrice, getStoredData, setStoredData } from "@/lib/utils";
+import { calculateTaxBreakdown, generateId, getStoredData, setStoredData } from "@/lib/utils";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import POSClientSelector from "@/components/admin/pos/POSClientSelector";
@@ -48,6 +49,7 @@ export default function POSPage() {
   const { addInvoice, createAndPayInvoice, sendInvoice } = useInvoices();
   const { processCounterPayment } = usePayment();
   const { generatePOSCommissions } = useCommissions();
+  const { allStylists } = useStaff();
   const { addToast } = useToast();
 
   const savedCart = getStoredData<{ client: POSClient | null; items: InvoiceItem[]; stylistId: string | null; discount: number } | null>("mila-pos-cart", null);
@@ -78,6 +80,20 @@ export default function POSPage() {
     (item) => item.type === "service" && !item.stylistId && !stylistId
   );
   const hasUnassignedService = unassignedServices.length > 0;
+
+  // Fill missing per-item stylist with the invoice-level stylist so commission
+  // generation correctly attributes earnings (CommissionProvider reads
+  // `item.stylistId ?? invoice.stylistId`, but POS clients may want the global
+  // stylist applied to all items by default).
+  const itemsWithStylist = useMemo(() => {
+    if (!stylistId) return items;
+    const stylistName = allStylists.find((s) => s.id === stylistId)?.name;
+    return items.map((item) =>
+      item.type === "service" && !item.stylistId
+        ? { ...item, stylistId, stylistName }
+        : item
+    );
+  }, [items, stylistId, allStylists]);
 
   const canGoNext = useCallback(() => {
     switch (step) {
@@ -125,7 +141,7 @@ export default function POSPage() {
         afterDiscount,
         taxAmount,
         taxRate,
-        items,
+        items: itemsWithStylist,
         paymentMethod: "counter",
         counterNote: note,
         status: "paid",

@@ -1,19 +1,59 @@
 // =============================================================================
 // POST /api/payments/webhook
 //
-// Receives payment status updates from Paguelo Facil and:
-//   1. Updates the invoice status in Firestore (real-time listeners sync to UI)
-//   2. Records / updates the transaction in the "payments" collection
-//   3. Fires notifications (email + WhatsApp) to the client on terminal states
+// Receives payment status updates from Paguelo Facil.
+// Updates the invoice status in Firestore so real-time listeners pick it up,
+// records the transaction, and notifies the client. Returns 200 immediately so
+// the gateway does not retry (except on failed authentication → 401).
 //
-// Always returns 200 to prevent Paguelo Facil from retrying, unless the
-// request fails authentication (401).
+// Authentication
+// --------------
+// Paguelo Facil does not sign webhook bodies; the only proof of origin is
+// either (a) a shared-secret query param / header configured in the merchant
+// dashboard, or (b) the source IP. We check both, configurable via env:
+//   PAGUELO_WEBHOOK_SECRET — required, sent as `?secret=…` or `X-Webhook-Secret`
+//   PAGUELO_WEBHOOK_IPS    — optional comma-separated allow-list of source IPs
+// Without a secret configured we refuse every request (fail-closed) so a
+// misconfiguration can never let an attacker mark invoices as paid.
 // =============================================================================
 
 import { NextRequest, NextResponse } from "next/server";
 import { setDocument, getDocument } from "@/lib/firestore";
 import { internalAuthHeaders } from "@/lib/internal-auth";
 import type { Invoice } from "@/types";
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+function isAuthorized(request: NextRequest): boolean {
+  const expectedSecret = (process.env.PAGUELO_WEBHOOK_SECRET ?? "").trim();
+  if (!expectedSecret) {
+    console.error(
+      "[Webhook] PAGUELO_WEBHOOK_SECRET is not set — refusing all webhook updates"
+    );
+    return false;
+  }
+
+  const headerSecret =
+    request.headers.get("x-webhook-secret")?.trim() ||
+    request.headers.get("x-paguelo-token")?.trim();
+  const querySecret = request.nextUrl.searchParams.get("secret")?.trim();
+  const provided = headerSecret || querySecret || "";
+  if (provided !== expectedSecret) return false;
+
+  const allowList = (process.env.PAGUELO_WEBHOOK_IPS ?? "")
+    .split(",")
+    .map((ip) => ip.trim())
+    .filter(Boolean);
+  if (allowList.length === 0) return true;
+
+  const sourceIp =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    request.headers.get("x-real-ip")?.trim() ??
+    "";
+  return allowList.includes(sourceIp);
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -100,46 +140,7 @@ function extractInvoiceId(payload: WebhookPayload): string | undefined {
   );
 }
 
-/**
- * Validate the webhook came from Paguelo Facil.
- *
- * Paguelo Facil does not (at time of writing) publish an HMAC signing spec for
- * webhooks — so we rely on a shared secret passed in a header: the inbound
- * `x-paguelo-token` (or `authorization: Bearer <token>`) must match
- * PAGUELO_WEBHOOK_SECRET.
- *
- * Fail-closed: if PAGUELO_WEBHOOK_SECRET is not configured, every request is
- * rejected. An unauthenticated webhook would let anyone mark invoices as paid.
- *
- * TODO: replace with proper HMAC signature verification once Paguelo Facil
- * exposes one.
- */
-function isAuthorized(request: NextRequest): boolean {
-  const expected = process.env.PAGUELO_WEBHOOK_SECRET?.trim();
-  if (!expected) {
-    console.error(
-      "[Webhook] PAGUELO_WEBHOOK_SECRET is not set — rejecting webhook. Configure the secret to enable payment webhooks."
-    );
-    return false;
-  }
-
-  const headerToken =
-    request.headers.get("x-paguelo-token") ||
-    request.headers.get("x-paguelofacil-token") ||
-    request.headers.get("paguelo-token");
-
-  if (headerToken && headerToken === expected) return true;
-
-  const auth = request.headers.get("authorization");
-  if (auth && auth === `Bearer ${expected}`) return true;
-
-  return false;
-}
-
-/**
- * Parse a webhook amount (string | number | undefined) into a number.
- * Returns null when it cannot be parsed.
- */
+/** Parse a webhook amount (string | number | undefined) into a number, or null. */
 function parseAmount(raw: string | number | undefined): number | null {
   if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
   if (typeof raw === "string") {
@@ -149,9 +150,7 @@ function parseAmount(raw: string | number | undefined): number | null {
   return null;
 }
 
-/**
- * Fire off an email notification to the client. Fire-and-forget.
- */
+/** Fire off an email notification to the client. Fire-and-forget. */
 function notifyEmail(
   origin: string,
   to: string,
@@ -161,20 +160,13 @@ function notifyEmail(
   void fetch(new URL("/api/notifications/email", origin).toString(), {
     method: "POST",
     headers: { "Content-Type": "application/json", ...internalAuthHeaders() },
-    body: JSON.stringify({
-      to,
-      template,
-      data,
-      language: "es",
-    }),
+    body: JSON.stringify({ to, template, data, language: "es" }),
   }).catch((err) => {
     console.warn(`[Webhook] Email (${template}) dispatch failed:`, err);
   });
 }
 
-/**
- * Fire off a WhatsApp notification to the client. Fire-and-forget.
- */
+/** Fire off a WhatsApp notification to the client. Fire-and-forget. */
 function notifyWhatsApp(
   origin: string,
   phone: string,
@@ -185,13 +177,7 @@ function notifyWhatsApp(
   void fetch(new URL("/api/notifications/whatsapp", origin).toString(), {
     method: "POST",
     headers: { "Content-Type": "application/json", ...internalAuthHeaders() },
-    body: JSON.stringify({
-      phone,
-      countryCode,
-      template,
-      data,
-      language: "es",
-    }),
+    body: JSON.stringify({ phone, countryCode, template, data, language: "es" }),
   }).catch((err) => {
     console.warn(`[Webhook] WhatsApp (${template}) dispatch failed:`, err);
   });
@@ -218,7 +204,7 @@ export async function POST(request: NextRequest) {
   // ── Auth check ──
   if (!isAuthorized(request)) {
     console.error("[Webhook] Unauthorized webhook request");
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ received: false, error: "Unauthorized" }, { status: 401 });
   }
 
   let payload: WebhookPayload;
@@ -253,9 +239,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ received: true, note: "unknown_status" }, { status: 200 });
   }
 
-  // Fetch invoice (best effort — may fail server-side if rules block anon reads,
-  // but the same pattern works for the booking-reminders cron route so we rely on
-  // the deployed security rules to allow these operations on the server runtime).
+  // Fetch invoice (best effort).
   let invoice: Invoice | null = null;
   try {
     invoice = await getDocument<Invoice>("invoices", invoiceId);
@@ -276,13 +260,10 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const clientName =
-    client?.name || invoice?.clientName || "Cliente";
+  const clientName = client?.name || invoice?.clientName || "Cliente";
   const amountDisplay = formatAmount(payload.amount, invoice?.amount);
   const transactionId =
-    payload.codOper ||
-    payload.authCode ||
-    `pgf-${mappedStatus}-${Date.now()}`;
+    payload.codOper || payload.authCode || `pgf-${mappedStatus}-${Date.now()}`;
   const origin = request.nextUrl.origin;
 
   // ── Branch on mapped status ──
@@ -338,9 +319,6 @@ export async function POST(request: NextRequest) {
       );
     } else if (mappedStatus === "declined") {
       // Only transition to "declined" if the invoice was in a valid prior state.
-      // Invoices are "sent" → "declined"; if we don't know the current status we
-      // still attempt the merge — the client-side provider already enforces the
-      // transition rules and Firestore will just overwrite fields.
       const canTransition =
         !invoice ||
         invoice.status === "sent" ||
@@ -422,13 +400,9 @@ export async function POST(request: NextRequest) {
         createdAt: nowIso,
       });
 
-      console.log(
-        `[Webhook] Invoice ${invoiceId} refunded (txn: ${transactionId})`
-      );
+      console.log(`[Webhook] Invoice ${invoiceId} refunded (txn: ${transactionId})`);
 
-      // Notify client via the "payment-declined" template — it's the closest
-      // fit for a "payment no longer valid" message and it already surfaces a
-      // "contact support" tone. Parent-facing copy could be improved later.
+      // Notify client via the "payment-declined" template — closest fit.
       if (client?.email) {
         notifyEmail(origin, client.email, "payment-declined", {
           clientName,

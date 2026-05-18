@@ -32,4 +32,7 @@ export interface Stylist {
   systemRole?: StaffSystemRole;
   /** Whether this person appears publicly on the booking page as a specialist */
   isPublic?: boolean;
+  /** Specific dates the stylist is unavailable (vacation, time off, etc.).
+   * Format: "YYYY-MM-DD". Booking flow must skip these dates. */
+  blockedDates?: string[];
 }
