@@ -49,14 +49,17 @@ export interface PagueloFacilResponse {
 const SANDBOX_URL = "https://sandbox.paguelofacil.com/rest/ccapi/v1";
 const PRODUCTION_URL = "https://secure.paguelofacil.com/rest/ccapi/v1";
 
+// Sanitize env vars — Vercel may inject trailing newlines/whitespace
+const clean = (v?: string) => (v ?? "").trim();
+
 function getBaseUrl(): string {
-  const env = process.env.PAGUELO_ENVIRONMENT ?? "sandbox";
+  const env = clean(process.env.PAGUELO_ENVIRONMENT) || "sandbox";
   return env === "production" ? PRODUCTION_URL : SANDBOX_URL;
 }
 
 function getCredentials() {
-  const cclw = process.env.PAGUELO_CCLW;
-  const token = process.env.PAGUELO_TOKEN;
+  const cclw = clean(process.env.PAGUELO_CCLW);
+  const token = clean(process.env.PAGUELO_TOKEN);
 
   if (!cclw || !token) {
     throw new Error(
@@ -83,8 +86,10 @@ export async function processCardPayment(
       CMTN: req.amount.toFixed(2),
       CDSC: req.description,
       CCNM: req.cardNumber.replace(/\s/g, ""),
-      CCEM: req.cardExpMonth.padStart(2, "0"),
-      CCEY: req.cardExpYear.padStart(2, "0"),
+      CCEM: req.cardExpMonth.replace(/\D/g, "").padStart(2, "0"),
+      // Paguelo Facil expects a 2-digit year (YY) — normalize whether the
+      // caller passes "YY" or "YYYY".
+      CCEY: req.cardExpYear.replace(/\D/g, "").slice(-2).padStart(2, "0"),
       CCCVV: req.cardCvv,
       CUSR: req.clientName,
       CEML: req.clientEmail,

@@ -9,79 +9,34 @@ import {
   useEffect,
   type ReactNode,
 } from "react";
-import type { AppNotification, Invoice, Booking, User, Stylist } from "@/types";
+import type { AppNotification, Invoice, Booking } from "@/types";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
-import { stylists as seedStylists } from "@/data/stylists";
+import { services } from "@/data/services";
 import { useAuth } from "@/providers/AuthProvider";
 import { useEventBus } from "@/providers/EventBusProvider";
 import { setDocument, deleteDocument, onCollectionChange } from "@/lib/firestore";
 
 // ---------------------------------------------------------------------------
-// External notification dispatch (email + WhatsApp) — fire-and-forget
+// External notification dispatch (email + WhatsApp)
+//
+// The client never calls the internal email/whatsapp routes directly. It asks
+// the server-side /api/notifications/dispatch route, which resolves the
+// recipient and template data from Firestore. Fire-and-forget.
 // ---------------------------------------------------------------------------
 
-async function dispatchExternalNotifications(
-  recipients: Array<{ email?: string; phone?: string; countryCode?: string }>,
-  template: string,
-  data: Record<string, unknown>,
-  language?: string
-) {
-  const promises: Promise<unknown>[] = [];
-
-  for (const recipient of recipients) {
-    if (recipient.email) {
-      promises.push(
-        fetch("/api/notifications/email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ to: recipient.email, template, data, language: language ?? "es" }),
-        }).catch((err) => console.warn("[Mila] External email dispatch failed:", err))
-      );
-    }
-
-    if (recipient.phone) {
-      promises.push(
-        fetch("/api/notifications/whatsapp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            phone: recipient.phone,
-            countryCode: recipient.countryCode ?? "+507",
-            template,
-            data,
-            language: language ?? "es",
-          }),
-        }).catch((err) => console.warn("[Mila] External WhatsApp dispatch failed:", err))
-      );
-    }
-  }
-
-  await Promise.allSettled(promises);
+function dispatchNotification(body: Record<string, unknown>): void {
+  void fetch("/api/notifications/dispatch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).catch((err) => console.warn("[Mila] Notification dispatch failed:", err));
 }
 
-/** Look up a user from the local registry by id */
-function findUserById(userId: string | null): User | undefined {
-  if (!userId) return undefined;
-  const users = getStoredData<User[]>("mila-users", []);
-  return users.find((u) => u.id === userId);
-}
-
-/** Look up a stylist (seed + custom) by id */
-function findStylistById(stylistId: string): Stylist | undefined {
-  const custom = getStoredData<Stylist[]>("mila-staff-custom", []);
-  return seedStylists.find((s) => s.id === stylistId) || custom.find((s) => s.id === stylistId);
-}
-
-/** Resolve contact info for a stylist: try linked user first, then fall back */
-function getStylistContact(stylistId: string): { email?: string; phone?: string; countryCode?: string } | undefined {
-  const stylist = findStylistById(stylistId);
-  if (!stylist) return undefined;
-  // Try linked user in registry
-  if (stylist.linkedPhone) {
-    const linkedUser = getStoredData<User[]>("mila-users", []).find((u) => u.phone === stylist.linkedPhone);
-    if (linkedUser) return { email: linkedUser.email, phone: linkedUser.phone, countryCode: linkedUser.countryCode };
-  }
-  return undefined;
+/** Resolve service display names (Spanish) from their ids. */
+function resolveServiceNames(serviceIds: string[]): string[] {
+  return serviceIds
+    .map((id) => services.find((s) => s.id === id)?.name?.es)
+    .filter((n): n is string => !!n);
 }
 
 interface NotificationContextValue {
@@ -276,21 +231,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           });
           const { id, ...notifData } = newNotif;
           setDocument("notifications", id, notifData).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
-
-          // --- External: invoice-sent to client ---
-          const invoiceClient = findUserById(invoice.clientId);
-          if (invoiceClient) {
-            dispatchExternalNotifications(
-              [{ email: invoiceClient.email, phone: invoiceClient.phone, countryCode: invoiceClient.countryCode }],
-              "invoice-sent",
-              {
-                clientName: invoiceClient.name,
-                invoiceId: invoice.id,
-                amount: invoice.amount,
-                dueDate: invoice.dueDate,
-              }
-            );
-          }
+          // External invoice-sent email/WhatsApp is dispatched by sendInvoice
+          // (it needs the delivery outcome to decide the "sent" transition).
         }
       }),
       on("invoice:paid", (payload) => {
@@ -337,20 +279,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           const { id: clientId, ...clientData } = clientNotif;
           setDocument("notifications", adminId, adminData).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
           setDocument("notifications", clientId, clientData).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
-
-          // --- External: payment-confirmed to client ---
-          const paidClient = findUserById(invoice.clientId);
-          if (paidClient) {
-            dispatchExternalNotifications(
-              [{ email: paidClient.email, phone: paidClient.phone, countryCode: paidClient.countryCode }],
-              "payment-confirmed",
-              {
-                clientName: paidClient.name,
-                invoiceId: invoice.id,
-                amount: invoice.amount,
-              }
-            );
-          }
+          // External payment-confirmed email/WhatsApp is dispatched by the
+          // InvoiceProvider (POS/counter sales) and the payment webhook (card).
         }
       }),
       on("booking:updated", (payload) => {
@@ -459,44 +389,20 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           createBookingNotifications(notifs);
         }
 
-        // --- External notifications (email + WhatsApp) ---
-        const client = findUserById(booking.clientId);
-        const bookingData: Record<string, unknown> = {
-          clientName: client?.name ?? booking.guestName ?? "Client",
-          date: booking.date,
-          startTime: booking.startTime,
-          endTime: booking.endTime,
-          bookingId: booking.id,
-        };
-
-        if (booking.status === "confirmed" || booking.status === "pending") {
-          // New / confirmed booking → confirmation to client
-          if (client) {
-            dispatchExternalNotifications(
-              [{ email: client.email, phone: client.phone, countryCode: client.countryCode }],
-              "booking-confirmation",
-              bookingData
-            );
-          }
-        } else if (booking.status === "cancelled") {
-          // Cancellation → notify client + stylist
-          const recipients: Array<{ email?: string; phone?: string; countryCode?: string }> = [];
-          if (client) recipients.push({ email: client.email, phone: client.phone, countryCode: client.countryCode });
-          if (booking.stylistId) {
-            const stylistContact = getStylistContact(booking.stylistId);
-            if (stylistContact) recipients.push(stylistContact);
-          }
-          if (recipients.length > 0) {
-            dispatchExternalNotifications(recipients, "booking-cancellation", bookingData);
-          }
-        } else if (booking.date) {
-          // Rescheduled → confirmation with updated details to client
-          if (client) {
-            dispatchExternalNotifications(
-              [{ email: client.email, phone: client.phone, countryCode: client.countryCode }],
-              "booking-confirmation",
-              bookingData
-            );
+        // --- External notifications (email + WhatsApp) via dispatch route ---
+        if (booking.clientId) {
+          const payloadBase = {
+            clientId: booking.clientId,
+            clientName: booking.clientName ?? booking.guestName,
+            stylistName: booking.stylistName,
+            date: booking.date,
+            time: booking.startTime,
+            serviceNames: resolveServiceNames(booking.serviceIds ?? []),
+          };
+          if (booking.status === "confirmed" || booking.status === "pending") {
+            dispatchNotification({ event: "booking-confirmation", ...payloadBase });
+          } else if (booking.status === "cancelled") {
+            dispatchNotification({ event: "booking-cancellation", ...payloadBase });
           }
         }
       }),

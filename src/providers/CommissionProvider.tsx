@@ -19,6 +19,7 @@ import { services } from "@/data/services";
 interface CommissionContextValue {
   commissions: CommissionRecord[];
   generateCommission: (booking: Booking) => void;
+  generatePOSCommissions: (invoice: Invoice) => void;
   markCommissionPaid: (commissionId: string) => void;
   markAllPaidForStylist: (stylistId: string) => void;
   getCommissionsForStylist: (stylistId: string) => CommissionRecord[];
@@ -109,34 +110,42 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
   const generateCommissionFromInvoice = useCallback(
     (invoice: Invoice) => {
       if (invoice.status !== "paid") return;
-      if (!invoice.stylistId) return;
       if (!invoice.items || invoice.items.length === 0) return;
 
       // Check if commissions already exist for this invoice
       const existing = commissions.some((c) => c.invoiceId === invoice.id);
       if (existing) return;
 
-      const stylist = allStylists.find((s) => s.id === invoice.stylistId);
-      if (!stylist) return;
-
       const newRecords: CommissionRecord[] = [];
 
       for (const item of invoice.items) {
         if (item.type !== "service") continue;
+
+        // Resolve the stylist: prefer per-item stylistId, fall back to invoice-level
+        const itemStylistId = item.stylistId || invoice.stylistId;
+        if (!itemStylistId) continue;
+
+        const stylist = allStylists.find((s) => s.id === itemStylistId);
+        if (!stylist) continue;
 
         // Find commission rate: specific service override > default
         const serviceOverride = stylist.serviceCommissions?.find(
           (sc) => sc.serviceId === item.id
         );
         const rate = serviceOverride?.percentage ?? stylist.defaultCommission ?? 40;
-        const commissionAmount = (item.price * item.quantity * rate) / 100;
+        // Commission is paid on the amount the client actually paid: apply the
+        // invoice-level discount proportionally to this item before the rate.
+        const discountPct = invoice.discount ?? 0;
+        const itemGross = item.price * item.quantity;
+        const itemNet = Math.round(itemGross * (1 - discountPct / 100) * 100) / 100;
+        const commissionAmount = Math.round(((itemNet * rate) / 100) * 100) / 100;
 
         newRecords.push({
           id: `comm-${generateId()}`,
           stylistId: stylist.id,
           invoiceId: invoice.id,
           serviceId: item.id,
-          serviceAmount: item.price * item.quantity,
+          serviceAmount: itemNet,
           commissionRate: rate,
           commissionAmount,
           status: "pending",
@@ -159,6 +168,16 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
       }
     },
     [allStylists, commissions, persist]
+  );
+
+  // Public POS helper — called from the POS counter-payment flow to guarantee
+  // that commissions are generated even if the `invoice:paid` event listener
+  // missed the emission (e.g. due to event-bus ordering during hot reload).
+  const generatePOSCommissions = useCallback(
+    (invoice: Invoice) => {
+      generateCommissionFromInvoice(invoice);
+    },
+    [generateCommissionFromInvoice]
   );
 
   const markCommissionPaid = useCallback(
@@ -262,7 +281,12 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsub = on("invoice:paid", (payload) => {
       const invoice = payload as Invoice;
-      if (invoice?.status === "paid" && invoice.stylistId) {
+      if (!invoice || invoice.status !== "paid") return;
+      // Accept when either the invoice or any item carries a stylist
+      const hasStylist =
+        !!invoice.stylistId ||
+        !!(invoice.items && invoice.items.some((it) => it.stylistId));
+      if (hasStylist) {
         generateCommissionFromInvoice(invoice);
       }
     });
@@ -273,12 +297,13 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
     () => ({
       commissions,
       generateCommission,
+      generatePOSCommissions,
       markCommissionPaid,
       markAllPaidForStylist,
       getCommissionsForStylist,
       getStylistEarnings,
     }),
-    [commissions, generateCommission, markCommissionPaid, markAllPaidForStylist, getCommissionsForStylist, getStylistEarnings]
+    [commissions, generateCommission, generatePOSCommissions, markCommissionPaid, markAllPaidForStylist, getCommissionsForStylist, getStylistEarnings]
   );
 
   return (

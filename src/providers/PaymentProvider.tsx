@@ -29,7 +29,7 @@ interface PaymentContextValue {
   addCard: (card: Omit<CreditCard, "id" | "createdAt">) => void;
   removeCard: (cardId: string) => void;
   setDefaultCard: (cardId: string) => void;
-  processPayment: (invoiceId: string, cardId: string, amount: number, cardDetails?: CardPaymentDetails) => Promise<PaymentTransaction>;
+  processPayment: (invoiceId: string, cardId: string, amount: number, cardDetails?: CardPaymentDetails, idempotencyKey?: string) => Promise<PaymentTransaction>;
   processCounterPayment: (invoiceId: string, amount: number, note: string) => PaymentTransaction;
   getClientCards: (clientId: string) => CreditCard[];
 }
@@ -118,7 +118,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
   );
 
   const processPayment = useCallback(
-    async (invoiceId: string, cardId: string, amount: number, cardDetails?: CardPaymentDetails): Promise<PaymentTransaction> => {
+    async (invoiceId: string, cardId: string, amount: number, cardDetails?: CardPaymentDetails, idempotencyKey?: string): Promise<PaymentTransaction> => {
       if (!user) throw new Error("User must be authenticated to process payment");
 
       // Card details are required — counter payments use processCounterPayment instead
@@ -126,11 +126,20 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
         throw new Error("Card details are required to process a card payment");
       }
 
+      // Generate an idempotency key tied to this charge attempt. Callers may
+      // pass their own (e.g. PaymentModal's per-open key) so that retries of
+      // the SAME click reuse it while brand-new clicks get a fresh one.
+      const effectiveKey =
+        idempotencyKey || `idem-${invoiceId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
       // Call Paguelo Facil via our API route
       if (cardDetails) {
         const res = await fetch("/api/payments/process", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": effectiveKey,
+          },
           body: JSON.stringify({
             amount,
             description: `Mila Concept - Invoice ${invoiceId}`,
@@ -142,6 +151,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
             cardExpYear: cardDetails.cardExpYear,
             cardCvv: cardDetails.cardCvv,
             invoiceId,
+            idempotencyKey: effectiveKey,
           }),
         });
 

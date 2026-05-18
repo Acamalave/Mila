@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
+import { useAuth } from "@/providers/AuthProvider";
 import { CreditCard, Lock, CheckCircle, AlertCircle, X } from "lucide-react";
 import type { ServiceDepositConfig } from "@/types/service";
 
@@ -30,12 +31,22 @@ export default function DepositPaymentModal({
   totalDeposit,
 }: DepositPaymentModalProps) {
   const { language } = useLanguage();
+  const { user } = useAuth();
   const [step, setStep] = useState<"form" | "processing" | "success" | "error">("form");
   const [cardNumber, setCardNumber] = useState("");
   const [cardName, setCardName] = useState("");
   const [expiry, setExpiry] = useState("");
   const [cvv, setCvv] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  // Stable per-open idempotency suffix — same click retries reuse this key,
+  // while a fresh modal open generates a new one.
+  const idempotencySuffixRef = useRef<string>("");
+
+  useEffect(() => {
+    if (isOpen) {
+      idempotencySuffixRef.current = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    }
+  }, [isOpen]);
 
   const formatCardNumber = (value: string) => {
     const cleaned = value.replace(/\D/g, "").slice(0, 16);
@@ -59,18 +70,31 @@ export default function DepositPaymentModal({
       const cleanCard = cardNumber.replace(/\s/g, "");
       const [expMonth, expYear] = expiry.split("/");
 
+      // Stable idempotency key for this modal open. Retries of the same click
+      // reuse it; fresh opens get a new suffix via the useEffect above.
+      if (!idempotencySuffixRef.current) {
+        idempotencySuffixRef.current = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      }
+      const idempotencyKey = `deposit-${user?.id || "anon"}-${idempotencySuffixRef.current}`;
+
       const res = await fetch("/api/payments/process", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": idempotencyKey,
+        },
         body: JSON.stringify({
           amount: totalDeposit,
           description: `Mila Concept - Booking Deposit`,
-          clientName: cardName,
+          clientName: user?.name || cardName,
+          clientEmail: user?.email || "",
+          clientPhone: user?.phone || "",
           cardNumber: cleanCard,
           cardExpMonth: expMonth,
           cardExpYear: `20${expYear}`,
           cardCvv: cvv,
           invoiceId: `deposit-${Date.now()}`,
+          idempotencyKey,
         }),
       });
 
@@ -82,7 +106,11 @@ export default function DepositPaymentModal({
           onPaymentComplete(data.transactionId || `dep-${Date.now()}`);
         }, 1500);
       } else {
-        setErrorMsg(data.message || (language === "es" ? "Pago rechazado" : "Payment declined"));
+        const apiError =
+          data.error ||
+          data.message ||
+          (language === "es" ? "Pago rechazado" : "Payment declined");
+        setErrorMsg(apiError);
         setStep("error");
       }
     } catch {

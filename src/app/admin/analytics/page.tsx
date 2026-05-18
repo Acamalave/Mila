@@ -1,235 +1,128 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
-import { cn, formatPrice, getStoredData, setStoredData } from "@/lib/utils";
-import { services, serviceCategories } from "@/data/services";
 import { useStaff } from "@/providers/StaffProvider";
-import { useCommissions } from "@/providers/CommissionProvider";
-import { mockReviews } from "@/data/reviews";
-import { getInitialDemoAppointments } from "@/data/appointments";
+import { useService } from "@/providers/ServiceProvider";
+import { getStoredData, formatPrice } from "@/lib/utils";
 import Card from "@/components/ui/Card";
-import Badge from "@/components/ui/Badge";
-import Avatar from "@/components/ui/Avatar";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
 import {
+  BarChart3,
   CalendarDays,
   Star,
   TrendingUp,
-  Award,
-  BarChart3,
   DollarSign,
+  Award,
 } from "lucide-react";
-import { onCollectionChange } from "@/lib/firestore";
-import type { Booking } from "@/types";
-
-const DAY_NAMES_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const DAY_NAMES_ES = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"];
+import type { Booking, Invoice } from "@/types";
 
 export default function AdminAnalyticsPage() {
   const { language, t } = useLanguage();
   const { allStylists } = useStaff();
-  const { commissions } = useCommissions();
+  const { allServices } = useService();
+
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
 
   useEffect(() => {
-    let stored = getStoredData<Booking[]>("mila-bookings", []);
-    if (stored.length === 0) {
-      stored = getInitialDemoAppointments();
-    }
-    setBookings(stored);
+    setBookings(getStoredData<Booking[]>("mila-bookings", []));
+    setInvoices(getStoredData<Invoice[]>("mila-invoices", []));
+  }, []);
 
-    const unsubBookings = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
-      if (firestoreBookings.length > 0) {
-        const local = getStoredData<Booking[]>("mila-bookings", []);
-        const merged = new Map<string, Booking>();
-        for (const b of local) if (b.id) merged.set(b.id, b);
-        for (const b of firestoreBookings) if (b.id) merged.set(b.id, b);
-        const all = Array.from(merged.values());
-        setBookings(all);
-        setStoredData("mila-bookings", all);
+  const startOfWeek = useMemo(() => {
+    const d = new Date();
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const weekBookings = useMemo(
+    () =>
+      bookings.filter((b) => {
+        if (!b.date) return false;
+        const bd = new Date(`${b.date}T${b.startTime ?? "00:00"}`);
+        return bd >= startOfWeek;
+      }),
+    [bookings, startOfWeek]
+  );
+
+  const totalRevenue = useMemo(
+    () =>
+      invoices
+        .filter((inv) => inv.status === "paid")
+        .reduce((sum, inv) => sum + (inv.amount ?? 0), 0),
+    [invoices]
+  );
+
+  const popularService = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const b of bookings) {
+      for (const sid of b.serviceIds ?? []) {
+        counts.set(sid, (counts.get(sid) ?? 0) + 1);
       }
-    });
+    }
+    let topId = "";
+    let topCount = 0;
+    for (const [id, count] of counts) {
+      if (count > topCount) {
+        topId = id;
+        topCount = count;
+      }
+    }
+    const svc = allServices.find((s) => s.id === topId);
+    return svc ? { name: svc.name[language], count: topCount } : null;
+  }, [bookings, allServices, language]);
 
-    return () => unsubBookings();
-  }, []);
-
-  // Bookings this week
-  const bookingsThisWeek = useMemo(() => {
-    const now = new Date();
-    const day = now.getDay();
-    const mondayDiff = day === 0 ? -6 : 1 - day;
-    const monday = new Date(now);
-    monday.setDate(now.getDate() + mondayDiff);
-    monday.setHours(0, 0, 0, 0);
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    sunday.setHours(23, 59, 59, 999);
-
-    const mondayStr = monday.toISOString().split("T")[0];
-    const sundayStr = sunday.toISOString().split("T")[0];
-
-    return bookings.filter(
-      (b) => b.date >= mondayStr && b.date <= sundayStr
-    ).length;
-  }, [bookings]);
-
-  // Average rating
-  const averageRating = useMemo(() => {
-    if (mockReviews.length === 0) return 0;
-    const sum = mockReviews.reduce((acc, r) => acc + r.rating, 0);
-    return Number((sum / mockReviews.length).toFixed(1));
-  }, []);
-
-  // Most popular service
-  const mostPopularService = useMemo(() => {
-    const countMap: Record<string, number> = {};
-    bookings.forEach((b) => {
-      (b.serviceIds ?? []).forEach((svcId) => {
-        countMap[svcId] = (countMap[svcId] || 0) + 1;
-      });
-    });
-    const topServiceId = Object.entries(countMap).sort(
-      (a, b) => b[1] - a[1]
-    )[0]?.[0];
-    return services.find((s) => s.id === topServiceId) || null;
-  }, [bookings]);
-
-  // Top stylist (by number of bookings)
   const topStylist = useMemo(() => {
-    const countMap: Record<string, number> = {};
-    bookings.forEach((b) => {
-      countMap[b.stylistId] = (countMap[b.stylistId] || 0) + 1;
-    });
-    const topStylistId = Object.entries(countMap).sort(
-      (a, b) => b[1] - a[1]
-    )[0]?.[0];
-    return allStylists.find((s) => s.id === topStylistId) || null;
+    const counts = new Map<string, number>();
+    for (const b of bookings) {
+      if (b.stylistId) counts.set(b.stylistId, (counts.get(b.stylistId) ?? 0) + 1);
+    }
+    let topId = "";
+    let topCount = 0;
+    for (const [id, count] of counts) {
+      if (count > topCount) {
+        topId = id;
+        topCount = count;
+      }
+    }
+    const st = allStylists.find((s) => s.id === topId);
+    return st ? { name: st.name, count: topCount } : null;
   }, [bookings, allStylists]);
 
-  // Revenue by service category
-  const revenueByCategory = useMemo(() => {
-    const catRevenue: Record<string, number> = {};
-    serviceCategories.forEach((cat) => {
-      catRevenue[cat.id] = 0;
-    });
-
-    bookings
-      .filter(
-        (b) => b.status === "confirmed" || b.status === "completed"
-      )
-      .forEach((b) => {
-        const svcIds = b.serviceIds ?? [];
-        const share = svcIds.length > 0 ? b.totalPrice / svcIds.length : 0;
-        svcIds.forEach((svcId) => {
-          const service = services.find((s) => s.id === svcId);
-          if (service) {
-            catRevenue[service.categoryId] =
-              (catRevenue[service.categoryId] || 0) + share;
-          }
-        });
-      });
-
-    const maxRevenue = Math.max(...Object.values(catRevenue), 1);
-
-    return serviceCategories.map((cat) => ({
-      id: cat.id,
-      name: cat.name[language],
-      revenue: catRevenue[cat.id] || 0,
-      percent: Math.round(((catRevenue[cat.id] || 0) / maxRevenue) * 100),
-    }));
-  }, [bookings, language]);
-
-  // Bookings per day of week
-  const bookingsPerDay = useMemo(() => {
-    // counts indexed 0=Mon .. 6=Sun
-    const counts = [0, 0, 0, 0, 0, 0, 0];
-    bookings.forEach((b) => {
-      const d = new Date(b.date);
-      const jsDay = d.getDay(); // 0=Sun
-      const idx = jsDay === 0 ? 6 : jsDay - 1; // shift to Mon=0
-      counts[idx]++;
-    });
-
-    const max = Math.max(...counts, 1);
-    const dayNames = language === "es" ? DAY_NAMES_ES : DAY_NAMES_EN;
-
-    return counts.map((count, i) => ({
-      day: dayNames[i],
-      count,
-      percent: Math.round((count / max) * 100),
-    }));
-  }, [bookings, language]);
-
-  const commissionByStylist = useMemo(() => {
-    const map: Record<string, { total: number; pending: number; paid: number; name: string }> = {};
-    commissions.forEach((c) => {
-      if (!map[c.stylistId]) {
-        const stylist = allStylists.find((s) => s.id === c.stylistId);
-        map[c.stylistId] = { total: 0, pending: 0, paid: 0, name: stylist?.name ?? c.stylistId };
-      }
-      map[c.stylistId].total += c.commissionAmount;
-      if (c.status === "pending") map[c.stylistId].pending += c.commissionAmount;
-      else map[c.stylistId].paid += c.commissionAmount;
-    });
-    return Object.entries(map)
-      .map(([id, data]) => ({ stylistId: id, ...data }))
-      .sort((a, b) => b.total - a.total);
-  }, [commissions, allStylists]);
-
-  const metricCards = [
+  const metrics = [
     {
       icon: CalendarDays,
-      value: bookingsThisWeek,
-      label:
-        language === "es"
-          ? "Reservas esta semana"
-          : "Bookings This Week",
+      label: language === "es" ? "Citas esta semana" : "Bookings this week",
+      value: weekBookings.length.toString(),
       color: "text-mila-gold",
       bg: "bg-mila-gold/10",
     },
     {
-      icon: Star,
-      value: averageRating,
-      label:
-        language === "es"
-          ? "Calificacion Promedio"
-          : "Average Rating",
-      color: "text-warning",
-      bg: "bg-warning/10",
-    },
-    {
-      icon: TrendingUp,
-      value: mostPopularService
-        ? mostPopularService.name[language]
-        : "---",
-      label:
-        language === "es"
-          ? "Servicio Mas Popular"
-          : "Most Popular Service",
+      icon: DollarSign,
+      label: language === "es" ? "Ingresos totales" : "Total revenue",
+      value: formatPrice(totalRevenue),
       color: "text-success",
       bg: "bg-success/10",
-      isText: true,
+    },
+    {
+      icon: Star,
+      label: language === "es" ? "Servicio popular" : "Popular service",
+      value: popularService?.name ?? "\u2014",
+      color: "text-mila-gold",
+      bg: "bg-mila-gold/10",
     },
     {
       icon: Award,
-      value: topStylist ? topStylist.name : "---",
-      label:
-        language === "es"
-          ? "Estilista Destacada"
-          : "Top Stylist",
-      color: "text-info",
-      bg: "bg-info/10",
-      isText: true,
+      label: language === "es" ? "Top estilista" : "Top stylist",
+      value: topStylist?.name ?? "\u2014",
+      color: "text-mila-gold",
+      bg: "bg-mila-gold/10",
     },
-  ];
-
-  const barColors = [
-    "bg-mila-gold",
-    "bg-success",
-    "bg-info",
-    "bg-warning",
   ];
 
   return (
@@ -239,230 +132,84 @@ export default function AdminAnalyticsPage() {
       animate="visible"
       className="space-y-8"
     >
-      {/* Header */}
       <motion.div variants={fadeInUp}>
         <h1 className="text-3xl font-bold font-[family-name:var(--font-display)] text-text-primary">
           {t("admin", "analytics")}
         </h1>
         <p className="text-text-secondary mt-1">
-          {language === "es"
-            ? "Metricas y tendencias del salon"
-            : "Salon metrics and trends"}
+          {language === "es" ? "M\u00e9tricas y desempe\u00f1o" : "Metrics and performance"}
         </p>
       </motion.div>
 
-      {/* Metric cards */}
       <motion.div
         variants={fadeInUp}
-        className="grid grid-cols-2 xl:grid-cols-4 gap-2 sm:gap-4"
+        className="grid grid-cols-2 xl:grid-cols-4 gap-2 sm:gap-3"
       >
-        {metricCards.map((card) => {
-          const Icon = card.icon;
+        {metrics.map((m) => {
+          const Icon = m.icon;
           return (
-            <Card key={card.label} className="flex flex-col items-center text-center gap-1.5 p-2.5 sm:flex-row sm:text-left sm:items-center sm:gap-4 sm:p-5">
-              <div className={cn("p-1.5 sm:p-3 rounded-lg sm:rounded-xl", card.bg)}>
-                <Icon size={14} className={cn(card.color, "sm:w-[22px] sm:h-[22px]")} />
+            <Card
+              key={m.label}
+              className="flex flex-col items-center sm:flex-row sm:items-center gap-2 sm:gap-3"
+            >
+              <div className={`p-1.5 sm:p-2 rounded-xl ${m.bg}`}>
+                <Icon size={14} className={`${m.color} sm:w-[18px] sm:h-[18px]`} />
               </div>
-              <div className="min-w-0">
-                <p
-                  className={cn(
-                    "font-bold text-text-primary truncate",
-                    card.isText ? "text-xs sm:text-base" : "text-base sm:text-2xl"
-                  )}
-                >
-                  {card.value}
+              <div className="text-center sm:text-left min-w-0">
+                <p className="text-base sm:text-lg font-bold text-text-primary truncate">
+                  {m.value}
                 </p>
-                <p className="text-[10px] sm:text-sm text-text-secondary truncate leading-tight">{card.label}</p>
+                <p className="text-[10px] sm:text-xs text-text-secondary">{m.label}</p>
               </div>
             </Card>
           );
         })}
       </motion.div>
 
-      {/* Charts row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
-        {/* Revenue by category */}
-        <motion.div variants={fadeInUp}>
-          <Card>
-            <div className="flex items-center gap-2 mb-6">
-              <BarChart3 size={18} className="text-mila-gold" />
-              <h2 className="text-lg font-semibold font-[family-name:var(--font-display)]">
-                {language === "es"
-                  ? "Ingresos por Categoria"
-                  : "Revenue by Category"}
-              </h2>
-            </div>
-
-            <div className="space-y-4">
-              {revenueByCategory.map((cat, i) => (
-                <div key={cat.id}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-sm font-medium text-text-primary">
-                      {cat.name}
-                    </span>
-                    <span className="text-sm font-medium text-text-secondary">
-                      {formatPrice(cat.revenue)}
-                    </span>
-                  </div>
-                  <div className="h-3 bg-white/[0.05] rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${cat.percent}%` }}
-                      transition={{ duration: 0.8, delay: 0.2 + i * 0.1, ease: [0.16, 1, 0.3, 1] }}
-                      className={cn(
-                        "h-full rounded-full",
-                        barColors[i % barColors.length]
-                      )}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </motion.div>
-
-        {/* Bookings per day of week */}
-        <motion.div variants={fadeInUp}>
-          <Card>
-            <div className="flex items-center gap-2 mb-6">
-              <CalendarDays size={18} className="text-mila-gold" />
-              <h2 className="text-lg font-semibold font-[family-name:var(--font-display)]">
-                {language === "es"
-                  ? "Reservas por Dia"
-                  : "Bookings by Day"}
-              </h2>
-            </div>
-
-            <div className="flex items-end justify-between gap-2 h-48">
-              {bookingsPerDay.map((day, i) => (
-                <div
-                  key={day.day}
-                  className="flex-1 flex flex-col items-center gap-2"
-                >
-                  <span className="text-xs font-medium text-text-primary">
-                    {day.count}
-                  </span>
-                  <div className="w-full bg-white/[0.05] rounded-t-lg overflow-hidden flex-1 flex items-end">
-                    <motion.div
-                      initial={{ height: 0 }}
-                      animate={{ height: `${Math.max(day.percent, 5)}%` }}
-                      transition={{
-                        duration: 0.8,
-                        delay: 0.2 + i * 0.08,
-                        ease: [0.16, 1, 0.3, 1],
-                      }}
-                      className={cn(
-                        "w-full rounded-t-lg",
-                        i === 4 || i === 5
-                          ? "bg-mila-gold"
-                          : "bg-mila-gold/60"
-                      )}
-                    />
-                  </div>
-                  <span className="text-xs text-text-muted">{day.day}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </motion.div>
-      </div>
-
-      {/* Top stylist card */}
-      {topStylist && (
-        <motion.div variants={fadeInUp}>
-          <Card className="flex flex-col sm:flex-row items-center gap-6">
-            <Avatar
-              src={topStylist.avatar}
-              alt={topStylist.name}
-              size="xl"
-            />
-            <div className="text-center sm:text-left">
-              <Badge variant="gold" className="mb-2">
-                {language === "es" ? "Estilista del Mes" : "Stylist of the Month"}
-              </Badge>
-              <h3 className="text-xl font-semibold text-text-primary">
-                {topStylist.name}
-              </h3>
-              <p className="text-text-secondary">
-                {topStylist.role[language]}
-              </p>
-              <div className="flex items-center gap-2 mt-2 justify-center sm:justify-start">
-                <Star
-                  size={16}
-                  className="text-warning fill-warning"
-                />
-                <span className="text-sm font-medium text-text-primary">
-                  {topStylist.rating}
-                </span>
-                <span className="text-sm text-text-muted">
-                  ({topStylist.reviewCount}{" "}
-                  {language === "es" ? "resenas" : "reviews"})
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-1.5 mt-3 justify-center sm:justify-start">
-                {topStylist.specialties.map((spec) => (
-                  <Badge key={spec} variant="default">
-                    {spec}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          </Card>
-        </motion.div>
-      )}
-
-      {/* Commission Breakdown */}
       <motion.div variants={fadeInUp}>
-        <Card padding="none">
-          <div className="p-4 sm:p-6 border-b border-border-default flex items-center gap-2">
-            <DollarSign size={18} className="text-mila-gold" />
-            <h2 className="text-lg font-semibold font-[family-name:var(--font-display)]">
-              {t("admin", "commissionBreakdown")}
+        <Card>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-mila-gold/10">
+              <TrendingUp size={18} className="text-mila-gold" />
+            </div>
+            <h2 className="text-lg font-semibold text-text-primary">
+              {language === "es" ? "Resumen" : "Summary"}
             </h2>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border-default text-left">
-                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider">
-                    {language === "es" ? "Estilista" : "Stylist"}
-                  </th>
-                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-right">
-                    {t("admin", "totalCommissions")}
-                  </th>
-                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-right hidden md:table-cell">
-                    {t("admin", "pendingCommissions")}
-                  </th>
-                  <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-right hidden md:table-cell">
-                    {t("admin", "paidCommissions")}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-subtle">
-                {commissionByStylist.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center text-text-muted">
-                      {language === "es" ? "Sin comisiones registradas" : "No commissions recorded"}
-                    </td>
-                  </tr>
-                ) : (
-                  commissionByStylist.map((row) => (
-                    <tr key={row.stylistId} className="hover:bg-white/5 transition-colors">
-                      <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm font-medium text-text-primary">{row.name}</td>
-                      <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm font-medium text-text-primary text-right">
-                        {formatPrice(row.total)}
-                      </td>
-                      <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-warning text-right hidden md:table-cell">
-                        {formatPrice(row.pending)}
-                      </td>
-                      <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-success text-right hidden md:table-cell">
-                        {formatPrice(row.paid)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div>
+              <p className="text-xs text-text-muted uppercase tracking-wider">
+                {language === "es" ? "Total citas" : "Total bookings"}
+              </p>
+              <p className="text-xl font-bold text-text-primary">{bookings.length}</p>
+            </div>
+            <div>
+              <p className="text-xs text-text-muted uppercase tracking-wider">
+                {language === "es" ? "Facturas pagadas" : "Paid invoices"}
+              </p>
+              <p className="text-xl font-bold text-text-primary">
+                {invoices.filter((i) => i.status === "paid").length}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-text-muted uppercase tracking-wider">
+                {language === "es" ? "Estilistas activos" : "Active stylists"}
+              </p>
+              <p className="text-xl font-bold text-text-primary">{allStylists.length}</p>
+            </div>
+          </div>
+        </Card>
+      </motion.div>
+
+      <motion.div variants={fadeInUp}>
+        <Card>
+          <div className="flex items-center gap-3">
+            <BarChart3 size={20} className="text-mila-gold" />
+            <p className="text-sm text-text-secondary">
+              {language === "es"
+                ? "An\u00e1lisis detallado y gr\u00e1ficos avanzados pr\u00f3ximamente."
+                : "Detailed analytics and advanced charts coming soon."}
+            </p>
           </div>
         </Card>
       </motion.div>

@@ -10,7 +10,9 @@ export interface Booking {
   id: string;
   serviceIds: string[];
   stylistId: string;
+  stylistName?: string;
   clientId: string | null;
+  clientName?: string;
   date: string;
   startTime: string;
   endTime: string;

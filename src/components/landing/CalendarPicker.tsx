@@ -22,7 +22,7 @@ import { es, enUS } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
 import { useStaff } from "@/providers/StaffProvider";
 import { useAuth } from "@/providers/AuthProvider";
-import { services } from "@/data/services";
+import { useService } from "@/providers/ServiceProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useBooking } from "@/providers/BookingProvider";
 import { formatPrice, getStoredData } from "@/lib/utils";
@@ -44,6 +44,7 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
   const { isAuthenticated } = useAuth();
   const { state, dispatch } = useBooking();
   const { allStylists } = useStaff();
+  const { allServices } = useService();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [viewMode, setViewMode] = useState<"week" | "month">("week");
   const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date()));
@@ -77,8 +78,8 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
   );
 
   const selectedServices = useMemo(
-    () => services.filter((s) => state.selectedServiceIds.includes(s.id)),
-    [state.selectedServiceIds]
+    () => allServices.filter((s) => state.selectedServiceIds.includes(s.id)),
+    [allServices, state.selectedServiceIds]
   );
 
   const totalDuration = useMemo(

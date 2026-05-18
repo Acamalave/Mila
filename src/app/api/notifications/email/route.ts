@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { sendEmail } from "@/lib/resend";
+import { isInternalRequestAuthorized } from "@/lib/internal-auth";
 import type { TemplateType, Language } from "@/emails/templates";
 
 const VALID_TEMPLATES: TemplateType[] = [
@@ -12,12 +13,21 @@ const VALID_TEMPLATES: TemplateType[] = [
   "booking-reminder",
   "booking-cancellation",
   "invoice-sent",
+  "invoice-overdue",
   "payment-confirmed",
+  "payment-declined",
   "welcome",
 ];
 
 export async function POST(request: NextRequest) {
   try {
+    // Internal-only route: reject any request that is not from a trusted
+    // server-side caller (webhook, cron, dispatch route). Without this check
+    // the route is an open email relay.
+    if (!isInternalRequestAuthorized(request)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const { to, template, data, language } = body;
 

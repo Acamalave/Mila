@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Calendar, Check, X, Clock, Plus, CreditCard } from "lucide-react";
 import { useStaff } from "@/providers/StaffProvider";
-import { services } from "@/data/services";
+import { useService } from "@/providers/ServiceProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useBooking } from "@/providers/BookingProvider";
 import { formatPrice, formatServicePrice, getStoredData } from "@/lib/utils";
@@ -23,6 +23,7 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
   const { language, t } = useLanguage();
   const { state, dispatch } = useBooking();
   const { allStylists } = useStaff();
+  const { allServices } = useService();
   const [detailService, setDetailService] = useState<string | null>(null);
 
   const stylist = useMemo(() => allStylists.find(s => s.id === stylistId), [stylistId, allStylists]);
@@ -46,7 +47,7 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
 
   const availableServices = useMemo(() => {
     if (!stylist) return [];
-    return services
+    return allServices
       .filter(s => stylist.serviceIds.includes(s.id))
       .map(s => {
         const p = priceOverrides[s.id];
@@ -59,7 +60,7 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
           name: n ? { en: n.en || s.name.en, es: n.es || s.name.es } : s.name,
         };
       });
-  }, [stylist, durationOverrides, priceOverrides, nameOverrides]);
+  }, [stylist, allServices, durationOverrides, priceOverrides, nameOverrides]);
 
   const selectedIds = state.selectedServiceIds;
   const isGeneral = state.isGeneralAppointment;

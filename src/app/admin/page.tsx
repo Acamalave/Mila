@@ -263,7 +263,10 @@ export default function AdminOverviewPage() {
                     const stylist = getStylist(booking.stylistId);
                     const resolvedUser = allUsers.find((u) => u.id === booking.clientId);
                     const clientName =
-                      booking.guestName || resolvedUser?.name || booking.clientId || "---";
+                      resolvedUser?.name ||
+                      booking.clientName ||
+                      booking.guestName ||
+                      (language === "es" ? "Cliente" : "Client");
                     return (
                       <tr
                         key={booking.id}

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useInvoices } from "@/providers/InvoiceProvider";
 import { usePayment } from "@/providers/PaymentProvider";
+import { useCommissions } from "@/providers/CommissionProvider";
 import { useToast } from "@/providers/ToastProvider";
 import { calculateTaxBreakdown, generateId, formatPrice, getStoredData, setStoredData } from "@/lib/utils";
 import Card from "@/components/ui/Card";
@@ -44,8 +45,9 @@ const STEP_ICONS: Record<Step, typeof User> = {
 
 export default function POSPage() {
   const { language, t } = useLanguage();
-  const { addInvoice, createAndPayInvoice } = useInvoices();
+  const { addInvoice, createAndPayInvoice, sendInvoice } = useInvoices();
   const { processCounterPayment } = usePayment();
+  const { generatePOSCommissions } = useCommissions();
   const { addToast } = useToast();
 
   const savedCart = getStoredData<{ client: POSClient | null; items: InvoiceItem[]; stylistId: string | null; discount: number } | null>("mila-pos-cart", null);
@@ -71,6 +73,12 @@ export default function POSPage() {
   const { discountAmount, afterDiscount, taxAmount, taxRate, total } = calculateTaxBreakdown(subtotal, discount);
   const currentStepIndex = STEPS.indexOf(step);
 
+  // Services missing a stylist assignment (neither per-item nor invoice-level)
+  const unassignedServices = items.filter(
+    (item) => item.type === "service" && !item.stylistId && !stylistId
+  );
+  const hasUnassignedService = unassignedServices.length > 0;
+
   const canGoNext = useCallback(() => {
     switch (step) {
       case "client":
@@ -78,11 +86,12 @@ export default function POSPage() {
       case "items":
         return items.length > 0;
       case "review":
-        return true;
+        // Block payment if any service item lacks a stylist assignment
+        return !hasUnassignedService;
       default:
         return false;
     }
-  }, [step, client, items]);
+  }, [step, client, items, hasUnassignedService]);
 
   const goNext = () => {
     const idx = STEPS.indexOf(step);
@@ -133,6 +142,10 @@ export default function POSPage() {
     // Record counter payment
     processCounterPayment(invoice.id, total, note);
 
+    // Guarantee commissions are generated for this POS sale (safety net in
+    // case the invoice:paid listener didn't catch the emission).
+    generatePOSCommissions(invoice);
+
     setLastPaymentMethod("counter");
     setIsProcessing(false);
     setStep("success");
@@ -147,7 +160,15 @@ export default function POSPage() {
   const handleSendRequest = () => {
     if (!client) return;
 
-    // Create invoice as "sent" — triggers payment request to client's dashboard
+    addToast(
+      language === "es"
+        ? "Creando solicitud de pago..."
+        : "Creating payment request...",
+      "info"
+    );
+
+    // Create invoice as "draft" so sendInvoice can transition to "sent"
+    // and dispatch email + WhatsApp notifications.
     const newInv = addInvoice({
       clientId: client.id,
       clientName: client.name,
@@ -160,9 +181,8 @@ export default function POSPage() {
       taxRate,
       items,
       paymentMethod: "card",
-      status: "sent",
+      status: "draft",
       date: new Date().toISOString().split("T")[0],
-      sentAt: new Date().toISOString(),
       description:
         language === "es"
           ? "Venta en punto de venta"
@@ -172,12 +192,17 @@ export default function POSPage() {
 
     setLastInvoiceId(newInv.id);
 
-    addToast(
-      language === "es"
-        ? "Solicitud de pago enviada al cliente"
-        : "Payment request sent to client",
-      "success"
-    );
+    // Actually dispatch the email + WhatsApp payment request
+    try {
+      const maybePromise = sendInvoice(newInv.id) as unknown;
+      if (maybePromise && typeof (maybePromise as Promise<void>).catch === "function") {
+        (maybePromise as Promise<void>).catch((err) => {
+          console.warn("[Mila] sendInvoice failed:", err);
+        });
+      }
+    } catch (err) {
+      console.warn("[Mila] sendInvoice threw:", err);
+    }
 
     setLastPaymentMethod("card");
     setStep("pending");

@@ -9,6 +9,7 @@ import {
   Receipt,
   User,
   Tag,
+  AlertTriangle,
 } from "lucide-react";
 import type { InvoiceItem } from "@/types";
 import type { POSClient } from "./POSClientSelector";
@@ -35,6 +36,12 @@ export default function POSOrderReview({
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const { discountAmount, afterDiscount, taxAmount, total } = calculateTaxBreakdown(subtotal, discount);
+
+  // Services missing a stylist assignment (neither per-item nor invoice-level)
+  const unassignedServices = items.filter(
+    (item) => item.type === "service" && !item.stylistId && !selectedStylistId
+  );
+  const hasUnassignedService = unassignedServices.length > 0;
 
   return (
     <div className="space-y-4">
@@ -110,6 +117,40 @@ export default function POSOrderReview({
               >
                 {s.name}
               </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Stylist assignment warnings */}
+      {hasUnassignedService && (
+        <div
+          className="rounded-xl p-4 space-y-2"
+          style={{
+            background: "rgba(234, 179, 8, 0.08)",
+            border: "1px solid rgba(234, 179, 8, 0.35)",
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={14} style={{ color: "#eab308" }} />
+            <span
+              className="text-xs font-semibold uppercase tracking-wider"
+              style={{ color: "#eab308" }}
+            >
+              {language === "es" ? "Estilista requerido" : "Stylist required"}
+            </span>
+          </div>
+          <div className="space-y-1">
+            {unassignedServices.map((item, idx) => (
+              <p
+                key={`warn-${item.id}-${idx}`}
+                className="text-xs"
+                style={{ color: "var(--color-text-secondary)" }}
+              >
+                {language === "es"
+                  ? `Asigna un estilista a ${item.name} antes de continuar`
+                  : `Assign a stylist to ${item.name} before continuing`}
+              </p>
             ))}
           </div>
         </div>
@@ -301,7 +342,9 @@ export default function POSOrderReview({
         </div>
         <div className="px-4 py-2 text-center" style={{ borderTop: "1px solid var(--color-border-accent)" }}>
           <p className="text-[11px]" style={{ color: "var(--color-text-muted)" }}>
-            {language === "es" ? "ITBMS incluido en el total" : "ITBMS included in total"}
+            {language === "es"
+              ? "Los precios no incluyen ITBMS; se añade 7% al total"
+              : "Prices exclude ITBMS; 7% is added to the total"}
           </p>
         </div>
       </div>

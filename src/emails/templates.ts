@@ -8,7 +8,9 @@ export type TemplateType =
   | "booking-reminder"
   | "booking-cancellation"
   | "invoice-sent"
+  | "invoice-overdue"
   | "payment-confirmed"
+  | "payment-declined"
   | "welcome";
 
 export type Language = "es" | "en";
@@ -31,6 +33,7 @@ export interface InvoiceData {
   amount: string;
   invoiceId: string;
   payLink?: string;
+  daysOverdue?: number;
 }
 
 export interface PaymentData {
@@ -39,11 +42,24 @@ export interface PaymentData {
   transactionId: string;
 }
 
+export interface PaymentDeclinedData {
+  clientName: string;
+  amount: string;
+  invoiceId: string;
+  reason?: string;
+  retryLink?: string;
+}
+
 export interface WelcomeData {
   clientName: string;
 }
 
-export type TemplateData = BookingData | InvoiceData | PaymentData | WelcomeData;
+export type TemplateData =
+  | BookingData
+  | InvoiceData
+  | PaymentData
+  | PaymentDeclinedData
+  | WelcomeData;
 
 // ---------------------------------------------------------------------------
 // Shared layout wrapper
@@ -344,6 +360,66 @@ export function buildInvoiceSent(data: InvoiceData, lang: Language): TemplateRes
   return { subject, html };
 }
 
+export function buildInvoiceOverdue(data: InvoiceData, lang: Language): TemplateResult {
+  const isEs = lang === "es";
+  const payLink = data.payLink || "https://milaconcept.com/pay";
+  const days = typeof data.daysOverdue === "number" ? data.daysOverdue : 14;
+
+  const subject = isEs
+    ? `Recordatorio de pago - Factura #${data.invoiceId}`
+    : `Payment Reminder - Invoice #${data.invoiceId}`;
+
+  const html = layout(
+    `
+    <h1 ${styles.heading}>${isEs ? "Recordatorio de Pago" : "Payment Reminder"}</h1>
+    <p ${styles.paragraph}>
+      ${isEs
+        ? `Hola <span ${styles.goldText}>${data.clientName}</span>, notamos que tu factura aún se encuentra pendiente de pago.`
+        : `Hello <span ${styles.goldText}>${data.clientName}</span>, we noticed that your invoice is still awaiting payment.`}
+    </p>
+    <p ${styles.paragraph}>
+      ${isEs
+        ? `Han transcurrido <strong style="color:#f5f0eb;">${days} días</strong> desde que se emitió esta factura. Nos encantaría poder cerrar este pago pronto para mantener tu cuenta al día.`
+        : `It has been <strong style="color:#f5f0eb;">${days} days</strong> since this invoice was issued. We'd love to close out this balance so your account stays in good standing.`}
+    </p>
+
+    <div ${styles.detailsBox}>
+      <p ${styles.detailLabel}>${isEs ? "Factura" : "Invoice"}</p>
+      <p ${styles.detailValue}>#${data.invoiceId}</p>
+
+      <p ${styles.detailLabel}>${isEs ? "Monto Pendiente" : "Amount Due"}</p>
+      <p style="font-size:28px;color:#C4A96A;margin:0;font-weight:300;letter-spacing:1px;">
+        ${data.amount}
+      </p>
+    </div>
+
+    <div style="text-align:center;margin:32px 0 16px 0;">
+      <a href="${payLink}" ${styles.button}>
+        ${isEs ? "Pagar Ahora" : "Pay Now"}
+      </a>
+    </div>
+
+    <p ${styles.paragraph}>
+      ${isEs
+        ? "Si ya realizaste el pago, por favor ignora este mensaje y acepta nuestras disculpas. Para cualquier consulta, no dudes en contactarnos."
+        : "If you've already made this payment, please disregard this message and accept our apologies. For any questions, feel free to reach out."}
+    </p>
+
+    <hr ${styles.divider}>
+    <p style="margin:0;font-size:12px;color:#555555;line-height:1.6;">
+      ${isEs
+        ? "Gracias por tu preferencia. Estamos aquí para ayudarte."
+        : "Thank you for your patronage. We're here to help."}
+    </p>
+    `,
+    isEs
+      ? `Recordatorio de pago pendiente - Factura #${data.invoiceId}`
+      : `Payment reminder - Invoice #${data.invoiceId}`
+  );
+
+  return { subject, html };
+}
+
 export function buildPaymentConfirmed(data: PaymentData, lang: Language): TemplateResult {
   const isEs = lang === "es";
 
@@ -392,6 +468,77 @@ export function buildPaymentConfirmed(data: PaymentData, lang: Language): Templa
     </p>
     `,
     isEs ? "Tu pago ha sido confirmado" : "Your payment has been confirmed"
+  );
+
+  return { subject, html };
+}
+
+export function buildPaymentDeclined(data: PaymentDeclinedData, lang: Language): TemplateResult {
+  const isEs = lang === "es";
+  const retryLink = data.retryLink || `https://milaconcept.com/pay?invoice=${data.invoiceId}`;
+
+  // Red-accented variant of the luxury layout (instead of the usual gold).
+  const declinedStyles = {
+    detailsBox:
+      'style="background-color:#1a1111;border-left:3px solid #c0392b;border-radius:4px;padding:20px 24px;margin:24px 0;"',
+    button:
+      'style="display:inline-block;background-color:#c0392b;color:#ffffff;font-size:14px;font-weight:600;letter-spacing:1px;text-transform:uppercase;text-decoration:none;padding:14px 36px;border-radius:4px;mso-padding-alt:0;"',
+  };
+
+  const subject = isEs
+    ? `Pago no procesado - ${data.amount}`
+    : `Payment Unsuccessful - ${data.amount}`;
+
+  const html = layout(
+    `
+    <h1 ${styles.heading}>${isEs ? "Pago No Procesado" : "Payment Unsuccessful"}</h1>
+    <p ${styles.paragraph}>
+      ${isEs
+        ? `Hola <span ${styles.goldText}>${data.clientName}</span>, lamentamos informarte que no pudimos procesar tu pago.`
+        : `Hello <span ${styles.goldText}>${data.clientName}</span>, we're sorry to inform you that we were unable to process your payment.`}
+    </p>
+
+    <div ${declinedStyles.detailsBox}>
+      <p ${styles.detailLabel}>${isEs ? "Factura" : "Invoice"}</p>
+      <p ${styles.detailValue}>#${data.invoiceId}</p>
+
+      <p ${styles.detailLabel}>${isEs ? "Monto Intentado" : "Attempted Amount"}</p>
+      <p style="font-size:28px;color:#e74c3c;margin:0 0 16px 0;font-weight:300;letter-spacing:1px;">
+        ${data.amount}
+      </p>
+
+      ${data.reason
+        ? `<p ${styles.detailLabel}>${isEs ? "Motivo" : "Reason"}</p>
+           <p ${styles.detailValue}>${data.reason}</p>`
+        : ""}
+    </div>
+
+    <div style="text-align:center;margin:24px 0;">
+      <div style="display:inline-block;width:48px;height:48px;border-radius:50%;background-color:#2e1414;line-height:48px;font-size:24px;color:#e74c3c;">
+        &#33;
+      </div>
+    </div>
+
+    <p ${styles.paragraph}>
+      ${isEs
+        ? "Esto puede deberse a fondos insuficientes, datos de tarjeta incorrectos o una restricción de tu banco. Te invitamos a intentarlo nuevamente o usar otro método de pago."
+        : "This may be due to insufficient funds, incorrect card details, or a restriction from your bank. Please try again or use another payment method."}
+    </p>
+
+    <div style="text-align:center;margin:32px 0 16px 0;">
+      <a href="${retryLink}" ${declinedStyles.button}>
+        ${isEs ? "Reintentar Pago" : "Retry Payment"}
+      </a>
+    </div>
+
+    <hr ${styles.divider}>
+    <p style="margin:0;font-size:12px;color:#555555;line-height:1.6;">
+      ${isEs
+        ? "Si el problema persiste, por favor contáctanos respondiendo a este correo y con gusto te ayudaremos."
+        : "If the problem persists, please contact us by replying to this email and we'll be glad to help."}
+    </p>
+    `,
+    isEs ? "No pudimos procesar tu pago" : "We couldn't process your payment"
   );
 
   return { subject, html };
@@ -467,8 +614,12 @@ export function buildEmailContent(
       return buildBookingCancellation(data as BookingData, lang);
     case "invoice-sent":
       return buildInvoiceSent(data as InvoiceData, lang);
+    case "invoice-overdue":
+      return buildInvoiceOverdue(data as InvoiceData, lang);
     case "payment-confirmed":
       return buildPaymentConfirmed(data as PaymentData, lang);
+    case "payment-declined":
+      return buildPaymentDeclined(data as PaymentDeclinedData, lang);
     case "welcome":
       return buildWelcome(data as WelcomeData, lang);
     default:

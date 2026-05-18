@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useBooking } from "@/providers/BookingProvider";
 import { useEventBus } from "@/providers/EventBusProvider";
+import { useStaff } from "@/providers/StaffProvider";
 import { useToast } from "@/providers/ToastProvider";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { setDocument } from "@/lib/firestore";
@@ -27,6 +28,7 @@ export default function BookingPage() {
   const { user, isAuthenticated, hydrated } = useAuth();
   const { state, dispatch, resetBooking } = useBooking();
   const { emit } = useEventBus();
+  const { allStylists } = useStaff();
   const { addToast } = useToast();
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showDepositModal, setShowDepositModal] = useState(false);
@@ -94,6 +96,22 @@ export default function BookingPage() {
     scrollToSection(calendarRef);
   }, [dispatch, scrollToSection]);
 
+  // Returns true if the given stylist already has an overlapping booking.
+  const hasSlotConflict = useCallback(
+    (stylistId: string, date: string, startTime: string, endTime: string) => {
+      const existing = getStoredData<Booking[]>("mila-bookings", []);
+      return existing.some(
+        (b) =>
+          b.stylistId === stylistId &&
+          b.date === date &&
+          (b.status === "confirmed" || b.status === "pending") &&
+          startTime < b.endTime &&
+          endTime > b.startTime
+      );
+    },
+    []
+  );
+
   // Finalize the booking (called after deposit payment or directly if no deposit)
   const finalizeBooking = useCallback((depositTxnId?: string) => {
     if (!state.selectedStylistId || !state.selectedDate || !state.selectedTimeSlot) return;
@@ -104,14 +122,30 @@ export default function BookingPage() {
       return sum + (svc?.price ?? 0);
     }, 0);
 
+    const { startTime, endTime } = state.selectedTimeSlot;
+    const conflict = hasSlotConflict(
+      state.selectedStylistId,
+      state.selectedDate,
+      startTime,
+      endTime
+    );
+
+    // No deposit was charged → it is safe to abort and ask for another slot.
+    if (conflict && !depositTxnId) {
+      addToast("Este horario acaba de ser reservado. Selecciona otro.", "error");
+      return;
+    }
+
     const booking: Booking = {
       id: generateId(),
       serviceIds: selectedServices,
       stylistId: state.selectedStylistId,
+      stylistName: allStylists.find((s) => s.id === state.selectedStylistId)?.name,
       clientId: user?.id ?? null,
+      clientName: user?.name,
       date: state.selectedDate,
-      startTime: state.selectedTimeSlot.startTime,
-      endTime: state.selectedTimeSlot.endTime,
+      startTime,
+      endTime,
       status: "confirmed",
       totalPrice,
       notes: state.notes,
@@ -119,21 +153,16 @@ export default function BookingPage() {
       ...(depositTxnId && { depositTransactionId: depositTxnId, depositPaid: true }),
     };
 
-    const existing = getStoredData<Booking[]>("mila-bookings", []);
-    const hasConflict = existing.some(
-      (b) =>
-        b.stylistId === booking.stylistId &&
-        b.date === booking.date &&
-        (b.status === "confirmed" || b.status === "pending") &&
-        booking.startTime < b.endTime &&
-        booking.endTime > b.startTime
-    );
-
-    if (hasConflict) {
-      addToast("Este horario acaba de ser reservado. Selecciona otro.", "error");
-      return;
+    // A conflict was detected after the deposit was already charged — keep the
+    // booking so the customer's payment is not lost; an admin resolves the overlap.
+    if (conflict && depositTxnId) {
+      addToast(
+        "Tu anticipo fue procesado. Confirmaremos tu horario en breve.",
+        "info"
+      );
     }
 
+    const existing = getStoredData<Booking[]>("mila-bookings", []);
     setStoredData("mila-bookings", [...existing, booking]);
     const { id, ...bookingData } = booking;
     setDocument("bookings", id, bookingData).catch((err) => console.warn("[Mila] Booking sync failed:", err));
@@ -141,18 +170,32 @@ export default function BookingPage() {
 
     resetBooking();
     router.push("/dashboard");
-  }, [state, user, resetBooking, router, emit]);
+  }, [state, user, allStylists, hasSlotConflict, resetBooking, router, emit, addToast]);
 
   // Handle booking — check if deposit is needed
   const handleBook = useCallback(() => {
     if (!state.selectedStylistId || !state.selectedDate || !state.selectedTimeSlot) return;
+
+    // Verify the slot is still free BEFORE charging any deposit, so a customer
+    // is never charged for a slot that was taken during checkout.
+    if (
+      hasSlotConflict(
+        state.selectedStylistId,
+        state.selectedDate,
+        state.selectedTimeSlot.startTime,
+        state.selectedTimeSlot.endTime
+      )
+    ) {
+      addToast("Este horario acaba de ser reservado. Selecciona otro.", "error");
+      return;
+    }
 
     if (depositInfo.hasDeposit) {
       setShowDepositModal(true);
     } else {
       finalizeBooking();
     }
-  }, [state, depositInfo, finalizeBooking]);
+  }, [state, depositInfo, finalizeBooking, hasSlotConflict, addToast]);
 
   // Handle deposit payment complete
   const handleDepositComplete = useCallback((txnId: string) => {

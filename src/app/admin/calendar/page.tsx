@@ -11,9 +11,9 @@ import {
   getStoredData,
   setStoredData,
 } from "@/lib/utils";
-import { setDocument, onCollectionChange } from "@/lib/firestore";
+import { setDocument, onCollectionChange, getCollection } from "@/lib/firestore";
 import { formatTime } from "@/lib/date-utils";
-import { services } from "@/data/services";
+import { useService } from "@/providers/ServiceProvider";
 import { useStaff } from "@/providers/StaffProvider";
 import { getInitialDemoAppointments } from "@/data/appointments";
 import Card from "@/components/ui/Card";
@@ -21,6 +21,7 @@ import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import Avatar from "@/components/ui/Avatar";
+import NewBookingModal from "@/components/admin/NewBookingModal";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
 import {
   ChevronLeft,
@@ -31,8 +32,10 @@ import {
   Check,
   XCircle,
   AlertTriangle,
+  Plus,
+  CalendarClock,
 } from "lucide-react";
-import type { Booking, BookingStatus } from "@/types";
+import type { Booking, BookingStatus, User as AppUser } from "@/types";
 
 function getMonday(d: Date): Date {
   const date = new Date(d);
@@ -66,9 +69,15 @@ export default function AdminCalendarPage() {
   const { addToast } = useToast();
   const { emit } = useEventBus();
   const { allStylists } = useStaff();
+  const { allServices: services } = useService();
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [users, setUsers] = useState<AppUser[]>(() => getStoredData<AppUser[]>("mila-users", []));
   const [weekStart, setWeekStart] = useState<Date>(() => getMonday(new Date()));
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [showNewBookingModal, setShowNewBookingModal] = useState(false);
+  const [rescheduleMode, setRescheduleMode] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState("");
+  const [rescheduleTime, setRescheduleTime] = useState("");
 
   useEffect(() => {
     let stored = getStoredData<Booking[]>("mila-bookings", []);
@@ -96,6 +105,45 @@ export default function AdminCalendarPage() {
     });
     return () => unsub();
   }, []);
+
+  // Load the user registry so bookings can show the client's real name
+  // instead of the raw clientId (e.g. "user-60001234"). Merge Firestore with
+  // the local registry so users not yet synced (e.g. offline walk-ins) still
+  // resolve.
+  useEffect(() => {
+    const mergeUsers = (fsUsers: AppUser[]) => {
+      const local = getStoredData<AppUser[]>("mila-users", []);
+      const map = new Map<string, AppUser>();
+      for (const u of local) if (u.id) map.set(u.id, u);
+      for (const u of fsUsers) if (u.id) map.set(u.id, u);
+      setUsers(Array.from(map.values()));
+    };
+    getCollection<AppUser>("users").then(mergeUsers).catch(() => {});
+    const unsub = onCollectionChange<AppUser>("users", mergeUsers);
+    return () => unsub();
+  }, []);
+
+  const userNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const u of users) {
+      if (u.id && u.name) map.set(u.id, u.name);
+    }
+    return map;
+  }, [users]);
+
+  // Resolve a booking's client display name: live registry name first, then
+  // the name snapshotted on the booking, then a guest name. Never the id.
+  const getClientName = useCallback(
+    (booking: Booking): string => {
+      return (
+        (booking.clientId ? userNameById.get(booking.clientId) : undefined) ||
+        booking.clientName ||
+        booking.guestName ||
+        (language === "es" ? "Cliente" : "Client")
+      );
+    },
+    [userNameById, language]
+  );
 
   const weekDays = useMemo(() => {
     return Array.from({ length: 7 }, (_, i) => addDaysToDate(weekStart, i));
@@ -155,6 +203,141 @@ export default function AdminCalendarPage() {
     [bookings, selectedBooking, addToast, language]
   );
 
+  // Reschedule helpers
+  const getRescheduleSlots = useCallback((): string[] => {
+    if (!selectedBooking || !rescheduleDate) return [];
+    const stylist = getStylist(selectedBooking.stylistId);
+    if (!stylist) return [];
+    const d = new Date(rescheduleDate + "T12:00:00");
+    const dow = d.getDay();
+    const schedule = stylist.schedule?.find((s) => s.dayOfWeek === dow);
+    if (!schedule?.isAvailable) return [];
+    const [sh, sm] = schedule.startTime.split(":").map(Number);
+    const [eh, em] = schedule.endTime.split(":").map(Number);
+    const startMins = sh * 60 + sm;
+    const endMins = eh * 60 + em;
+    const totalDur =
+      (selectedBooking.serviceIds ?? []).reduce((sum, id) => {
+        const svc = services.find((s) => s.id === id);
+        return sum + (svc?.durationMinutes ?? 30);
+      }, 0) || 30;
+
+    // Check conflicts against existing bookings for that stylist/date, excluding this booking
+    const occupied = bookings
+      .filter(
+        (b) =>
+          b.id !== selectedBooking.id &&
+          b.stylistId === selectedBooking.stylistId &&
+          b.date === rescheduleDate &&
+          (b.status === "confirmed" || b.status === "pending")
+      )
+      .map((b) => {
+        const [bsh, bsm] = b.startTime.split(":").map(Number);
+        const [beh, bem] = b.endTime.split(":").map(Number);
+        return { start: bsh * 60 + bsm, end: beh * 60 + bem };
+      });
+
+    const slots: string[] = [];
+    for (let m = startMins; m + totalDur <= endMins; m += 30) {
+      const slotEnd = m + totalDur;
+      const conflicts = occupied.some((o) => m < o.end && slotEnd > o.start);
+      if (!conflicts) {
+        const h = Math.floor(m / 60);
+        const min = m % 60;
+        slots.push(
+          `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`
+        );
+      }
+    }
+    return slots;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBooking, rescheduleDate, bookings, allStylists]);
+
+  const handleReschedule = useCallback(() => {
+    if (!selectedBooking || !rescheduleDate || !rescheduleTime) return;
+    const totalDur =
+      (selectedBooking.serviceIds ?? []).reduce((sum, id) => {
+        const svc = services.find((s) => s.id === id);
+        return sum + (svc?.durationMinutes ?? 30);
+      }, 0) || 30;
+    const [h, m] = rescheduleTime.split(":").map(Number);
+    const endMins = h * 60 + m + totalDur;
+    const endTime = `${String(Math.floor(endMins / 60)).padStart(2, "0")}:${String(
+      endMins % 60
+    ).padStart(2, "0")}`;
+
+    // Conflict check one last time
+    const hasConflict = bookings.some(
+      (b) =>
+        b.id !== selectedBooking.id &&
+        b.stylistId === selectedBooking.stylistId &&
+        b.date === rescheduleDate &&
+        (b.status === "confirmed" || b.status === "pending") &&
+        rescheduleTime < b.endTime &&
+        endTime > b.startTime
+    );
+    if (hasConflict) {
+      addToast(
+        language === "es"
+          ? "Este horario acaba de ser reservado. Selecciona otro."
+          : "This slot is already taken. Select another.",
+        "error"
+      );
+      return;
+    }
+
+    const updated = bookings.map((b) =>
+      b.id === selectedBooking.id
+        ? { ...b, date: rescheduleDate, startTime: rescheduleTime, endTime }
+        : b
+    );
+    setBookings(updated);
+    setStoredData("mila-bookings", updated);
+    setDocument("bookings", selectedBooking.id, {
+      date: rescheduleDate,
+      startTime: rescheduleTime,
+      endTime,
+    }).catch((err) => console.warn("[Mila] Booking sync failed:", err));
+
+    const updatedBooking = {
+      ...selectedBooking,
+      date: rescheduleDate,
+      startTime: rescheduleTime,
+      endTime,
+    };
+    emit("booking:updated", updatedBooking);
+    addToast(
+      language === "es" ? "Cita reprogramada" : "Booking rescheduled",
+      "success"
+    );
+    setSelectedBooking(null);
+    setRescheduleMode(false);
+    setRescheduleDate("");
+    setRescheduleTime("");
+  }, [
+    selectedBooking,
+    rescheduleDate,
+    rescheduleTime,
+    bookings,
+    addToast,
+    emit,
+    language,
+  ]);
+
+  const handleBookingCreated = useCallback((booking: Booking) => {
+    setBookings((prev) => {
+      const next = [...prev, booking];
+      return next;
+    });
+  }, []);
+
+  const closeBookingModal = useCallback(() => {
+    setSelectedBooking(null);
+    setRescheduleMode(false);
+    setRescheduleDate("");
+    setRescheduleTime("");
+  }, []);
+
   const statusBorder = (status: string) => {
     switch (status) {
       case "confirmed":
@@ -209,7 +392,7 @@ export default function AdminCalendarPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button variant="ghost" size="sm" onClick={goPrevWeek}>
             <ChevronLeft size={18} />
           </Button>
@@ -218,6 +401,14 @@ export default function AdminCalendarPage() {
           </Button>
           <Button variant="ghost" size="sm" onClick={goNextWeek}>
             <ChevronRight size={18} />
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setShowNewBookingModal(true)}
+          >
+            <Plus size={16} />
+            {language === "es" ? "Nueva Cita" : "New Booking"}
           </Button>
         </div>
       </motion.div>
@@ -308,7 +499,7 @@ export default function AdminCalendarPage() {
                           </div>
                         )}
                         <p className="text-xs text-text-muted mt-1 truncate">
-                          {booking.guestName || booking.clientId || "---"}
+                          {getClientName(booking)}
                         </p>
                       </button>
                     );
@@ -320,10 +511,17 @@ export default function AdminCalendarPage() {
         })}
       </motion.div>
 
+      {/* New booking modal */}
+      <NewBookingModal
+        isOpen={showNewBookingModal}
+        onClose={() => setShowNewBookingModal(false)}
+        onCreated={handleBookingCreated}
+      />
+
       {/* Booking detail modal */}
       <Modal
         isOpen={!!selectedBooking}
-        onClose={() => setSelectedBooking(null)}
+        onClose={closeBookingModal}
         title={language === "es" ? "Detalle de Cita" : "Booking Details"}
         size="md"
       >
@@ -376,9 +574,7 @@ export default function AdminCalendarPage() {
                       {language === "es" ? "Cliente" : "Client"}
                     </p>
                     <p className="font-medium">
-                      {selectedBooking.guestName ||
-                        selectedBooking.clientId ||
-                        "---"}
+                      {getClientName(selectedBooking)}
                     </p>
                     {selectedBooking.guestPhone && (
                       <p className="text-xs text-text-muted">
@@ -419,8 +615,109 @@ export default function AdminCalendarPage() {
                 )}
               </div>
 
+              {/* Reschedule form */}
+              {rescheduleMode &&
+                selectedBooking.status !== "cancelled" &&
+                selectedBooking.status !== "completed" && (
+                  <div
+                    className="rounded-lg p-3 space-y-3 border"
+                    style={{
+                      background: "var(--color-bg-glass)",
+                      borderColor: "var(--color-border-default)",
+                    }}
+                  >
+                    <p className="text-sm font-medium text-text-primary">
+                      {language === "es"
+                        ? "Nueva fecha y hora"
+                        : "New date and time"}
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-text-secondary">
+                          {language === "es" ? "Fecha" : "Date"}
+                        </label>
+                        <input
+                          type="date"
+                          min={todayStr}
+                          value={rescheduleDate}
+                          onChange={(e) => {
+                            setRescheduleDate(e.target.value);
+                            setRescheduleTime("");
+                          }}
+                          className="w-full px-3 py-2 rounded-lg text-sm"
+                          style={{
+                            background: "var(--color-bg-input)",
+                            color: "var(--color-text-primary)",
+                            border: "1px solid var(--color-border-default)",
+                            outline: "none",
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-text-secondary">
+                          {language === "es" ? "Hora" : "Time"}
+                        </label>
+                        <select
+                          value={rescheduleTime}
+                          onChange={(e) => setRescheduleTime(e.target.value)}
+                          disabled={!rescheduleDate}
+                          className="w-full px-3 py-2 rounded-lg text-sm appearance-none"
+                          style={{
+                            background: "var(--color-bg-input)",
+                            color: "var(--color-text-primary)",
+                            border: "1px solid var(--color-border-default)",
+                            outline: "none",
+                          }}
+                        >
+                          <option value="">
+                            {!rescheduleDate
+                              ? language === "es"
+                                ? "Primero elige fecha"
+                                : "Select date first"
+                              : getRescheduleSlots().length === 0
+                              ? language === "es"
+                                ? "Sin horarios"
+                                : "No slots"
+                              : language === "es"
+                              ? "Selecciona..."
+                              : "Select..."}
+                          </option>
+                          {getRescheduleSlots().map((slot) => (
+                            <option key={slot} value={slot}>
+                              {formatTime(slot)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setRescheduleMode(false);
+                          setRescheduleDate("");
+                          setRescheduleTime("");
+                        }}
+                      >
+                        {language === "es" ? "Cancelar" : "Cancel"}
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={handleReschedule}
+                        disabled={!rescheduleDate || !rescheduleTime}
+                      >
+                        <Check size={14} />
+                        {language === "es" ? "Guardar" : "Save"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
               {/* Action buttons */}
-              {selectedBooking.status !== "cancelled" &&
+              {!rescheduleMode &&
+                selectedBooking.status !== "cancelled" &&
                 selectedBooking.status !== "completed" && (
                   <div className="flex flex-wrap gap-2 pt-2 border-t border-border-default">
                     {selectedBooking.status === "pending" && (
@@ -441,6 +738,18 @@ export default function AdminCalendarPage() {
                     {(selectedBooking.status === "confirmed" ||
                       selectedBooking.status === "pending") && (
                       <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setRescheduleMode(true);
+                            setRescheduleDate(selectedBooking.date);
+                            setRescheduleTime("");
+                          }}
+                        >
+                          <CalendarClock size={16} />
+                          {language === "es" ? "Reprogramar" : "Reschedule"}
+                        </Button>
                         <Button
                           variant="danger"
                           size="sm"

@@ -16,7 +16,7 @@ import Button from "@/components/ui/Button";
 import InvoiceFormModal from "@/components/admin/InvoiceFormModal";
 import DeleteConfirmModal from "@/components/admin/DeleteConfirmModal";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
-import { DollarSign, CheckCircle2, Clock, Plus, Send, Edit2, Trash2, FileText, Percent, XCircle } from "lucide-react";
+import { DollarSign, CheckCircle2, Clock, Plus, Send, Edit2, Trash2, FileText, Percent, XCircle, RefreshCw } from "lucide-react";
 import type { Invoice, InvoiceStatus } from "@/types";
 
 type FilterTab = "all" | "draft" | "sent" | "paid" | "declined";
@@ -44,12 +44,16 @@ export default function AdminBillingPage() {
   );
 
   const summary = useMemo(() => {
+    // Total billed across every invoice (drafts and declined included).
     const total = invoices.reduce((sum, inv) => sum + inv.amount, 0);
+    // Collected revenue — same definition the analytics page uses.
     const paid = invoices
       .filter((inv) => inv.status === "paid")
       .reduce((sum, inv) => sum + inv.amount, 0);
+    // Outstanding receivables: awaiting payment only. Drafts are not yet sent
+    // and declined invoices will not be collected, so both are excluded.
     const pending = invoices
-      .filter((inv) => inv.status !== "paid")
+      .filter((inv) => inv.status === "sent" || inv.status === "overdue")
       .reduce((sum, inv) => sum + inv.amount, 0);
     return { total, paid, pending };
   }, [invoices]);
@@ -94,13 +98,22 @@ export default function AdminBillingPage() {
 
   const handleSendInvoice = useCallback(
     (invoiceId: string) => {
-      sendInvoice(invoiceId);
-      addToast(
-        t("admin", "invoiceSent"),
-        "success"
+      // sendInvoice shows its own toast reflecting actual delivery outcome.
+      sendInvoice(invoiceId).catch((err) =>
+        console.warn("[Mila] sendInvoice rejected:", err)
       );
     },
-    [sendInvoice, addToast, t]
+    [sendInvoice]
+  );
+
+  const handleResendInvoice = useCallback(
+    (invoiceId: string) => {
+      // sendInvoice shows its own toast reflecting actual delivery outcome.
+      sendInvoice(invoiceId).catch((err) =>
+        console.warn("[Mila] sendInvoice rejected:", err)
+      );
+    },
+    [sendInvoice]
   );
 
   const handleDeleteInvoice = useCallback(() => {
@@ -186,7 +199,7 @@ export default function AdminBillingPage() {
     {
       icon: DollarSign,
       value: formatPrice(summary.total),
-      label: language === "es" ? "Total Ingresos" : "Total Revenue",
+      label: language === "es" ? "Total Facturado" : "Total Billed",
       color: "text-mila-gold",
       bg: "bg-mila-gold/10",
     },
@@ -359,8 +372,10 @@ export default function AdminBillingPage() {
                       : null;
                     const canSend =
                       invoice.status === "draft" ||
-                      invoice.status === "sent" ||
                       invoice.status === "declined";
+                    const canResend =
+                      invoice.status === "sent" ||
+                      invoice.status === "overdue";
                     const canMarkPaid =
                       invoice.status === "sent" ||
                       invoice.status === "overdue" ||
@@ -438,6 +453,15 @@ export default function AdminBillingPage() {
                                 className="p-2 rounded-lg hover:bg-white/5 transition-colors text-text-muted hover:text-mila-gold cursor-pointer"
                               >
                                 <Send size={16} />
+                              </button>
+                            )}
+                            {canResend && (
+                              <button
+                                onClick={() => handleResendInvoice(invoice.id)}
+                                title={language === "es" ? "Reenviar solicitud de pago" : "Resend payment request"}
+                                className="p-2 rounded-lg hover:bg-white/5 transition-colors text-text-muted hover:text-mila-gold cursor-pointer"
+                              >
+                                <RefreshCw size={16} />
                               </button>
                             )}
                             <button

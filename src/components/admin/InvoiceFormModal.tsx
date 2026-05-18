@@ -7,6 +7,7 @@ import Input from "@/components/ui/Input";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useProducts } from "@/providers/ProductProvider";
 import { useStaff } from "@/providers/StaffProvider";
+import { isValidTransition } from "@/providers/InvoiceProvider";
 import { services } from "@/data/services";
 import { formatPrice, calculateTaxBreakdown } from "@/lib/utils";
 import { Plus, Trash2, ShoppingBag, Scissors, Tag } from "lucide-react";
@@ -232,12 +233,24 @@ export default function InvoiceFormModal({
     onClose();
   };
 
-  const statusOptions = [
-    { value: "draft", label: language === "es" ? "Borrador" : "Draft" },
-    { value: "sent", label: language === "es" ? "Enviada" : "Sent" },
-    { value: "paid", label: language === "es" ? "Pagada" : "Paid" },
-    { value: "overdue", label: language === "es" ? "Vencida" : "Overdue" },
-  ];
+  // Only offer statuses the invoice can legally transition into. When editing,
+  // an invalid transition would be silently dropped by updateInvoice — so we
+  // never present one. New invoices may be created as draft or sent.
+  const statusOptions = useMemo(() => {
+    const all: { value: InvoiceStatus; label: string }[] = [
+      { value: "draft", label: language === "es" ? "Borrador" : "Draft" },
+      { value: "sent", label: language === "es" ? "Enviada" : "Sent" },
+      { value: "paid", label: language === "es" ? "Pagada" : "Paid" },
+      { value: "overdue", label: language === "es" ? "Vencida" : "Overdue" },
+      { value: "declined", label: language === "es" ? "Rechazada" : "Declined" },
+    ];
+    if (!invoice) {
+      return all.filter((o) => o.value === "draft" || o.value === "sent");
+    }
+    return all.filter(
+      (o) => o.value === invoice.status || isValidTransition(invoice.status, o.value)
+    );
+  }, [invoice, language]);
 
   return (
     <Modal

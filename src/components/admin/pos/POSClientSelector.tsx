@@ -4,8 +4,8 @@ import { useState, useEffect, useMemo } from "react";
 import { motion } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useInvoices } from "@/providers/InvoiceProvider";
-import { getStoredData } from "@/lib/utils";
-import { onCollectionChange, getCollection } from "@/lib/firestore";
+import { getStoredData, setStoredData } from "@/lib/utils";
+import { onCollectionChange, getCollection, setDocument } from "@/lib/firestore";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { Search, UserPlus, Check, Phone } from "lucide-react";
@@ -92,7 +92,10 @@ export default function POSClientSelector({
       if (b.clientId && !deletedBookingSet.has(b.id) && !map.has(b.clientId)) {
         map.set(b.clientId, {
           id: b.clientId,
-          name: b.guestName || b.clientId,
+          name:
+            b.clientName ||
+            b.guestName ||
+            (language === "es" ? "Cliente" : "Client"),
           phone: b.guestPhone,
         });
       }
@@ -111,7 +114,7 @@ export default function POSClientSelector({
     return Array.from(map.values()).sort((a, b) =>
       a.name.localeCompare(b.name)
     );
-  }, [invoices, firestoreUsers]);
+  }, [invoices, firestoreUsers, language]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return clients;
@@ -125,8 +128,40 @@ export default function POSClientSelector({
 
   const handleAddClient = () => {
     if (!newName.trim()) return;
-    const id = `client-${newName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")}`;
-    onSelect({ id, name: newName.trim(), phone: newPhone.trim() || undefined });
+    const trimmedName = newName.trim();
+    const trimmedPhone = newPhone.trim();
+
+    // Try to find existing user by phone (dedup)
+    const existingUsers = getStoredData<User[]>("mila-users", []);
+    const existingByPhone = trimmedPhone
+      ? existingUsers.find((u) => u.phone && u.phone === trimmedPhone)
+      : undefined;
+
+    const id =
+      existingByPhone?.id ||
+      `client-${trimmedName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")}-${Date.now().toString(36)}`;
+
+    const newUser: User = {
+      id,
+      name: trimmedName,
+      phone: trimmedPhone,
+      countryCode: "+507",
+      role: "client",
+      createdAt: existingByPhone?.createdAt || new Date().toISOString(),
+    };
+
+    // Persist to localStorage (dedup by id or phone)
+    const filtered = existingUsers.filter(
+      (u) => u.id !== id && !(trimmedPhone && u.phone === trimmedPhone)
+    );
+    setStoredData("mila-users", [...filtered, newUser]);
+
+    // Fire-and-forget sync to Firestore
+    setDocument("users", id, newUser).catch((err) =>
+      console.warn("[Mila] Walk-in user Firestore sync failed:", err)
+    );
+
+    onSelect({ id, name: trimmedName, phone: trimmedPhone || undefined });
     setShowNewForm(false);
     setNewName("");
     setNewPhone("");

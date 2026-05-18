@@ -25,6 +25,7 @@ export interface Invoice {
   sentAt?: string;
   paidAt?: string;
   declinedAt?: string;
+  overdueAt?: string;
   paymentTransactionId?: string;
   createdAt: string;
 }

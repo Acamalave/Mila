@@ -5,6 +5,8 @@ import { createContext, useContext, useEffect, useRef, useCallback, type ReactNo
 export type EventType =
   | "staff:created" | "staff:updated" | "staff:deleted"
   | "product:created" | "product:updated" | "product:deleted"
+  | "service:created" | "service:updated" | "service:deleted"
+  | "service-category:created" | "service-category:updated" | "service-category:deleted"
   | "invoice:created" | "invoice:updated" | "invoice:sent" | "invoice:paid" | "invoice:declined"
   | "notification:created" | "notification:read"
   | "payment:completed" | "payment:failed"

@@ -6,7 +6,9 @@ type TemplateType =
   | "booking-reminder"
   | "booking-cancellation"
   | "invoice-sent"
+  | "invoice-overdue"
   | "payment-confirmed"
+  | "payment-declined"
   | "welcome";
 
 type Language = "es" | "en";
@@ -181,6 +183,45 @@ const templates: Record<TemplateType, Record<Language, (d: Record<string, string
         .join("\n"),
   },
 
+  "invoice-overdue": {
+    es: (d) =>
+      [
+        `Hola ${d.clientName || ""},`,
+        `Notamos que tu factura en MILA CONCEPT aun esta pendiente de pago.`,
+        ``,
+        `Factura #: ${d.invoiceId || d.invoiceNumber || ""}`,
+        `Monto pendiente: ${d.amount || "$0.00"}`,
+        d.daysOverdue ? `Dias transcurridos: ${d.daysOverdue}` : "",
+        ``,
+        d.paymentLink ? `Paga aqui: ${d.paymentLink}` : "",
+        ``,
+        `Si ya realizaste el pago, por favor ignora este mensaje.`,
+        `Si tienes alguna pregunta, estamos para ayudarte.`,
+        ``,
+        `- Equipo MILA CONCEPT`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    en: (d) =>
+      [
+        `Hi ${d.clientName || ""},`,
+        `We noticed that your invoice from MILA CONCEPT is still pending payment.`,
+        ``,
+        `Invoice #: ${d.invoiceId || d.invoiceNumber || ""}`,
+        `Amount due: ${d.amount || "$0.00"}`,
+        d.daysOverdue ? `Days elapsed: ${d.daysOverdue}` : "",
+        ``,
+        d.paymentLink ? `Pay here: ${d.paymentLink}` : "",
+        ``,
+        `If you have already paid, please disregard this message.`,
+        `If you have any questions, we are here to help.`,
+        ``,
+        `- MILA CONCEPT Team`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+  },
+
   "payment-confirmed": {
     es: (d) =>
       [
@@ -206,6 +247,45 @@ const templates: Record<TemplateType, Record<Language, (d: Record<string, string
         d.method ? `Method: ${d.method}` : "",
         ``,
         `If you have any questions, feel free to contact us.`,
+        `- MILA CONCEPT Team`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+  },
+
+  "payment-declined": {
+    es: (d) =>
+      [
+        `Hola ${d.clientName || ""},`,
+        `Lamentamos informarte que no pudimos procesar tu pago en MILA CONCEPT.`,
+        ``,
+        `Factura #: ${d.invoiceId || d.invoiceNumber || ""}`,
+        `Monto intentado: $${d.amount || "0.00"}`,
+        d.reason ? `Motivo: ${d.reason}` : "",
+        ``,
+        `Por favor verifica los datos de tu tarjeta e intentalo nuevamente, o usa otro metodo de pago.`,
+        d.retryLink ? `Reintenta aqui: ${d.retryLink}` : "",
+        ``,
+        `Si necesitas ayuda, responde a este mensaje y con gusto te asistimos.`,
+        ``,
+        `- Equipo MILA CONCEPT`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    en: (d) =>
+      [
+        `Hi ${d.clientName || ""},`,
+        `We're sorry to let you know that we were unable to process your payment at MILA CONCEPT.`,
+        ``,
+        `Invoice #: ${d.invoiceId || d.invoiceNumber || ""}`,
+        `Attempted amount: $${d.amount || "0.00"}`,
+        d.reason ? `Reason: ${d.reason}` : "",
+        ``,
+        `Please verify your card details and try again, or use a different payment method.`,
+        d.retryLink ? `Retry here: ${d.retryLink}` : "",
+        ``,
+        `If you need help, reply to this message and we'll be glad to assist you.`,
+        ``,
         `- MILA CONCEPT Team`,
       ]
         .filter(Boolean)

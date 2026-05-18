@@ -7,11 +7,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { getDb } from "@/lib/firebase";
+import { internalAuthHeaders } from "@/lib/internal-auth";
+import { services } from "@/data/services";
 
 interface BookingDoc {
   id: string;
   clientId: string | null;
+  clientName?: string;
   stylistId: string;
+  stylistName?: string;
   date: string;
   startTime: string;
   endTime: string;
@@ -30,22 +34,26 @@ interface UserDoc {
   email?: string;
 }
 
-export async function GET(request: NextRequest) {
-  // ── Auth: verify Vercel CRON_SECRET ──
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
+// Panama has no DST and sits at UTC-5 year-round.
+const PANAMA_UTC_OFFSET_MS = 5 * 60 * 60 * 1000;
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+export async function GET(request: NextRequest) {
+  // ── Auth: verify Vercel CRON_SECRET (fail-closed) ──
+  const authHeader = request.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET?.trim();
+
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const db = getDb();
 
-    // Tomorrow's date in YYYY-MM-DD (server runs in UTC; Panama is UTC-5)
-    const now = new Date();
-    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-    const tomorrowStr = tomorrow.toISOString().split("T")[0]; // "YYYY-MM-DD"
+    // Tomorrow's date in Panama local time (booking dates are stored as the
+    // salon's local YYYY-MM-DD, so the comparison must use Panama time).
+    const panamaNow = new Date(Date.now() - PANAMA_UTC_OFFSET_MS);
+    const panamaTomorrow = new Date(panamaNow.getTime() + 24 * 60 * 60 * 1000);
+    const tomorrowStr = panamaTomorrow.toISOString().split("T")[0]; // "YYYY-MM-DD"
 
     // ── Query confirmed bookings for tomorrow ──
     const bookingsRef = collection(db, "bookings");
@@ -84,12 +92,26 @@ export async function GET(request: NextRequest) {
     for (const booking of bookings) {
       const client = booking.clientId ? usersMap.get(booking.clientId) : undefined;
 
-      const reminderData = {
-        clientName: client?.name ?? booking.guestName ?? "Client",
+      const clientName = client?.name ?? booking.clientName ?? booking.guestName ?? "Cliente";
+      const stylistName = booking.stylistName ?? "";
+      const serviceNames = (booking.serviceIds ?? [])
+        .map((id) => services.find((s) => s.id === id)?.name?.es)
+        .filter((n): n is string => !!n);
+
+      // The email and WhatsApp templates expect different field shapes.
+      const emailData = {
+        clientName,
+        stylistName,
         date: booking.date,
-        startTime: booking.startTime,
-        endTime: booking.endTime,
-        bookingId: booking.id,
+        time: booking.startTime,
+        services: serviceNames,
+      };
+      const whatsappData = {
+        clientName,
+        stylist: stylistName,
+        date: booking.date,
+        time: booking.startTime,
+        service: serviceNames.join(", "),
       };
 
       let emailSent = false;
@@ -101,11 +123,11 @@ export async function GET(request: NextRequest) {
         try {
           const res = await fetch(new URL("/api/notifications/email", request.url).toString(), {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...internalAuthHeaders() },
             body: JSON.stringify({
               to: email,
               template: "booking-reminder",
-              data: reminderData,
+              data: emailData,
               language: "es",
             }),
           });
@@ -122,12 +144,12 @@ export async function GET(request: NextRequest) {
         try {
           const res = await fetch(new URL("/api/notifications/whatsapp", request.url).toString(), {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...internalAuthHeaders() },
             body: JSON.stringify({
               phone,
               countryCode,
               template: "booking-reminder",
-              data: reminderData,
+              data: whatsappData,
               language: "es",
             }),
           });

@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendWhatsApp } from "@/lib/manychat";
+import { isInternalRequestAuthorized } from "@/lib/internal-auth";
 
 export async function POST(request: NextRequest) {
   try {
+    // Internal-only route: reject any request that is not from a trusted
+    // server-side caller. Without this check the route is an open WhatsApp relay.
+    if (!isInternalRequestAuthorized(request)) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 },
+      );
+    }
+
     const body = await request.json();
     const { phone, countryCode, template, data, language } = body;
 
@@ -26,7 +36,9 @@ export async function POST(request: NextRequest) {
       "booking-reminder",
       "booking-cancellation",
       "invoice-sent",
+      "invoice-overdue",
       "payment-confirmed",
+      "payment-declined",
       "welcome",
     ];
 

@@ -1,6 +1,6 @@
 import type { ServiceCategory, Service } from "@/types/service";
 
-export const serviceCategories: ServiceCategory[] = [
+export const seedServiceCategories: ServiceCategory[] = [
   {
     id: "cat-wash",
     name: { en: "Wash & Treatments", es: "Lavado y Tratamientos" },
@@ -93,7 +93,7 @@ export const serviceCategories: ServiceCategory[] = [
   },
 ];
 
-export const services: Service[] = [
+export const seedServices: Service[] = [
   // === WASH ===
   {
     id: "svc-wash-normal",
@@ -501,3 +501,27 @@ export const services: Service[] = [
     lucideIcon: "MessageCircle",
   },
 ];
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Live mutable registries.
+ *
+ * The ServiceProvider keeps these arrays synchronized with the merged state
+ * (seed + custom + overrides - deleted). Non-hook consumers that import
+ * `services` / `serviceCategories` from this module read from these live
+ * arrays. The arrays are mutated in-place so that existing references remain
+ * valid; call sites that re-read on each render (useMemo/filter/find inside
+ * render functions) will pick up updates automatically.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+export const services: Service[] = [...seedServices];
+export const serviceCategories: ServiceCategory[] = [...seedServiceCategories];
+
+export function setLiveServices(next: Service[]): void {
+  services.length = 0;
+  services.push(...next);
+}
+
+export function setLiveServiceCategories(next: ServiceCategory[]): void {
+  serviceCategories.length = 0;
+  serviceCategories.push(...next);
+}

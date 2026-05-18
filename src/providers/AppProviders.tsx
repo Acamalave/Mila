@@ -8,6 +8,7 @@ import { AuthProvider } from "@/providers/AuthProvider";
 import { EventBusProvider } from "@/providers/EventBusProvider";
 import { StaffProvider } from "@/providers/StaffProvider";
 import { ProductProvider } from "@/providers/ProductProvider";
+import { ServiceProvider } from "@/providers/ServiceProvider";
 import { BookingProvider } from "@/providers/BookingProvider";
 import { InvoiceProvider } from "@/providers/InvoiceProvider";
 import { NotificationProvider } from "@/providers/NotificationProvider";
@@ -24,17 +25,19 @@ export default function AppProviders({ children }: { children: ReactNode }) {
             <EventBusProvider>
               <StaffProvider>
                 <ProductProvider>
-                  <BookingProvider>
-                    <CommissionProvider>
-                      <InvoiceProvider>
-                        <NotificationProvider>
-                          <PaymentProvider>
-                            <CartProvider>{children}</CartProvider>
-                          </PaymentProvider>
-                        </NotificationProvider>
-                      </InvoiceProvider>
-                    </CommissionProvider>
-                  </BookingProvider>
+                  <ServiceProvider>
+                    <BookingProvider>
+                      <CommissionProvider>
+                        <InvoiceProvider>
+                          <NotificationProvider>
+                            <PaymentProvider>
+                              <CartProvider>{children}</CartProvider>
+                            </PaymentProvider>
+                          </NotificationProvider>
+                        </InvoiceProvider>
+                      </CommissionProvider>
+                    </BookingProvider>
+                  </ServiceProvider>
                 </ProductProvider>
               </StaffProvider>
             </EventBusProvider>
