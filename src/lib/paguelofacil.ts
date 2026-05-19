@@ -54,6 +54,42 @@ function getBaseUrl(): string {
   return env === "production" ? PRODUCTION_URL : SANDBOX_URL;
 }
 
+// ---------------------------------------------------------------------------
+// Hosted Payment Link — LinkDeamon flow
+// ---------------------------------------------------------------------------
+// The customer is redirected to Paguelo Facil's hosted page where the card is
+// entered (3D Secure is handled there automatically). After payment, the
+// gateway redirects the customer to RETURN_URL. The official result of record
+// is the webhook — RETURN_URL is just for UX (where the user lands).
+
+export interface PaymentLinkRequest {
+  amount: number;
+  description: string;
+  /** Echoed back as PARM_1 — used to look up the invoice in the webhook. */
+  reference: string;
+  /** Absolute URL where the gateway redirects after payment. */
+  returnUrl: string;
+}
+
+export function buildPaymentLinkUrl(req: PaymentLinkRequest): string {
+  const cclw = clean(process.env.PAGUELO_CCLW);
+  if (!cclw) {
+    throw new Error("PAGUELO_CCLW is not set");
+  }
+
+  const baseUrl = getBaseUrl();
+  const url = new URL(`${baseUrl}/LinkDeamon.cfm`);
+  url.searchParams.set("CCLW", cclw);
+  url.searchParams.set("CMTN", (Math.round(req.amount * 100) / 100).toFixed(2));
+  url.searchParams.set(
+    "CDSC",
+    clean(req.description).slice(0, 80) || "Mila Concept"
+  );
+  url.searchParams.set("RETURN_URL", req.returnUrl);
+  if (req.reference) url.searchParams.set("PARM_1", req.reference);
+  return url.toString();
+}
+
 function getCredentials() {
   const cclw = clean(process.env.PAGUELO_CCLW);
   const token = clean(process.env.PAGUELO_TOKEN);

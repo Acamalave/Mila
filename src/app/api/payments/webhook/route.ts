@@ -67,6 +67,12 @@ interface WebhookPayload {
   referenceNumber?: string;
   CREF?: string;
   CREFN?: string;
+  // LinkDeamon echoes PARM_1 / CARRY1 back in the webhook — that's where the
+  // invoice id arrives when the customer pays via the hosted page.
+  PARM_1?: string;
+  parm_1?: string;
+  CARRY1?: string;
+  carry1?: string;
   invoiceId?: string;
   date?: string;
   authCode?: string;
@@ -136,6 +142,10 @@ function extractInvoiceId(payload: WebhookPayload): string | undefined {
     payload.referenceNumber ||
     payload.CREF ||
     payload.CREFN ||
+    payload.PARM_1 ||
+    payload.parm_1 ||
+    payload.CARRY1 ||
+    payload.carry1 ||
     payload.invoiceId
   );
 }

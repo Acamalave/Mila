@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { motion } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useToast } from "@/providers/ToastProvider";
@@ -36,11 +37,44 @@ export default function AppointmentsPage() {
   const { emit } = useEventBus();
   const { user } = useAuth();
   const { allStylists } = useStaff();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const [appointments, setAppointments] = useState<Booking[]>([]);
   const [rescheduleAppt, setRescheduleAppt] = useState<Booking | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState<string>("");
   const [rescheduleTime, setRescheduleTime] = useState<string>("");
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
+
+  // Show a toast when the user returns from the Paguelo Facil hosted checkout,
+  // then strip the query params so reloads don't re-fire the toast.
+  useEffect(() => {
+    const pago = searchParams.get("pago");
+    if (!pago) return;
+
+    if (pago === "ok") {
+      addToast(
+        language === "es" ? "¡Pago confirmado!" : "Payment confirmed!",
+        "success"
+      );
+    } else if (pago === "error") {
+      addToast(
+        language === "es"
+          ? "El pago fue rechazado. Puedes intentar nuevamente."
+          : "Payment was declined. You can try again.",
+        "error"
+      );
+    } else if (pago === "pendiente") {
+      addToast(
+        language === "es"
+          ? "Estamos confirmando tu pago. Esto puede tardar unos segundos."
+          : "We're confirming your payment. This can take a few seconds.",
+        "info"
+      );
+    }
+
+    router.replace(pathname);
+  }, [searchParams, addToast, language, router, pathname]);
 
   useEffect(() => {
     if (!user) return;
