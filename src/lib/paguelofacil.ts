@@ -222,13 +222,23 @@ export async function processCardPayment(
       };
     }
 
-    // A charge is captured ONLY when the gateway's top-level `success` flag is
-    // true AND the transaction is not held for fraud review. `headerStatus.code
-    // 200` only means the API call itself succeeded — never the charge result.
+    // IMPORTANT: the gateway's top-level `success` flag and headerStatus.code
+    // 200 only mean the API CALL succeeded — a REJECTED charge still comes back
+    // with success:true / code:200. The real verdict is the transaction's
+    // authStatus / status / messageSys. A rejected charge looks like:
+    //   authStatus:"DR", status:0, messageSys:"Rejected transaction"
     const inReview = inner.inRevision === true;
-    const isSuccess = topSuccess && !inReview;
+    const authStatusUp = String(inner.authStatus ?? "").toUpperCase();
+    const sysMsg = String(inner.messageSys ?? "");
+    const looksRejected =
+      authStatusUp === "DR" ||
+      inner.status === 0 ||
+      inner.status === "0" ||
+      /reject|declin|rechaz|denied|denegad/i.test(sysMsg);
+    const isSuccess =
+      topSuccess === true && header.code === 200 && !inReview && !looksRejected;
     const message =
-      inner.messageSys ||
+      sysMsg ||
       inner.authStatus ||
       (typeof data?.message === "string" ? data.message : "") ||
       header.description ||
