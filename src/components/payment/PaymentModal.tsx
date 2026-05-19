@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { CreditCard, X, ExternalLink, ShieldCheck } from "lucide-react";
+import { Check, CreditCard, ArrowLeft, X, XCircle, RefreshCw, ShieldCheck } from "lucide-react";
 import Modal from "@/components/ui/Modal";
+import CreditCardForm, { type CardFormData } from "@/components/payment/CreditCardForm";
+import { usePayment, type CardPaymentDetails } from "@/providers/PaymentProvider";
 import { useInvoices } from "@/providers/InvoiceProvider";
+import { useAuth } from "@/providers/AuthProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useToast } from "@/providers/ToastProvider";
 import { formatPrice } from "@/lib/utils";
@@ -18,55 +21,88 @@ interface PaymentModalProps {
   onDecline?: () => void;
 }
 
-type PaymentStep = "invoice" | "redirecting";
+type PaymentStep = "invoice" | "new-card" | "processing" | "success" | "failed";
 
 export default function PaymentModal({
   isOpen,
   onClose,
   invoice,
-  onPaymentComplete: _onPaymentComplete,
+  onPaymentComplete,
   onDecline,
 }: PaymentModalProps) {
-  const { markAsDeclined } = useInvoices();
+  const { processPayment } = usePayment();
+  const { markAsPaid, markAsDeclined } = useInvoices();
+  const { user } = useAuth();
   const { language, t } = useLanguage();
   const { addToast } = useToast();
 
   const [step, setStep] = useState<PaymentStep>("invoice");
-  const [isCreatingLink, setIsCreatingLink] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [failedReason, setFailedReason] = useState<string>("");
+  const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idempotencyKeyRef = useRef<string>("");
 
   useEffect(() => {
     if (isOpen) {
       setStep("invoice");
-      setIsCreatingLink(false);
+      setIsProcessing(false);
+      setFailedReason("");
+      idempotencyKeyRef.current = `pay-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     }
+    return () => {
+      if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+    };
   }, [isOpen]);
 
-  const handlePay = useCallback(async () => {
-    if (!invoice || isCreatingLink) return;
-
-    setIsCreatingLink(true);
-    setStep("redirecting");
-
-    try {
-      const res = await fetch("/api/payments/create-link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ invoiceId: invoice.id }),
-      });
-      const json = (await res.json()) as { success: boolean; linkUrl?: string; error?: string };
-
-      if (!res.ok || !json.success || !json.linkUrl) {
-        throw new Error(json.error || "No se pudo iniciar el pago");
+  const handleProcessPayment = useCallback(
+    async (data: CardFormData) => {
+      if (!invoice || !user) {
+        addToast(t("payment", "paymentFailed"), "error");
+        return;
       }
+      if (isProcessing) return;
 
-      window.location.href = json.linkUrl;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Error al iniciar el pago";
-      addToast(msg, "error");
-      setStep("invoice");
-      setIsCreatingLink(false);
-    }
-  }, [invoice, isCreatingLink, addToast]);
+      const invoiceId = invoice.id;
+      const invoiceAmount = invoice.amount;
+
+      setStep("processing");
+      setIsProcessing(true);
+      setFailedReason("");
+
+      const cardDetailsForGateway: CardPaymentDetails = {
+        cardNumber: data.cardNumber,
+        cardExpMonth: data.expiryMonth,
+        cardExpYear: data.expiryYear,
+        cardCvv: data.cvv,
+        cardholderName: data.cardholderName,
+      };
+
+      try {
+        const transaction = await processPayment(
+          invoiceId,
+          `temp-${Date.now()}`,
+          invoiceAmount,
+          cardDetailsForGateway,
+          idempotencyKeyRef.current
+        );
+        markAsPaid(invoiceId, transaction.id);
+
+        setStep("success");
+        addToast(t("payment", "paymentSuccessful"), "success");
+        onPaymentComplete?.();
+
+        autoCloseTimerRef.current = setTimeout(() => onClose(), 2200);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Pago rechazado";
+        setFailedReason(message);
+        setStep("failed");
+        setIsProcessing(false);
+      }
+    },
+    [invoice, user, isProcessing, processPayment, markAsPaid, addToast, t, onPaymentComplete, onClose]
+  );
+
+  const handleStartCard = useCallback(() => setStep("new-card"), []);
 
   const handleDecline = useCallback(() => {
     if (invoice) markAsDeclined(invoice.id);
@@ -85,10 +121,13 @@ export default function PaymentModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={step === "redirecting" ? () => {} : onClose}
+      onClose={step === "processing" ? () => {} : onClose}
       size="md"
     >
       <AnimatePresence mode="wait">
+        {/* ═══════════════════════════════════════════
+            INVOICE DETAIL
+            ═══════════════════════════════════════════ */}
         {step === "invoice" && (
           <motion.div
             key="invoice"
@@ -241,12 +280,7 @@ export default function PaymentModal({
                     </div>
                   )}
 
-                  <div
-                    style={{
-                      borderTop: "2px dashed var(--color-border-default)",
-                      margin: "16px 0",
-                    }}
-                  />
+                  <div style={{ borderTop: "2px dashed var(--color-border-default)", margin: "16px 0" }} />
 
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
                     <span
@@ -288,19 +322,8 @@ export default function PaymentModal({
                       {descriptionText}
                     </p>
                   )}
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "flex-end",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 12,
-                        color: "var(--color-text-muted)",
-                      }}
-                    >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+                    <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
                       {new Date(invoice.date).toLocaleDateString(
                         language === "es" ? "es-ES" : "en-US",
                         { year: "numeric", month: "long", day: "numeric" }
@@ -322,7 +345,6 @@ export default function PaymentModal({
               )}
             </div>
 
-            {/* Secure-checkout note */}
             <div
               style={{
                 display: "flex",
@@ -346,8 +368,8 @@ export default function PaymentModal({
                 }}
               >
                 {language === "es"
-                  ? "Pago seguro con Paguelo Fácil. Serás redirigido a la página oficial para completar la transacción con 3D Secure."
-                  : "Secure checkout via Paguelo Fácil. You'll be redirected to their official page to complete the transaction with 3D Secure."}
+                  ? "Cobro seguro vía Paguelo Fácil. Tus datos se envían encriptados directo al procesador."
+                  : "Secure card charge via Paguelo Fácil. Your data is encrypted in transit."}
               </p>
             </div>
 
@@ -355,8 +377,7 @@ export default function PaymentModal({
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={handlePay}
-                disabled={isCreatingLink}
+                onClick={handleStartCard}
                 style={{
                   width: "100%",
                   height: 52,
@@ -370,18 +391,16 @@ export default function PaymentModal({
                   fontWeight: 600,
                   letterSpacing: "0.08em",
                   textTransform: "uppercase" as const,
-                  cursor: isCreatingLink ? "wait" : "pointer",
+                  cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   gap: 8,
                   transition: "all 0.3s ease",
-                  opacity: isCreatingLink ? 0.7 : 1,
                 }}
               >
                 <CreditCard size={16} />
                 {t("payment", "payAmount")} {formatPrice(invoice.amount)}
-                <ExternalLink size={14} style={{ opacity: 0.7 }} />
               </motion.button>
 
               <motion.button
@@ -415,9 +434,54 @@ export default function PaymentModal({
           </motion.div>
         )}
 
-        {step === "redirecting" && (
+        {/* ═══════════════════════════════════════════
+            CARD ENTRY
+            ═══════════════════════════════════════════ */}
+        {step === "new-card" && (
           <motion.div
-            key="redirecting"
+            key="new-card"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <motion.button
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              onClick={() => setStep("invoice")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                marginBottom: 16,
+                background: "none",
+                border: "none",
+                color: "var(--color-accent)",
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 500,
+                fontFamily: "var(--font-display)",
+              }}
+            >
+              <ArrowLeft size={14} />
+              {language === "es" ? "Volver al detalle" : "Back to invoice"}
+            </motion.button>
+
+            <CreditCardForm
+              onSubmit={handleProcessPayment}
+              onCancel={() => setStep("invoice")}
+              isProcessing={isProcessing}
+              showSaveOption={false}
+            />
+          </motion.div>
+        )}
+
+        {/* ═══════════════════════════════════════════
+            PROCESSING
+            ═══════════════════════════════════════════ */}
+        {step === "processing" && (
+          <motion.div
+            key="processing"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
@@ -437,7 +501,7 @@ export default function PaymentModal({
                 }}
               />
               <div className="absolute inset-0 flex items-center justify-center">
-                <ExternalLink size={20} style={{ color: "var(--color-accent)" }} />
+                <CreditCard size={20} style={{ color: "var(--color-accent)" }} />
               </div>
             </div>
             <p
@@ -451,7 +515,7 @@ export default function PaymentModal({
                 textAlign: "center",
               }}
             >
-              {language === "es" ? "Redirigiendo a Paguelo Fácil" : "Redirecting to Paguelo Fácil"}
+              {language === "es" ? "Procesando tu pago" : "Processing your payment"}
             </p>
             <p
               style={{
@@ -466,6 +530,180 @@ export default function PaymentModal({
             >
               {formatPrice(invoice.amount)}
             </p>
+          </motion.div>
+        )}
+
+        {/* ═══════════════════════════════════════════
+            SUCCESS
+            ═══════════════════════════════════════════ */}
+        {step === "success" && (
+          <motion.div
+            key="success"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            className="flex flex-col items-center justify-center py-16"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+              className="mb-6 flex items-center justify-center"
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: "50%",
+                background: "rgba(34, 197, 94, 0.1)",
+                border: "2px solid rgba(34, 197, 94, 0.3)",
+              }}
+            >
+              <Check size={32} style={{ color: "#22c55e" }} strokeWidth={3} />
+            </motion.div>
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                color: "var(--color-text-muted)",
+              }}
+            >
+              {t("payment", "paymentSuccessful")}
+            </motion.p>
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              style={{
+                fontFamily: "var(--font-accent)",
+                fontSize: 36,
+                fontWeight: 400,
+                color: "#22c55e",
+                marginTop: 4,
+                lineHeight: 1.1,
+              }}
+            >
+              {formatPrice(invoice.amount)}
+            </motion.p>
+          </motion.div>
+        )}
+
+        {/* ═══════════════════════════════════════════
+            FAILED / DECLINED
+            ═══════════════════════════════════════════ */}
+        {step === "failed" && (
+          <motion.div
+            key="failed"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            className="flex flex-col items-center justify-center py-12 gap-6"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+              className="flex items-center justify-center"
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: "50%",
+                background: "rgba(239, 68, 68, 0.1)",
+                border: "2px solid rgba(239, 68, 68, 0.3)",
+              }}
+            >
+              <XCircle size={32} style={{ color: "#ef4444" }} strokeWidth={2} />
+            </motion.div>
+
+            <div className="text-center space-y-2">
+              <p
+                style={{
+                  fontFamily: "var(--font-accent)",
+                  fontSize: "clamp(20px, 4vw, 26px)",
+                  fontWeight: 400,
+                  fontStyle: "italic",
+                  color: "var(--color-text-primary)",
+                }}
+              >
+                {language === "es" ? "Pago rechazado" : "Payment declined"}
+              </p>
+              <p
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: 12,
+                  color: "var(--color-text-muted)",
+                  letterSpacing: "0.04em",
+                  maxWidth: 360,
+                  margin: "0 auto",
+                }}
+              >
+                {failedReason ||
+                  (language === "es"
+                    ? "El banco rechazó el cargo. Puedes intentar con otra tarjeta."
+                    : "Your bank declined the charge. Please try with another card.")}
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 w-full">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  setStep("new-card");
+                  setIsProcessing(false);
+                  idempotencyKeyRef.current = `pay-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                }}
+                style={{
+                  width: "100%",
+                  height: 52,
+                  borderRadius: 12,
+                  background: "var(--gradient-accent)",
+                  boxShadow: "var(--shadow-glow)",
+                  border: "none",
+                  color: "var(--color-text-inverse)",
+                  fontFamily: "var(--font-display)",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase" as const,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                }}
+              >
+                <RefreshCw size={15} />
+                {language === "es" ? "Intentar de nuevo" : "Try again"}
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
+                onClick={onClose}
+                style={{
+                  width: "100%",
+                  height: 44,
+                  borderRadius: 12,
+                  background: "transparent",
+                  border: "1px solid var(--color-border-default)",
+                  color: "var(--color-text-muted)",
+                  fontFamily: "var(--font-display)",
+                  fontSize: 12,
+                  fontWeight: 500,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase" as const,
+                  cursor: "pointer",
+                }}
+              >
+                {language === "es" ? "Cancelar" : "Cancel"}
+              </motion.button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

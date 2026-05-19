@@ -5,6 +5,12 @@
  *   POST {base}/rest/processTx/AUTH_CAPTURE   (authorize + capture in one step)
  *   Header: `authorization: <token>`  (raw token — NOT "Bearer <token>")
  *
+ * Body shape and field formatting mirror the configuration of our other
+ * production deployment that bills against the same Paguelo Facil developer
+ * account — keeping the two in sync prevents this gateway's anti-fraud engine
+ * from flagging Mila's charges as different-shape and silently declining them
+ * with `authStatus: "DR"` while Rush's identical charges go through.
+ *
  * Environment variables required:
  *   PAGUELO_CCLW         - Merchant CCLW key
  *   PAGUELO_TOKEN        - API authentication token
@@ -57,10 +63,9 @@ function getBaseUrl(): string {
 // ---------------------------------------------------------------------------
 // Hosted Payment Link — LinkDeamon flow
 // ---------------------------------------------------------------------------
-// The customer is redirected to Paguelo Facil's hosted page where the card is
-// entered (3D Secure is handled there automatically). After payment, the
-// gateway redirects the customer to RETURN_URL. The official result of record
-// is the webhook — RETURN_URL is just for UX (where the user lands).
+// Kept available for invoices we want to bill outside of the in-app flow
+// (e.g. a "pay link" we email to a customer). The in-app modal uses the
+// direct AUTH_CAPTURE flow below.
 
 export interface PaymentLinkRequest {
   amount: number;
@@ -104,7 +109,7 @@ function getCredentials() {
 }
 
 /** Paguelo Facil's cardType field accepts "VISA" or "MASTERCARD". */
-function detectCardType(cardNumber: string): string {
+function detectCardType(cardNumber: string): "VISA" | "MASTERCARD" {
   return cardNumber.replace(/\D/g, "").startsWith("4") ? "VISA" : "MASTERCARD";
 }
 
@@ -117,13 +122,212 @@ function splitName(full: string): { firstName: string; lastName: string } {
 }
 
 /**
- * The gateway validates the email. Synthetic addresses like
- * `<phone>@mila.local` are rejected, so fall back to a real domain.
+ * Paguelo Facil's anti-fraud rejects synthetic / non-routable email addresses
+ * (anything ending in `.local`, `.invalid`, etc). Fall back to a real domain
+ * we control.
  */
 function safeEmail(email: string): string {
   const e = clean(email).toLowerCase();
-  if (/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(e) && !e.endsWith(".local")) return e;
+  if (/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(e) && !/\.(local|invalid|test|example)$/.test(e)) {
+    return e;
+  }
   return "pagos@milapty.com";
+}
+
+/**
+ * Normalize a Panamanian phone number into a digits-only string with country
+ * code. Paguelo Facil's risk engine flags 8-digit-only numbers as suspicious;
+ * the working Rush integration always sends a phone with the 507 prefix.
+ */
+function safePhone(phone: string): string {
+  const digits = clean(phone).replace(/\D/g, "");
+  if (!digits) return "50760000000";
+  // Already includes country code (typical formats: 507XXXXXXXX or longer)
+  if (digits.length >= 11) return digits;
+  // 8-digit local number — prepend Panama country code.
+  if (digits.length === 8) return `507${digits}`;
+  return digits.length >= 7 ? `507${digits}` : "50760000000";
+}
+
+// ---------------------------------------------------------------------------
+// Response validation
+// ---------------------------------------------------------------------------
+// Paguelo Facil can return `success: true` + `headerStatus.code: 200` and even
+// a `codOper` for a REJECTED charge. The real verdict lives in
+// `data.status` / `data.authStatus` / `data.messageSys`. We mirror the working
+// validator from our Rush integration so the in-app modal never tells a
+// customer "Pago aprobado" when the card was actually declined.
+
+const APPROVED_STATUSES = new Set<string | number>([
+  "PagadoExitoso",
+  "Pagado",
+  "Exitoso",
+  "approved",
+  "Aprobada",
+  "Aprobado",
+  1,
+  "1",
+]);
+
+const DECLINED_STATUSES = new Set<string | number>([
+  "Rechazado",
+  "Rechazada",
+  "rejected",
+  "Reversado",
+  "reversed",
+  "DR",
+  0,
+  "0",
+]);
+
+const PENDING_STATUSES = new Set<string | number>([
+  "Pendiente",
+  "pending",
+  "En revisión",
+  2,
+  "2",
+]);
+
+interface PFValidationResult {
+  approved: boolean;
+  declined: boolean;
+  pending: boolean;
+  codOper?: string;
+  statusCode?: number;
+  gatewayStatus?: string | number;
+  messageSys?: string;
+  reason?: string;
+}
+
+function validateResponse(paymentData: unknown): PFValidationResult {
+  if (!paymentData || typeof paymentData !== "object") {
+    return {
+      approved: false,
+      declined: true,
+      pending: false,
+      reason: "No response from payment gateway",
+    };
+  }
+
+  const data = paymentData as Record<string, unknown>;
+  const header = (data.headerStatus ?? {}) as { code?: number; description?: string };
+  const inner = (data.data ?? {}) as {
+    codOper?: string;
+    messageSys?: string;
+    status?: number | string;
+    authStatus?: string;
+    inRevision?: boolean;
+  };
+
+  const statusCode = header.code;
+  const codOper = inner.codOper;
+  const rawStatus = inner.status ?? inner.authStatus;
+  const messageSys = inner.messageSys || (typeof data.message === "string" ? data.message : "");
+
+  // 1. Top-level success must be true
+  if (data.success !== true) {
+    return {
+      approved: false,
+      declined: true,
+      pending: false,
+      statusCode,
+      gatewayStatus: rawStatus,
+      messageSys,
+      reason: header.description || messageSys || "Payment not successful",
+    };
+  }
+
+  // 2. headerStatus.code must be 200 (when present)
+  if (statusCode !== undefined && statusCode !== null && statusCode !== 200) {
+    return {
+      approved: false,
+      declined: true,
+      pending: false,
+      codOper,
+      statusCode,
+      gatewayStatus: rawStatus,
+      messageSys,
+      reason: header.description || `Gateway status code: ${statusCode}`,
+    };
+  }
+
+  // 3. Explicit reject / pending classifications win
+  if (inner.inRevision === true || PENDING_STATUSES.has(rawStatus ?? "")) {
+    return {
+      approved: false,
+      declined: false,
+      pending: true,
+      codOper,
+      statusCode,
+      gatewayStatus: rawStatus,
+      messageSys,
+      reason: messageSys || "Pago en revisión",
+    };
+  }
+
+  if (DECLINED_STATUSES.has(rawStatus ?? "")) {
+    return {
+      approved: false,
+      declined: true,
+      pending: false,
+      codOper,
+      statusCode,
+      gatewayStatus: rawStatus,
+      messageSys,
+      reason: messageSys || header.description || "Transacción rechazada",
+    };
+  }
+
+  // 4. No status field but everything else points to success → trust the
+  //    codOper. The card has already been charged at this point.
+  if (rawStatus === undefined || rawStatus === null || rawStatus === "") {
+    if (statusCode === 200 && codOper) {
+      return {
+        approved: true,
+        declined: false,
+        pending: false,
+        codOper,
+        statusCode,
+        gatewayStatus: "approved_no_status",
+        messageSys,
+      };
+    }
+    return {
+      approved: false,
+      declined: true,
+      pending: false,
+      codOper,
+      statusCode,
+      gatewayStatus: rawStatus,
+      messageSys,
+      reason: header.description || "Missing transaction status from gateway",
+    };
+  }
+
+  // 5. Explicit approved
+  if (APPROVED_STATUSES.has(rawStatus)) {
+    return {
+      approved: true,
+      declined: false,
+      pending: false,
+      codOper,
+      statusCode,
+      gatewayStatus: rawStatus,
+      messageSys,
+    };
+  }
+
+  // 6. Unknown — fail closed
+  return {
+    approved: false,
+    declined: true,
+    pending: false,
+    codOper,
+    statusCode,
+    gatewayStatus: rawStatus,
+    messageSys,
+    reason: messageSys || `Estado desconocido: ${rawStatus}`,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -139,29 +343,33 @@ export async function processCardPayment(
     const cardNumber = req.cardNumber.replace(/\D/g, "");
     const { firstName, lastName } = splitName(req.clientName);
 
-    // Month without a leading zero ("01" → "1"), matching the gateway's
-    // documented examples.
-    const expMonth = String(
-      parseInt(req.cardExpMonth.replace(/\D/g, ""), 10) || ""
-    );
+    // Two-digit month with leading zero — the working Rush integration sends
+    // "01"…"09" via padStart, and Paguelo Facil silently rejects single-digit
+    // months with authStatus: "DR".
+    const expMonth = req.cardExpMonth.replace(/\D/g, "").padStart(2, "0");
+    // Two-digit year — accept "26" or "2026" and keep only the last two.
+    const expYear = req.cardExpYear.replace(/\D/g, "").slice(-2);
+    const cvv = req.cardCvv.replace(/\D/g, "");
+    const email = safeEmail(req.clientEmail);
+    const phone = safePhone(req.clientPhone);
+    const description = clean(req.description) || "Mila Concept";
 
-    // Body shape mirrors the official @shoopiapp/paguelofacil library exactly
-    // (no extra fields — the gateway rejects unknown ones with a generic error).
     const body = {
       cclw,
-      amount: Math.round(req.amount * 100) / 100,
+      amount: Number((Math.round(req.amount * 100) / 100).toFixed(2)),
       taxAmount: 0,
-      email: safeEmail(req.clientEmail),
-      phone: req.clientPhone.replace(/\D/g, "") || "60000000",
-      concept: clean(req.description).slice(0, 50) || "Mila Concept",
-      description: clean(req.description) || "Mila Concept",
+      email,
+      phone,
+      // Concept up to 100 chars — matches what the working Rush integration
+      // sends. The 50-char cap we had before was too aggressive.
+      concept: description.slice(0, 100),
+      description,
       lang: "ES",
       cardInformation: {
         cardNumber,
         expMonth,
-        // Gateway expects a 2-digit year (YY) — normalize "YY" or "YYYY".
-        expYear: req.cardExpYear.replace(/\D/g, "").slice(-2),
-        cvv: req.cardCvv.replace(/\D/g, ""),
+        expYear,
+        cvv,
         firstName,
         lastName,
         cardType: detectCardType(cardNumber),
@@ -178,14 +386,13 @@ export async function processCardPayment(
         cclwPrefix: cclw.slice(0, 8),
         tokenLength: token.length,
         amount: body.amount,
-        taxAmount: body.taxAmount,
-        email: body.email,
-        phone: body.phone,
+        email,
+        phone,
         concept: body.concept,
         card: {
           last4: cardNumber.slice(-4),
           expMonth,
-          expYear: body.cardInformation.expYear,
+          expYear,
           cardType: body.cardInformation.cardType,
           firstName,
           lastName,
@@ -211,33 +418,19 @@ export async function processCardPayment(
       // non-JSON response — keep data null, rawText surfaces below
     }
 
-    const header = (data?.headerStatus ?? {}) as { code?: number; description?: string };
-    const inner = (data?.data ?? {}) as {
-      codOper?: string;
-      messageSys?: string;
-      status?: number | string;
-      authStatus?: string;
-      inRevision?: boolean;
-      cardToken?: string;
-      totalPay?: string;
-    };
-    const topSuccess = data?.success === true;
+    const validation = validateResponse(data);
 
-    // Log the decisive fields explicitly — the raw response is too large to
-    // slice (binInfo dominates it and hides the transaction status fields).
     console.log(
       "[PagueloFacil] AUTH_CAPTURE result:",
       JSON.stringify({
         httpStatus: response.status,
-        headerStatus: header,
-        success: data?.success,
-        codOper: inner.codOper,
-        status: inner.status,
-        authStatus: inner.authStatus,
-        inRevision: inner.inRevision,
-        cardToken: inner.cardToken,
-        totalPay: inner.totalPay,
-        messageSys: inner.messageSys,
+        approved: validation.approved,
+        pending: validation.pending,
+        declined: validation.declined,
+        statusCode: validation.statusCode,
+        codOper: validation.codOper,
+        gatewayStatus: validation.gatewayStatus,
+        messageSys: validation.messageSys,
       })
     );
 
@@ -248,56 +441,43 @@ export async function processCardPayment(
       );
       return {
         success: false,
-        transactionId: null,
+        transactionId: validation.codOper ?? null,
         status: "HTTP_ERROR",
         message:
-          header.description ||
-          (typeof data?.message === "string" ? data.message : "") ||
+          validation.reason ||
           `Paguelo Facil returned HTTP ${response.status}`,
         rawResponse: data ?? { raw: rawText.slice(0, 600) },
       };
     }
 
-    // IMPORTANT: the gateway's top-level `success` flag and headerStatus.code
-    // 200 only mean the API CALL succeeded — a REJECTED charge still comes back
-    // with success:true / code:200. The real verdict is the transaction's
-    // authStatus / status / messageSys. A rejected charge looks like:
-    //   authStatus:"DR", status:0, messageSys:"Rejected transaction"
-    const inReview = inner.inRevision === true;
-    const authStatusUp = String(inner.authStatus ?? "").toUpperCase();
-    const sysMsg = String(inner.messageSys ?? "");
-    const looksRejected =
-      authStatusUp === "DR" ||
-      inner.status === 0 ||
-      inner.status === "0" ||
-      /reject|declin|rechaz|denied|denegad/i.test(sysMsg);
-    const isSuccess =
-      topSuccess === true && header.code === 200 && !inReview && !looksRejected;
-    const message =
-      sysMsg ||
-      inner.authStatus ||
-      (typeof data?.message === "string" ? data.message : "") ||
-      header.description ||
-      (isSuccess ? "Pago aprobado" : inReview ? "Pago en revisión" : "Pago rechazado");
+    if (validation.approved) {
+      return {
+        success: true,
+        transactionId: validation.codOper ?? null,
+        status: "APPROVED",
+        message: validation.messageSys || "Pago aprobado",
+        rawResponse: data ?? undefined,
+      };
+    }
 
-    if (!isSuccess) {
-      console.error(
-        "[PagueloFacil] AUTH_CAPTURE not approved:",
-        JSON.stringify({
-          topSuccess,
-          inReview,
-          authStatus: inner.authStatus,
-          status: inner.status,
-          messageSys: inner.messageSys,
-        })
-      );
+    if (validation.pending) {
+      // Pending = the gateway hasn't confirmed yet. Treat as "not approved"
+      // for the synchronous caller; the webhook is responsible for the final
+      // status change.
+      return {
+        success: false,
+        transactionId: validation.codOper ?? null,
+        status: "IN_REVIEW",
+        message: validation.messageSys || "Pago en revisión",
+        rawResponse: data ?? undefined,
+      };
     }
 
     return {
-      success: isSuccess,
-      transactionId: inner.codOper ?? null,
-      status: isSuccess ? "APPROVED" : inReview ? "IN_REVIEW" : "DECLINED",
-      message,
+      success: false,
+      transactionId: validation.codOper ?? null,
+      status: "DECLINED",
+      message: validation.reason || validation.messageSys || "Pago rechazado",
       rawResponse: data ?? undefined,
     };
   } catch (error: unknown) {
