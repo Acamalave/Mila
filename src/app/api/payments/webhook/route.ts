@@ -18,9 +18,13 @@
 // =============================================================================
 
 import { NextRequest, NextResponse } from "next/server";
-import { setDocument, getDocument } from "@/lib/firestore";
+import { setDocument, getDocument, getCollection } from "@/lib/firestore";
 import { internalAuthHeaders } from "@/lib/internal-auth";
-import type { Invoice } from "@/types";
+import {
+  buildCommissionsForInvoice,
+  type CommissionWarning,
+} from "@/lib/commissions";
+import type { Invoice, Stylist } from "@/types";
 
 // ---------------------------------------------------------------------------
 // Auth
@@ -193,6 +197,66 @@ function notifyWhatsApp(
   });
 }
 
+/**
+ * Generate commissions on the server immediately after the webhook marks an
+ * invoice as paid. The CommissionProvider's client-side listener only fires
+ * when an admin/stylist has the app open — payments confirmed entirely by the
+ * gateway would otherwise leave commissions ungenerated forever.
+ *
+ * Deterministic IDs (see lib/commissions.ts) make this safe to run alongside
+ * any client-side generation: same id → Firestore merges into one document.
+ */
+async function generateCommissionsServerSide(invoice: Invoice): Promise<void> {
+  let stylists: Stylist[] = [];
+  try {
+    stylists = await getCollection<Stylist>("staff");
+  } catch (err) {
+    console.warn(
+      `[Webhook] Could not read staff to generate commissions for invoice ${invoice.id}:`,
+      err
+    );
+    return;
+  }
+
+  const stylistsById = new Map<string, Stylist>(
+    stylists.map((s) => [s.id, s])
+  );
+  const { records, warnings } = buildCommissionsForInvoice(invoice, stylistsById);
+
+  for (const warning of warnings) {
+    if (warning.reason === "non_billable_item_type") continue;
+    persistWebhookCommissionWarning(warning);
+  }
+
+  for (const rec of records) {
+    const { id, ...data } = rec;
+    try {
+      await setDocument("commissions", id, data);
+    } catch (err) {
+      console.warn(
+        `[Webhook] Commission write failed (invoice ${invoice.id}, id ${id}):`,
+        err
+      );
+    }
+  }
+
+  console.log(
+    `[Webhook] Generated ${records.length} commission record(s) for invoice ${invoice.id} (${warnings.length} warning(s))`
+  );
+}
+
+function persistWebhookCommissionWarning(warning: CommissionWarning): void {
+  console.warn("[Webhook] Unattributable commission:", warning);
+  const id = `warn-${warning.invoiceId}-${warning.itemIndex}-${warning.reason}`;
+  void setDocument("commissionWarnings", id, {
+    ...warning,
+    createdAt: new Date().toISOString(),
+    resolved: false,
+  }).catch((err) =>
+    console.warn("[Webhook] commissionWarning persistence failed:", err)
+  );
+}
+
 /** Safely convert amount (string | number | undefined) to a formatted dollar string. */
 function formatAmount(raw: string | number | undefined, fallback?: number): string {
   const n =
@@ -317,7 +381,22 @@ export async function POST(request: NextRequest) {
         `[Webhook] Invoice ${invoiceId} marked as paid (txn: ${transactionId})`
       );
 
-      // 3. Notify client — fire-and-forget via the dispatch route. The route's
+      // 3. Generate stylist commissions server-side. Uses deterministic ids
+      //    so this is idempotent with any client-side generation that may
+      //    also fire (POS / billing modal). We use a fresh copy of the
+      //    invoice that includes the `paid` status we just wrote — without
+      //    that, buildCommissionsForInvoice short-circuits.
+      if (invoice) {
+        const paidInvoice: Invoice = {
+          ...invoice,
+          status: "paid",
+          paidAt: nowIso,
+          paymentTransactionId: transactionId,
+        };
+        await generateCommissionsServerSide(paidInvoice);
+      }
+
+      // 4. Notify client — fire-and-forget via the dispatch route. The route's
       //    shared dedupe prevents a duplicate confirmation when the client-side
       //    payment flow also marks the same invoice as paid.
       void fetch(new URL("/api/notifications/dispatch", origin).toString(), {

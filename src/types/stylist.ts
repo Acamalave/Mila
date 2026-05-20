@@ -25,6 +25,9 @@ export interface Stylist {
   schedule: StylistSchedule[];
   instagram?: string;
   defaultCommission: number;
+  /** Optional commission % paid on retail product sales attributed to this
+   *  stylist. Falls back to `defaultCommission` when unset. */
+  productCommission?: number;
   serviceCommissions?: ServiceCommission[];
   linkedUserId?: string;
   linkedPhone?: string;

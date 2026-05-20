@@ -48,6 +48,8 @@ export default function StaffFormModal({
   const [avatar, setAvatar] = useState("");
   const [instagram, setInstagram] = useState("");
   const [defaultCommission, setDefaultCommission] = useState(40);
+  /** Optional override for retail product sales — blank means "use default". */
+  const [productCommission, setProductCommission] = useState<string>("");
   const [linkedPhone, setLinkedPhone] = useState("");
   const [systemRole, setSystemRole] = useState<StaffSystemRole>("stylist");
   const [isPublic, setIsPublic] = useState(true);
@@ -71,6 +73,11 @@ export default function StaffFormModal({
         setAvatar(stylist.avatar);
         setInstagram(stylist.instagram || "");
         setDefaultCommission(stylist.defaultCommission ?? 40);
+        setProductCommission(
+          typeof stylist.productCommission === "number"
+            ? String(stylist.productCommission)
+            : ""
+        );
         setLinkedPhone(stylist.linkedPhone || "");
         setSystemRole(stylist.systemRole || "stylist");
         setIsPublic(stylist.isPublic !== false);
@@ -93,6 +100,7 @@ export default function StaffFormModal({
         setAvatar("");
         setInstagram("");
         setDefaultCommission(40);
+        setProductCommission("");
         setLinkedPhone("");
         setSystemRole("stylist");
         setIsPublic(true);
@@ -186,6 +194,14 @@ export default function StaffFormModal({
       schedule,
       ...(instagram.trim() ? { instagram: instagram.trim() } : {}),
       defaultCommission,
+      ...(productCommission.trim() !== ""
+        ? {
+            productCommission: Math.max(
+              0,
+              Math.min(100, parseInt(productCommission, 10) || 0)
+            ),
+          }
+        : {}),
       linkedPhone: linkedPhone.trim(),
       systemRole,
       isPublic,
@@ -622,6 +638,48 @@ export default function StaffFormModal({
               }}
             />
             <span className="text-sm" style={{ color: "var(--color-text-muted)" }}>%</span>
+          </div>
+        </div>
+
+        {/* Product Commission (optional override for retail product sales) */}
+        <div>
+          <label
+            className="block text-sm font-medium mb-1.5"
+            style={{ color: "var(--color-text-secondary)", transition: "color 0.3s ease" }}
+          >
+            {language === "es" ? "Comisión por Productos (%)" : "Product Commission (%)"}
+          </label>
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={productCommission}
+              onChange={(e) => setProductCommission(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))}
+              placeholder={String(defaultCommission)}
+              className="w-24 px-4 py-3 rounded-lg"
+              style={{
+                background: "var(--color-bg-input)",
+                color: "var(--color-text-primary)",
+                border: "1px solid var(--color-border-default)",
+                outline: "none",
+                transition: "all 0.3s ease",
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = "var(--color-accent)";
+                e.currentTarget.style.boxShadow = "0 0 0 2px var(--color-accent-glow)";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = "var(--color-border-default)";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            />
+            <span className="text-sm" style={{ color: "var(--color-text-muted)" }}>%</span>
+            <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+              {language === "es"
+                ? `Dejar en blanco para usar la comisión por defecto (${defaultCommission}%)`
+                : `Leave blank to use the default commission (${defaultCommission}%)`}
+            </span>
           </div>
         </div>
 

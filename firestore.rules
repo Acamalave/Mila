@@ -166,6 +166,15 @@ service cloud.firestore {
       allow delete: if true;
     }
 
+    // ── Commission warnings (items that couldn't be attributed) ────────────
+    // Server (webhook) and client (CommissionProvider) both write here when
+    // an item on a paid invoice has no resolvable stylist, so admin can act.
+    match /commissionWarnings/{warningId} {
+      allow read: if true;
+      allow create, update: if isReasonableSize();
+      allow delete: if true; // admin marks resolved by deleting
+    }
+
     // ── Payment debug (server-written forensic dumps) ──────────────────────
     // The /api/payments/process route writes a full Paguelo Facil response
     // here when a charge is declined. The /api/payments/debug route reads

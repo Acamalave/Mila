@@ -16,6 +16,11 @@ import { setDocument, deleteDocument, onCollectionChange } from "@/lib/firestore
 import { useStaff } from "@/providers/StaffProvider";
 import { getEffectivePrice } from "@/lib/service-overrides";
 import {
+  buildCommissionsForInvoice,
+  commissionRateFor as commissionRateForItem,
+  type CommissionWarning,
+} from "@/lib/commissions";
+import {
   getDeletedSet,
   markDeleted,
   pushLocalDeletes,
@@ -49,9 +54,23 @@ function getStartOfPeriod(period: "week" | "month"): Date {
   return new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
 }
 
-function commissionRateFor(stylist: Stylist, serviceId: string): number {
-  const override = stylist.serviceCommissions?.find((sc) => sc.serviceId === serviceId);
-  return override?.percentage ?? stylist.defaultCommission ?? 40;
+// Bookings only generate service commissions (products are sold via invoices),
+// so we hardcode "service" when calling the shared helper from the booking path.
+function commissionRateForBooking(stylist: Stylist, serviceId: string): number {
+  return commissionRateForItem(stylist, serviceId, "service");
+}
+
+/** Best-effort warning persistence — never blocks the main flow. */
+function persistCommissionWarning(warning: CommissionWarning): void {
+  console.warn("[Commissions] Unattributable commission:", warning);
+  const id = `warn-${warning.invoiceId}-${warning.itemIndex}-${warning.reason}`;
+  void setDocument("commissionWarnings", id, {
+    ...warning,
+    createdAt: new Date().toISOString(),
+    resolved: false,
+  }).catch((err) =>
+    console.warn("[Commissions] commissionWarning persistence failed:", err)
+  );
 }
 
 export function CommissionProvider({ children }: { children: ReactNode }) {
@@ -84,7 +103,7 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
         const servicePrice = getEffectivePrice(serviceId);
         if (servicePrice <= 0) continue;
 
-        const rate = commissionRateFor(stylist, serviceId);
+        const rate = commissionRateForBooking(stylist, serviceId);
         const commissionAmount = (servicePrice * rate) / 100;
 
         newRecords.push({
@@ -120,63 +139,53 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
   // when missing, falls back to the invoice-level stylistId. This is what the
   // "per-service stylist assignment" feature needs to correctly split earnings
   // when a single invoice contains services from multiple stylists.
+  //
+  // Idempotent: deterministic IDs from buildCommissionId mean that if the
+  // server-side webhook generates the same records first, this call is a
+  // no-op merge in Firestore.
   const generateCommissionFromInvoice = useCallback(
     (invoice: Invoice) => {
-      if (invoice.status !== "paid") return;
-      if (!invoice.items || invoice.items.length === 0) return;
+      const stylistsById = new Map<string, Stylist>(
+        allStylists.map((s) => [s.id, s])
+      );
+      const { records, warnings } = buildCommissionsForInvoice(
+        invoice,
+        stylistsById
+      );
 
-      // Idempotency: don't double-generate for the same invoice
-      const existing = commissions.some((c) => c.invoiceId === invoice.id);
-      if (existing) return;
-
-      const newRecords: CommissionRecord[] = [];
-
-      for (const item of invoice.items) {
-        if (item.type !== "service") continue;
-
-        // Per-item attribution wins; fall back to invoice-level stylistId
-        const itemStylistId = item.stylistId ?? invoice.stylistId;
-        if (!itemStylistId) continue;
-
-        const stylist = allStylists.find((s) => s.id === itemStylistId);
-        if (!stylist) continue;
-
-        const rate = commissionRateFor(stylist, item.id);
-        // Commission is paid on the amount the client actually paid: apply the
-        // invoice-level discount proportionally to this item before the rate.
-        const discountPct = invoice.discount ?? 0;
-        const itemGross = item.price * item.quantity;
-        const itemNet = Math.round(itemGross * (1 - discountPct / 100) * 100) / 100;
-        const commissionAmount = Math.round(((itemNet * rate) / 100) * 100) / 100;
-
-        newRecords.push({
-          id: `comm-${generateId()}`,
-          stylistId: stylist.id,
-          invoiceId: invoice.id,
-          serviceId: item.id,
-          serviceAmount: itemNet,
-          commissionRate: rate,
-          commissionAmount,
-          status: "pending",
-          createdAt: new Date().toISOString(),
-        });
+      // Surface anything we couldn't attribute so admin sees it in the
+      // commissionWarnings collection instead of losing the payout silently.
+      for (const warning of warnings) {
+        // `non_billable_item_type` fires for every non-service/product line
+        // (tips, fees, etc) — too noisy to persist. Only surface the genuine
+        // attribution failures.
+        if (warning.reason === "non_billable_item_type") continue;
+        persistCommissionWarning(warning);
       }
 
-      if (newRecords.length > 0) {
-        setCommissions((prev) => {
-          // Double-check no duplicates (race against concurrent invoice:paid)
-          if (prev.some((c) => c.invoiceId === invoice.id)) return prev;
-          const next = [...prev, ...newRecords];
-          persist(next);
-          return next;
-        });
-        for (const rec of newRecords) {
-          const { id, ...data } = rec;
-          setDocument("commissions", id, data).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
+      if (records.length === 0) return;
+
+      setCommissions((prev) => {
+        const byId = new Map(prev.map((c) => [c.id, c]));
+        for (const rec of records) {
+          // Preserve any existing record's status/paidAt — never overwrite a
+          // paid commission back to pending if the webhook re-fires.
+          const existing = byId.get(rec.id);
+          byId.set(rec.id, existing ? { ...rec, status: existing.status, paidAt: existing.paidAt } : rec);
         }
+        const next = Array.from(byId.values());
+        persist(next);
+        return next;
+      });
+
+      for (const rec of records) {
+        const { id, ...data } = rec;
+        setDocument("commissions", id, data).catch((err) =>
+          console.warn("[Mila] Firestore sync failed:", err)
+        );
       }
     },
-    [allStylists, commissions, persist]
+    [allStylists, persist]
   );
 
   // Public POS helper — called from the POS counter-payment flow to guarantee
