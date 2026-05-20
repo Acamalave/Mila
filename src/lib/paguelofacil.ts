@@ -28,6 +28,9 @@ export interface CardPaymentRequest {
   amount: number;
   description: string;
   clientName: string;
+  /** Explicit split — preferred over whitespace-parsing `clientName` when present. */
+  clientFirstName?: string;
+  clientLastName?: string;
   clientEmail: string;
   clientPhone: string;
   cardNumber: string;
@@ -343,7 +346,18 @@ export async function processCardPayment(
     const { cclw, token } = getCredentials();
     const baseUrl = getBaseUrl();
     const cardNumber = req.cardNumber.replace(/\D/g, "");
-    const { firstName, lastName } = splitName(req.clientName);
+    // Prefer explicit firstName/lastName when the caller supplied them (the
+    // PaymentModal form does). Falls back to splitting `clientName` on
+    // whitespace only when both explicit fields are missing.
+    const explicitFirst = clean(req.clientFirstName ?? "");
+    const explicitLast = clean(req.clientLastName ?? "");
+    const { firstName, lastName } =
+      explicitFirst || explicitLast
+        ? {
+            firstName: explicitFirst || splitName(req.clientName).firstName,
+            lastName: explicitLast || splitName(req.clientName).lastName,
+          }
+        : splitName(req.clientName);
 
     // Two-digit month with leading zero — the working Rush integration sends
     // "01"…"09" via padStart, and Paguelo Facil silently rejects single-digit

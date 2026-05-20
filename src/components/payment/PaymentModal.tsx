@@ -87,6 +87,8 @@ export default function PaymentModal({
         cardExpYear: data.expiryYear,
         cardCvv: data.cvv,
         cardholderName: data.cardholderName,
+        firstName: data.firstName,
+        lastName: data.lastName,
       };
 
       try {

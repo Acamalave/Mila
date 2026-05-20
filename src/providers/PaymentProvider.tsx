@@ -21,6 +21,10 @@ export interface CardPaymentDetails {
   cardExpYear: string;
   cardCvv: string;
   cardholderName: string;
+  /** Optional explicit split — when present, the server uses these verbatim
+   *  instead of re-splitting cardholderName by whitespace. */
+  firstName?: string;
+  lastName?: string;
 }
 
 interface PaymentContextValue {
@@ -145,7 +149,9 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
             amount,
             description: `Mila Concept - Invoice ${invoiceId}`,
             clientName: cardDetails.cardholderName,
-            // Paguelo Facil requires both fields; synthesize email from phone if missing
+            // Explicit split lets the server skip whitespace-based parsing.
+            clientFirstName: cardDetails.firstName,
+            clientLastName: cardDetails.lastName,
             // Real customer email — the modal asks for one when the account
             // doesn't have it. Synthetic ".local" addresses get flagged by
             // Paguelo Facil's anti-fraud and the charge comes back rejected.

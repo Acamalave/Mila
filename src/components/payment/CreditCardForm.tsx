@@ -9,6 +9,10 @@ import type { CardBrand } from "@/types";
 
 export interface CardFormData {
   cardholderName: string;
+  /** First name as the user typed it — preserved verbatim, never re-split. */
+  firstName: string;
+  /** Last name as the user typed it — preserved verbatim, never re-split. */
+  lastName: string;
   cardNumber: string;
   expiryMonth: string;
   expiryYear: string;
@@ -59,9 +63,11 @@ export default function CreditCardForm({
   isProcessing = false,
   showSaveOption = false,
 }: CreditCardFormProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
-  const [cardholderName, setCardholderName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const cardholderName = `${firstName} ${lastName}`.trim();
   const [cardNumber, setCardNumber] = useState("");
   const [expiry, setExpiry] = useState("");
   const [cvv, setCvv] = useState("");
@@ -77,8 +83,11 @@ export default function CreditCardForm({
 
   const validate = useCallback((): Record<string, string> => {
     const errs: Record<string, string> = {};
-    if (!cardholderName.trim()) {
-      errs.cardholderName = t("payment", "nameRequired");
+    if (!firstName.trim()) {
+      errs.firstName = t("payment", "nameRequired");
+    }
+    if (!lastName.trim()) {
+      errs.lastName = t("payment", "nameRequired");
     }
     const cleanNum = cardNumber.replace(/\s/g, "");
     const expectedLength = brand === "amex" ? 15 : 16;
@@ -98,18 +107,20 @@ export default function CreditCardForm({
       errs.cvv = t("payment", "invalidCvv");
     }
     return errs;
-  }, [cardholderName, cardNumber, expiry, cvv, brand, maxCvvLength, t]);
+  }, [firstName, lastName, cardNumber, expiry, cvv, brand, maxCvvLength, t]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     const validationErrors = validate();
     setErrors(validationErrors);
-    setTouched({ cardholderName: true, cardNumber: true, expiry: true, cvv: true });
+    setTouched({ firstName: true, lastName: true, cardNumber: true, expiry: true, cvv: true });
     if (Object.keys(validationErrors).length > 0) return;
 
     const expiryParts = expiry.split("/");
     onSubmit({
       cardholderName: cardholderName.trim(),
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
       cardNumber: rawCardNumber,
       expiryMonth: expiryParts[0],
       expiryYear: expiryParts[1],
@@ -302,47 +313,93 @@ export default function CreditCardForm({
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Cardholder Name */}
-        <div>
-          <label
-            className="block text-xs font-medium mb-1.5"
-            style={{ color: "var(--color-text-secondary)", letterSpacing: "0.05em" }}
-          >
-            {t("payment", "cardholderName")}
-          </label>
-          <input
-            type="text"
-            value={cardholderName}
-            onChange={(e) => setCardholderName(e.target.value)}
-            onBlur={() => handleBlur("cardholderName")}
-            placeholder="John Doe"
-            disabled={isProcessing}
-            className="w-full px-4 py-3"
-            style={inputStyle(!!errors.cardholderName && !!touched.cardholderName)}
-            onFocus={(e) => {
-              if (!errors.cardholderName) e.currentTarget.style.borderColor = "var(--color-accent)";
-              e.currentTarget.style.boxShadow = "0 0 0 2px var(--color-accent-glow)";
-            }}
-            onBlurCapture={(e) => {
-              e.currentTarget.style.borderColor = errors.cardholderName && touched.cardholderName
-                ? "#9B4D4D"
-                : "var(--color-border-default)";
-              e.currentTarget.style.boxShadow = "none";
-            }}
-          />
-          <AnimatePresence>
-            {errors.cardholderName && touched.cardholderName && (
-              <motion.p
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                className="mt-1 text-xs"
-                style={{ color: "#9B4D4D" }}
-              >
-                {errors.cardholderName}
-              </motion.p>
-            )}
-          </AnimatePresence>
+        {/* First / Last name (sent verbatim to the gateway as cardInformation
+            firstName/lastName — matches the working Rush integration) */}
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <label
+              className="block text-xs font-medium mb-1.5"
+              style={{ color: "var(--color-text-secondary)", letterSpacing: "0.05em" }}
+            >
+              {language === "es" ? "Nombre" : "First name"}
+            </label>
+            <input
+              type="text"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              onBlur={() => handleBlur("firstName")}
+              placeholder={language === "es" ? "Nombre" : "First"}
+              disabled={isProcessing}
+              autoComplete="cc-given-name"
+              className="w-full px-4 py-3"
+              style={inputStyle(!!errors.firstName && !!touched.firstName)}
+              onFocus={(e) => {
+                if (!errors.firstName) e.currentTarget.style.borderColor = "var(--color-accent)";
+                e.currentTarget.style.boxShadow = "0 0 0 2px var(--color-accent-glow)";
+              }}
+              onBlurCapture={(e) => {
+                e.currentTarget.style.borderColor = errors.firstName && touched.firstName
+                  ? "#9B4D4D"
+                  : "var(--color-border-default)";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            />
+            <AnimatePresence>
+              {errors.firstName && touched.firstName && (
+                <motion.p
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  className="mt-1 text-xs"
+                  style={{ color: "#9B4D4D" }}
+                >
+                  {errors.firstName}
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </div>
+          <div className="flex-1">
+            <label
+              className="block text-xs font-medium mb-1.5"
+              style={{ color: "var(--color-text-secondary)", letterSpacing: "0.05em" }}
+            >
+              {language === "es" ? "Apellido" : "Last name"}
+            </label>
+            <input
+              type="text"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              onBlur={() => handleBlur("lastName")}
+              placeholder={language === "es" ? "Apellido" : "Last"}
+              disabled={isProcessing}
+              autoComplete="cc-family-name"
+              className="w-full px-4 py-3"
+              style={inputStyle(!!errors.lastName && !!touched.lastName)}
+              onFocus={(e) => {
+                if (!errors.lastName) e.currentTarget.style.borderColor = "var(--color-accent)";
+                e.currentTarget.style.boxShadow = "0 0 0 2px var(--color-accent-glow)";
+              }}
+              onBlurCapture={(e) => {
+                e.currentTarget.style.borderColor = errors.lastName && touched.lastName
+                  ? "#9B4D4D"
+                  : "var(--color-border-default)";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            />
+            <AnimatePresence>
+              {errors.lastName && touched.lastName && (
+                <motion.p
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  className="mt-1 text-xs"
+                  style={{ color: "#9B4D4D" }}
+                >
+                  {errors.lastName}
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
 
         {/* Card Number */}

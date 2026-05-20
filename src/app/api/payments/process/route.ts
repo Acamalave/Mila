@@ -11,6 +11,9 @@ interface ProcessPaymentBody {
   amount: number;
   description: string;
   clientName: string;
+  /** Optional explicit split; preferred over `clientName` when present. */
+  clientFirstName?: string;
+  clientLastName?: string;
   clientEmail: string;
   clientPhone: string;
   cardNumber: string;
@@ -148,6 +151,8 @@ export async function POST(request: NextRequest) {
       amount: body.amount,
       description: body.description,
       clientName: body.clientName,
+      clientFirstName: body.clientFirstName,
+      clientLastName: body.clientLastName,
       clientEmail: body.clientEmail,
       clientPhone: body.clientPhone,
       cardNumber: body.cardNumber,
