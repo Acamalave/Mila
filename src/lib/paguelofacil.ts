@@ -122,16 +122,18 @@ function splitName(full: string): { firstName: string; lastName: string } {
 }
 
 /**
- * Paguelo Facil's anti-fraud rejects synthetic / non-routable email addresses
- * (anything ending in `.local`, `.invalid`, etc). Fall back to a real domain
- * we control.
+ * Validate the customer email. Paguelo Facil's anti-fraud rejects synthetic /
+ * non-routable addresses (`.local`, `.invalid`, `.test`, `.example`) — and
+ * sending the SAME fallback address for every charge gets the merchant
+ * flagged. Return `null` so the caller can short-circuit and prompt the user
+ * for a real email instead of submitting a charge that's guaranteed to be
+ * rejected.
  */
-function safeEmail(email: string): string {
+function safeEmail(email: string): string | null {
   const e = clean(email).toLowerCase();
-  if (/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(e) && !/\.(local|invalid|test|example)$/.test(e)) {
-    return e;
-  }
-  return "pagos@milapty.com";
+  if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(e)) return null;
+  if (/\.(local|invalid|test|example)$/.test(e)) return null;
+  return e;
 }
 
 /**
@@ -351,6 +353,15 @@ export async function processCardPayment(
     const expYear = req.cardExpYear.replace(/\D/g, "").slice(-2);
     const cvv = req.cardCvv.replace(/\D/g, "");
     const email = safeEmail(req.clientEmail);
+    if (!email) {
+      return {
+        success: false,
+        transactionId: null,
+        status: "INVALID_EMAIL",
+        message:
+          "Necesitamos un correo electrónico válido para procesar el pago. Por favor agrega uno a tu cuenta.",
+      };
+    }
     const phone = safePhone(req.clientPhone);
     const description = clean(req.description) || "Mila Concept";
 

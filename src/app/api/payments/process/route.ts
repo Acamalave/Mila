@@ -177,8 +177,10 @@ export async function POST(request: NextRequest) {
       let statusCode: number;
 
       if (!result.success) {
-        // 402 Payment Required for declined / gateway-level failures
-        statusCode = result.status === "ERROR" ? 500 : 402;
+        // Distinguish: missing email → 400 (client must collect a real email),
+        // gateway error → 500, decline → 402.
+        if (result.status === "INVALID_EMAIL") statusCode = 400;
+        else statusCode = result.status === "ERROR" ? 500 : 402;
         responseBody = {
           success: false,
           error: result.message,

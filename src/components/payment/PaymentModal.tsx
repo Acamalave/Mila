@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Check, CreditCard, ArrowLeft, X, XCircle, RefreshCw, ShieldCheck } from "lucide-react";
+import { Check, CreditCard, ArrowLeft, X, XCircle, RefreshCw, ShieldCheck, Mail } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import CreditCardForm, { type CardFormData } from "@/components/payment/CreditCardForm";
 import { usePayment, type CardPaymentDetails } from "@/providers/PaymentProvider";
@@ -13,6 +13,14 @@ import { useToast } from "@/providers/ToastProvider";
 import { formatPrice } from "@/lib/utils";
 import type { Invoice } from "@/types";
 
+/** Same routability check the server uses — keep these in sync. */
+function isValidEmail(raw: string | undefined | null): boolean {
+  const e = (raw ?? "").trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(e)) return false;
+  if (/\.(local|invalid|test|example)$/.test(e)) return false;
+  return true;
+}
+
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -21,7 +29,7 @@ interface PaymentModalProps {
   onDecline?: () => void;
 }
 
-type PaymentStep = "invoice" | "new-card" | "processing" | "success" | "failed";
+type PaymentStep = "invoice" | "email" | "new-card" | "processing" | "success" | "failed";
 
 export default function PaymentModal({
   isOpen,
@@ -32,13 +40,15 @@ export default function PaymentModal({
 }: PaymentModalProps) {
   const { processPayment } = usePayment();
   const { markAsPaid, markAsDeclined } = useInvoices();
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const { language, t } = useLanguage();
   const { addToast } = useToast();
 
   const [step, setStep] = useState<PaymentStep>("invoice");
   const [isProcessing, setIsProcessing] = useState(false);
   const [failedReason, setFailedReason] = useState<string>("");
+  const [billingEmail, setBillingEmail] = useState<string>("");
+  const [emailError, setEmailError] = useState<string>("");
   const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idempotencyKeyRef = useRef<string>("");
 
@@ -47,12 +57,14 @@ export default function PaymentModal({
       setStep("invoice");
       setIsProcessing(false);
       setFailedReason("");
+      setBillingEmail(isValidEmail(user?.email) ? (user?.email ?? "") : "");
+      setEmailError("");
       idempotencyKeyRef.current = `pay-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     }
     return () => {
       if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
     };
-  }, [isOpen]);
+  }, [isOpen, user?.email]);
 
   const handleProcessPayment = useCallback(
     async (data: CardFormData) => {
@@ -83,7 +95,8 @@ export default function PaymentModal({
           `temp-${Date.now()}`,
           invoiceAmount,
           cardDetailsForGateway,
-          idempotencyKeyRef.current
+          idempotencyKeyRef.current,
+          billingEmail || user.email || ""
         );
         markAsPaid(invoiceId, transaction.id);
 
@@ -99,10 +112,33 @@ export default function PaymentModal({
         setIsProcessing(false);
       }
     },
-    [invoice, user, isProcessing, processPayment, markAsPaid, addToast, t, onPaymentComplete, onClose]
+    [invoice, user, isProcessing, processPayment, markAsPaid, addToast, t, onPaymentComplete, onClose, billingEmail]
   );
 
-  const handleStartCard = useCallback(() => setStep("new-card"), []);
+  const handleStartCard = useCallback(() => {
+    // Paguelo Facil's anti-fraud rejects charges submitted with a synthetic
+    // email. If the user account has no real email yet, collect one first.
+    if (!isValidEmail(user?.email) && !isValidEmail(billingEmail)) {
+      setStep("email");
+      return;
+    }
+    setStep("new-card");
+  }, [user?.email, billingEmail]);
+
+  const handleEmailContinue = useCallback(() => {
+    if (!isValidEmail(billingEmail)) {
+      setEmailError(
+        language === "es"
+          ? "Por favor ingresa un correo válido."
+          : "Please enter a valid email."
+      );
+      return;
+    }
+    setEmailError("");
+    // Persist to the user profile so they don't have to type it again next time.
+    updateProfile({ email: billingEmail.trim().toLowerCase() });
+    setStep("new-card");
+  }, [billingEmail, language, updateProfile]);
 
   const handleDecline = useCallback(() => {
     if (invoice) markAsDeclined(invoice.id);
@@ -429,6 +465,178 @@ export default function PaymentModal({
               >
                 <X size={14} />
                 {language === "es" ? "Rechazar" : "Decline"}
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ═══════════════════════════════════════════
+            EMAIL CAPTURE (only when account has no real email)
+            ═══════════════════════════════════════════ */}
+        {step === "email" && (
+          <motion.div
+            key="email"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <motion.button
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              onClick={() => setStep("invoice")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                marginBottom: 16,
+                background: "none",
+                border: "none",
+                color: "var(--color-accent)",
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 500,
+                fontFamily: "var(--font-display)",
+              }}
+            >
+              <ArrowLeft size={14} />
+              {language === "es" ? "Volver al detalle" : "Back to invoice"}
+            </motion.button>
+
+            <div className="text-center mb-6">
+              <div
+                className="inline-flex items-center justify-center"
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: "50%",
+                  background: "var(--color-accent-subtle)",
+                  marginBottom: 14,
+                }}
+              >
+                <Mail size={22} style={{ color: "var(--color-accent)" }} />
+              </div>
+              <h2
+                style={{
+                  fontFamily: "var(--font-accent)",
+                  fontSize: "clamp(22px, 5vw, 28px)",
+                  fontWeight: 400,
+                  fontStyle: "italic",
+                  color: "var(--color-text-primary)",
+                  lineHeight: 1.2,
+                  letterSpacing: "-0.01em",
+                  margin: 0,
+                }}
+              >
+                {language === "es" ? "Correo para tu recibo" : "Email for your receipt"}
+              </h2>
+              <p
+                style={{
+                  fontFamily: "var(--font-body)",
+                  fontSize: 13,
+                  color: "var(--color-text-muted)",
+                  marginTop: 10,
+                  lineHeight: 1.5,
+                  maxWidth: 320,
+                  margin: "10px auto 0",
+                }}
+              >
+                {language === "es"
+                  ? "Lo necesitamos para enviarte la confirmación del pago y para que el procesador acepte el cargo."
+                  : "We need it to email your payment confirmation and so the processor accepts the charge."}
+              </p>
+            </div>
+
+            <label
+              className="block mb-1.5"
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: 11,
+                fontWeight: 600,
+                color: "var(--color-text-secondary)",
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+              }}
+            >
+              {language === "es" ? "Correo electrónico" : "Email"}
+            </label>
+            <input
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              autoFocus
+              value={billingEmail}
+              onChange={(e) => {
+                setBillingEmail(e.target.value);
+                if (emailError) setEmailError("");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleEmailContinue();
+                }
+              }}
+              placeholder="tu@correo.com"
+              className="w-full px-4 py-3"
+              style={{
+                background: "var(--color-bg-input)",
+                border: emailError
+                  ? "1px solid #9B4D4D"
+                  : "1px solid var(--color-border-default)",
+                color: "var(--color-text-primary)",
+                fontSize: 15,
+                outline: "none",
+                borderRadius: 12,
+                letterSpacing: "0.02em",
+              }}
+            />
+            {emailError && (
+              <p style={{ marginTop: 6, fontSize: 12, color: "#9B4D4D" }}>{emailError}</p>
+            )}
+
+            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setStep("invoice")}
+                style={{
+                  flex: 1,
+                  height: 48,
+                  borderRadius: 12,
+                  background: "var(--color-bg-glass)",
+                  border: "1px solid var(--color-border-default)",
+                  color: "var(--color-text-secondary)",
+                  fontFamily: "var(--font-display)",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase" as const,
+                  cursor: "pointer",
+                }}
+              >
+                {t("common", "cancel")}
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleEmailContinue}
+                style={{
+                  flex: 2,
+                  height: 48,
+                  borderRadius: 12,
+                  background: "var(--gradient-accent)",
+                  boxShadow: "var(--shadow-glow)",
+                  border: "none",
+                  color: "var(--color-text-inverse)",
+                  fontFamily: "var(--font-display)",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase" as const,
+                  cursor: "pointer",
+                }}
+              >
+                {language === "es" ? "Continuar al pago" : "Continue to payment"}
               </motion.button>
             </div>
           </motion.div>

@@ -29,7 +29,7 @@ interface PaymentContextValue {
   addCard: (card: Omit<CreditCard, "id" | "createdAt">) => void;
   removeCard: (cardId: string) => void;
   setDefaultCard: (cardId: string) => void;
-  processPayment: (invoiceId: string, cardId: string, amount: number, cardDetails?: CardPaymentDetails, idempotencyKey?: string) => Promise<PaymentTransaction>;
+  processPayment: (invoiceId: string, cardId: string, amount: number, cardDetails?: CardPaymentDetails, idempotencyKey?: string, billingEmail?: string) => Promise<PaymentTransaction>;
   processCounterPayment: (invoiceId: string, amount: number, note: string) => PaymentTransaction;
   getClientCards: (clientId: string) => CreditCard[];
 }
@@ -118,7 +118,7 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
   );
 
   const processPayment = useCallback(
-    async (invoiceId: string, cardId: string, amount: number, cardDetails?: CardPaymentDetails, idempotencyKey?: string): Promise<PaymentTransaction> => {
+    async (invoiceId: string, cardId: string, amount: number, cardDetails?: CardPaymentDetails, idempotencyKey?: string, billingEmail?: string): Promise<PaymentTransaction> => {
       if (!user) throw new Error("User must be authenticated to process payment");
 
       // Card details are required — counter payments use processCounterPayment instead
@@ -146,7 +146,10 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
             description: `Mila Concept - Invoice ${invoiceId}`,
             clientName: cardDetails.cardholderName,
             // Paguelo Facil requires both fields; synthesize email from phone if missing
-            clientEmail: user.email || `${user.phone}@mila.local`,
+            // Real customer email — the modal asks for one when the account
+            // doesn't have it. Synthetic ".local" addresses get flagged by
+            // Paguelo Facil's anti-fraud and the charge comes back rejected.
+            clientEmail: billingEmail || user.email || "",
             clientPhone: user.phone || "",
             cardNumber: cardDetails.cardNumber,
             cardExpMonth: cardDetails.cardExpMonth,
