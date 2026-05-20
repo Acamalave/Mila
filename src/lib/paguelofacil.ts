@@ -431,8 +431,9 @@ export async function processCardPayment(
 
     const validation = validateResponse(data);
 
+    // Concise outcome line — easy to grep in Vercel.
     console.log(
-      "[PagueloFacil] AUTH_CAPTURE result:",
+      "[PagueloFacil] AUTH_CAPTURE outcome:",
       JSON.stringify({
         httpStatus: response.status,
         approved: validation.approved,
@@ -442,8 +443,21 @@ export async function processCardPayment(
         codOper: validation.codOper,
         gatewayStatus: validation.gatewayStatus,
         messageSys: validation.messageSys,
+        reason: validation.reason,
       })
     );
+
+    // For anything that's not an approval, also dump the full raw body so we
+    // can read the gateway's own diagnostics. `messageSys: "Rejected
+    // transaction"` alone is useless — Paguelo Facil's real verdict often
+    // hides in other fields like `data.errorCode`, `data.bankResp`,
+    // `data.processorMsg`, etc., that we don't surface explicitly.
+    if (!validation.approved) {
+      console.error(
+        "[PagueloFacil] AUTH_CAPTURE raw body (not approved):",
+        rawText.slice(0, 2000)
+      );
+    }
 
     if (!response.ok) {
       console.error(

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processCardPayment, type CardPaymentRequest } from "@/lib/paguelofacil";
-import { getDocument } from "@/lib/firestore";
+import { getDocument, setDocument } from "@/lib/firestore";
 import type { Invoice } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -187,6 +187,27 @@ export async function POST(request: NextRequest) {
           status: result.status,
           transactionId: result.transactionId,
         };
+
+        // Persist the full gateway response for forensic review. We can't
+        // tell from Paguelo Facil's terse "Rejected transaction" message why
+        // a charge failed; the raw body sometimes includes the bank's actual
+        // decline code. Fire-and-forget so a Firestore hiccup never blocks
+        // the API response. Skip for INVALID_EMAIL (no gateway round-trip).
+        if (result.status !== "INVALID_EMAIL" && result.rawResponse) {
+          const debugId = `pf-debug-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+          setDocument("paymentDebug", debugId, {
+            createdAt: new Date().toISOString(),
+            invoiceId: body.invoiceId ?? null,
+            amount: body.amount,
+            cardLast4: body.cardNumber.slice(-4),
+            status: result.status,
+            message: result.message,
+            transactionId: result.transactionId,
+            rawResponse: result.rawResponse,
+          }).catch((err) =>
+            console.warn("[API] paymentDebug write failed:", err)
+          );
+        }
       } else {
         statusCode = 200;
         responseBody = {
