@@ -47,7 +47,14 @@ export default function InvoiceFormModal({
   const [lineItems, setLineItems] = useState<InvoiceItem[]>([]);
   const [manualAmount, setManualAmount] = useState("");
   const [discount, setDiscount] = useState(0);
-  const [errors, setErrors] = useState<{ clientName?: string; amount?: string }>({});
+  /**
+   * Estilista responsable a nivel factura. Sirve como default para todos los
+   * items que no tengan stylistId propio — los items se prellenan con éste
+   * al agregarlos, y el generador de comisiones también cae a este campo
+   * cuando un item no tiene asignación per-item.
+   */
+  const [invoiceStylistId, setInvoiceStylistId] = useState<string>("");
+  const [errors, setErrors] = useState<{ clientName?: string; amount?: string; stylist?: string }>({});
 
   // Item picker state
   const [showItemPicker, setShowItemPicker] = useState(false);
@@ -74,6 +81,7 @@ export default function InvoiceFormModal({
         setLineItems(invoice.items ?? []);
         setManualAmount(String(invoice.subtotal ?? invoice.amount));
         setDiscount(invoice.discount ?? 0);
+        setInvoiceStylistId(invoice.stylistId ?? "");
       } else {
         setClientName("");
         setClientId("");
@@ -83,6 +91,7 @@ export default function InvoiceFormModal({
         setLineItems([]);
         setManualAmount("");
         setDiscount(0);
+        setInvoiceStylistId("");
       }
       setErrors({});
       setShowItemPicker(false);
@@ -114,6 +123,12 @@ export default function InvoiceFormModal({
     if (!svc) return;
     // Check if already added
     if (lineItems.some((li) => li.id === serviceId && li.type === "service")) return;
+    // Prefill stylistId/name from invoice-level selection so admins don't
+    // have to assign it manually every time. Admin can still override
+    // per-item via the stylist dropdown next to the row.
+    const invoiceStylist = invoiceStylistId
+      ? allStylists.find((s) => s.id === invoiceStylistId)
+      : undefined;
     setLineItems((prev) => [
       ...prev,
       {
@@ -122,6 +137,9 @@ export default function InvoiceFormModal({
         name: svc.name[language],
         price: svc.price,
         quantity: 1,
+        ...(invoiceStylist
+          ? { stylistId: invoiceStylist.id, stylistName: invoiceStylist.name }
+          : {}),
       },
     ]);
     setShowItemPicker(false);
@@ -144,6 +162,9 @@ export default function InvoiceFormModal({
         prod.discount && prod.discount > 0
           ? prod.price * (1 - prod.discount / 100)
           : prod.price;
+      const invoiceStylist = invoiceStylistId
+        ? allStylists.find((s) => s.id === invoiceStylistId)
+        : undefined;
       setLineItems((prev) => [
         ...prev,
         {
@@ -152,6 +173,9 @@ export default function InvoiceFormModal({
           name: prod.name,
           price: Math.round(effectivePrice * 100) / 100,
           quantity: 1,
+          ...(invoiceStylist
+            ? { stylistId: invoiceStylist.id, stylistName: invoiceStylist.name }
+            : {}),
         },
       ]);
     }
@@ -188,7 +212,7 @@ export default function InvoiceFormModal({
 
   /* ── Submit ──────────────────────────────────────────────────── */
   const handleSubmit = () => {
-    const newErrors: { clientName?: string; amount?: string } = {};
+    const newErrors: { clientName?: string; amount?: string; stylist?: string } = {};
 
     if (!clientName.trim()) {
       newErrors.clientName =
@@ -199,6 +223,19 @@ export default function InvoiceFormModal({
         language === "en"
           ? "Add items or enter an amount"
           : "Agrega items o ingresa un monto";
+    }
+    // Commission attribution sanity: at least the invoice-level stylist must
+    // be set, OR every service/product item must have its own stylistId.
+    // Without this, the commission generator silently skips the invoice and
+    // the stylist never gets paid.
+    const itemsNeedingStylist = lineItems.filter(
+      (li) => (li.type === "service" || li.type === "product") && !li.stylistId
+    );
+    if (!invoiceStylistId && itemsNeedingStylist.length > 0) {
+      newErrors.stylist =
+        language === "en"
+          ? "Pick a stylist for the invoice (or assign one to every item) so commissions can be calculated."
+          : "Asigna un estilista a la factura (o uno por cada item) para que se generen las comisiones.";
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -221,6 +258,7 @@ export default function InvoiceFormModal({
       ...(description.trim() ? { description: description.trim() } : {}),
       ...(lineItems.length > 0 ? { items: lineItems } : {}),
       ...(dueDate ? { dueDate } : {}),
+      ...(invoiceStylistId ? { stylistId: invoiceStylistId } : {}),
       // Preserve existing fields if editing
       ...(invoice?.bookingId ? { bookingId: invoice.bookingId } : {}),
       ...(invoice?.sentAt ? { sentAt: invoice.sentAt } : {}),
@@ -280,6 +318,77 @@ export default function InvoiceFormModal({
             onChange={(e) => setClientId(e.target.value)}
             placeholder="client-id"
           />
+        </div>
+
+        {/* Invoice-level stylist — the default attribution for every item
+            that doesn't have its own. Required when any item is missing
+            a per-item stylistId so commissions always have an owner. */}
+        <div className="w-full">
+          <label
+            className="block text-sm font-medium mb-1.5"
+            style={{ color: "var(--color-text-secondary)" }}
+          >
+            {language === "es" ? "Estilista responsable" : "Stylist in charge"}
+            <span
+              className="ml-1.5 text-xs font-normal"
+              style={{ color: "var(--color-text-muted)" }}
+            >
+              {language === "es"
+                ? "(define a quién se le paga la comisión)"
+                : "(decides who gets the commission)"}
+            </span>
+          </label>
+          <select
+            value={invoiceStylistId}
+            onChange={(e) => {
+              const newId = e.target.value;
+              setInvoiceStylistId(newId);
+              if (errors.stylist)
+                setErrors((prev) => ({ ...prev, stylist: undefined }));
+              // Update items that don't have their own stylistId to inherit
+              // the new selection. Items the admin explicitly assigned keep
+              // theirs.
+              if (newId) {
+                const stylist = allStylists.find((s) => s.id === newId);
+                if (stylist) {
+                  setLineItems((prev) =>
+                    prev.map((li) =>
+                      li.stylistId
+                        ? li
+                        : { ...li, stylistId: stylist.id, stylistName: stylist.name }
+                    )
+                  );
+                }
+              }
+            }}
+            className="w-full px-4 py-3 rounded-lg transition-all duration-200"
+            style={{
+              background: "var(--color-bg-input)",
+              color: invoiceStylistId
+                ? "var(--color-text-primary)"
+                : "var(--color-text-muted)",
+              border: errors.stylist
+                ? "1px solid #9B4D4D"
+                : "1px solid var(--color-border-default)",
+              outline: "none",
+            }}
+          >
+            <option value="">
+              {language === "es"
+                ? "— Sin asignar —"
+                : "— Unassigned —"}
+            </option>
+            {allStylists.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+          {errors.stylist && (
+            <p className="mt-1.5 text-xs" style={{ color: "#9B4D4D" }}>
+              {errors.stylist}
+            </p>
+          )}
         </div>
 
         {/* Description (single field) */}
