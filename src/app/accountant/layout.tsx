@@ -14,6 +14,7 @@ import {
   X,
   LayoutDashboard,
   Receipt,
+  FileText,
   LogOut,
 } from "lucide-react";
 
@@ -59,6 +60,11 @@ export default function AccountantLayout({
       href: "/accountant",
       icon: LayoutDashboard,
       label: language === "es" ? "Resumen" : "Overview",
+    },
+    {
+      href: "/accountant/invoices",
+      icon: FileText,
+      label: language === "es" ? "Facturas" : "Invoices",
     },
     {
       href: "/accountant/expenses",

@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   Receipt,
+  FileText,
   ChevronLeft,
   LogOut,
 } from "lucide-react";
@@ -24,6 +25,11 @@ export default function AccountantSidebar() {
       href: "/accountant",
       icon: LayoutDashboard,
       label: language === "es" ? "Resumen" : "Overview",
+    },
+    {
+      href: "/accountant/invoices",
+      icon: FileText,
+      label: language === "es" ? "Facturas" : "Invoices",
     },
     {
       href: "/accountant/expenses",
