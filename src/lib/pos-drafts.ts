@@ -65,17 +65,18 @@ export function removeDraft(id: string): void {
 }
 
 /**
- * A cart is "worth saving" when there's meaningful state. Empty cart =
- * nothing to save. Just a client picked but no items = also discardable
- * (re-picking the client is one click). We require at least one item or a
- * client + stylist combo to consider it draft-worthy.
+ * A cart is "worth saving" when there's meaningful state. Empty cart with
+ * nothing picked is discardable. Any of these counts as draft-worthy:
+ *   - at least one item in the cart, OR
+ *   - a client picked (even alone — operator likely intends to keep them
+ *     while gathering items), OR
+ *   - a stylist picked (alone — covers the "phone rang, I started by
+ *     picking who would serve them" workflow).
  */
 export function isCartDraftWorthy(
   client: POSClient | null,
   items: InvoiceItem[],
   stylistId: string | null
 ): boolean {
-  if (items.length > 0) return true;
-  if (client && stylistId) return true;
-  return false;
+  return items.length > 0 || !!client || !!stylistId;
 }

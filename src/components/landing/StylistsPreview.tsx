@@ -85,7 +85,9 @@ export default function StylistsPreview() {
               {/* Instagram */}
               {stylist.instagram && (
                 <a
-                  href="#"
+                  href={`https://instagram.com/${stylist.instagram.replace(/^@/, "")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 text-xs text-mila-taupe hover:text-mila-gold transition-colors"
                 >
                   <Instagram size={12} />

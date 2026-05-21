@@ -281,11 +281,17 @@ export function PaymentProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Re-hydrate from localStorage on either outcome so this tab picks up
+    // payments resolved elsewhere (another window / device). Failed
+    // attempts deserve the same treatment as completed ones — without
+    // this, the failed-transaction listener was a dead emit.
+    const rehydrate = () => {
+      setAllTransactions(getStoredData<PaymentTransaction[]>("mila-payment-transactions", []));
+      setAllCards(getStoredData<CreditCard[]>("mila-payment-methods", []));
+    };
     const unsubs = [
-      on("payment:completed", () => {
-        setAllTransactions(getStoredData<PaymentTransaction[]>("mila-payment-transactions", []));
-        setAllCards(getStoredData<CreditCard[]>("mila-payment-methods", []));
-      }),
+      on("payment:completed", rehydrate),
+      on("payment:failed", rehydrate),
     ];
     return () => unsubs.forEach((u) => u());
   }, [on]);

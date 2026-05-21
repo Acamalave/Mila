@@ -7,6 +7,62 @@ import type { Invoice } from "@/types";
 // POST /api/payments/process
 // ---------------------------------------------------------------------------
 
+/**
+ * Strip PII / locator data out of the gateway response before we persist
+ * it for forensic review. Decisions we want to keep:
+ *   - headerStatus.code/description (high-level outcome)
+ *   - data.codOper, status, authStatus, messageSys, totalPay (verdict)
+ *   - binInfo.risk_score, disposition (anti-fraud reasons)
+ *   - credit_card.{brand, country, type, is_prepaid, issuer.name} (BIN class)
+ * Decisions we drop because they're either PII or noise:
+ *   - data.email, data.userLogn (merchant login email)
+ *   - binInfo.ip_address (geo + traits)
+ *   - binInfo.email (customer email)
+ *   - credit_card.issuer.phone_number
+ *   - returnUrl (contains transaction id, redundant with codOper)
+ */
+function sanitizeGatewayResponse(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") return raw;
+  const r = raw as Record<string, unknown>;
+  const data = (r.data ?? {}) as Record<string, unknown>;
+  const binInfo = (data.binInfo ?? {}) as Record<string, unknown>;
+  const cc = (binInfo.credit_card ?? {}) as Record<string, unknown>;
+  const issuer = (cc.issuer ?? {}) as Record<string, unknown>;
+
+  const safeCc = {
+    brand: cc.brand,
+    country: cc.country,
+    type: cc.type,
+    is_prepaid: cc.is_prepaid,
+    issuer: issuer.name ? { name: issuer.name } : undefined,
+  };
+  const safeBin = {
+    id: binInfo.id,
+    risk_score: binInfo.risk_score,
+    disposition: binInfo.disposition,
+    credit_card: safeCc,
+  };
+  const safeData = {
+    codOper: data.codOper,
+    status: data.status,
+    authStatus: data.authStatus,
+    messageSys: data.messageSys,
+    inRevision: data.inRevision,
+    totalPay: data.totalPay,
+    cardType: data.cardType,
+    displayNum: data.displayNum,
+    operationType: data.operationType,
+    binInfo: safeBin,
+  };
+  return {
+    success: r.success,
+    headerStatus: r.headerStatus,
+    serverTime: r.serverTime,
+    requestId: r.requestId,
+    data: safeData,
+  };
+}
+
 interface ProcessPaymentBody {
   amount: number;
   description: string;
@@ -193,11 +249,12 @@ export async function POST(request: NextRequest) {
           transactionId: result.transactionId,
         };
 
-        // Persist the full gateway response for forensic review. We can't
-        // tell from Paguelo Facil's terse "Rejected transaction" message why
-        // a charge failed; the raw body sometimes includes the bank's actual
-        // decline code. Fire-and-forget so a Firestore hiccup never blocks
-        // the API response. Skip for INVALID_EMAIL (no gateway round-trip).
+        // Persist the gateway response for forensic review — minus PII.
+        // Paguelo Facil includes the customer email, BIN geolocation, and
+        // sometimes IP traits in the raw body. None of that is needed to
+        // diagnose a decline (the bank's reason code + disposition is what
+        // matters), and we don't want it sitting in a long-lived Firestore
+        // collection. Strip it before persisting.
         if (result.status !== "INVALID_EMAIL" && result.rawResponse) {
           const debugId = `pf-debug-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
           setDocument("paymentDebug", debugId, {
@@ -208,7 +265,7 @@ export async function POST(request: NextRequest) {
             status: result.status,
             message: result.message,
             transactionId: result.transactionId,
-            rawResponse: result.rawResponse,
+            rawResponse: sanitizeGatewayResponse(result.rawResponse),
           }).catch((err) =>
             console.warn("[API] paymentDebug write failed:", err)
           );

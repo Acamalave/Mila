@@ -35,6 +35,7 @@ import {
   ChevronUp,
   Calendar,
 } from "lucide-react";
+import { invoicesInRange as invoicesInRangeHelper } from "@/lib/revenue";
 import type { Invoice, InvoiceStatus } from "@/types";
 
 type FilterTab = "all" | "draft" | "sent" | "paid" | "declined";
@@ -138,17 +139,14 @@ export default function AdminBillingPage() {
   );
 
   /**
-   * Invoices in the selected date window. Window is inclusive on both ends.
+   * Invoices in the selected date window — uses the shared helper so this
+   * matches what /admin/accounting and /accountant see for the same range.
    * Status filter (draft/sent/paid/declined tabs) is applied on top.
    */
-  const invoicesInRange = useMemo(() => {
-    const startMs = new Date(`${invoiceStartDate}T00:00:00`).getTime();
-    const endMs = new Date(`${invoiceEndDate}T23:59:59.999`).getTime();
-    return invoices.filter((inv) => {
-      const t = new Date(inv.date).getTime();
-      return t >= startMs && t <= endMs;
-    });
-  }, [invoices, invoiceStartDate, invoiceEndDate]);
+  const invoicesInRange = useMemo(
+    () => invoicesInRangeHelper(invoices, invoiceStartDate, invoiceEndDate),
+    [invoices, invoiceStartDate, invoiceEndDate]
+  );
 
   const filteredInvoices = useMemo(
     () =>

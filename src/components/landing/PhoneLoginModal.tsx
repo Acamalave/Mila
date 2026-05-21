@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Phone, ChevronDown, User } from "lucide-react";
+import { Phone, ChevronDown, User, Mail } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import { useAuth } from "@/providers/AuthProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
@@ -34,15 +34,18 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
   const { language, t } = useLanguage();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [selectedCountry, setSelectedCountry] = useState(countryCodes[0]);
   const [showCountries, setShowCountries] = useState(false);
   const [nameError, setNameError] = useState("");
   const [phoneError, setPhoneError] = useState("");
+  const [emailError, setEmailError] = useState("");
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setNameError("");
     setPhoneError("");
+    setEmailError("");
 
     let hasError = false;
 
@@ -58,10 +61,18 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
       hasError = true;
     }
 
+    // Email is optional, but if provided it must be syntactically valid so
+    // welcome emails and future receipts can actually reach the customer.
+    const trimmedEmail = email.trim();
+    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setEmailError(language === "es" ? "Correo no v\u00e1lido" : "Invalid email");
+      hasError = true;
+    }
+
     if (hasError) return;
 
     try {
-      await loginByPhone(cleanPhone, selectedCountry.code, trimmedName);
+      await loginByPhone(cleanPhone, selectedCountry.code, trimmedName, trimmedEmail || undefined);
       onSuccess?.();
       onClose();
     } catch {
@@ -272,6 +283,54 @@ export default function PhoneLoginModal({ isOpen, onClose, onSuccess }: PhoneLog
                 style={{ color: "#9B4D4D" }}
               >
                 {phoneError}
+              </motion.p>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Email Input (optional) — pre-collected so first payment doesn't force it */}
+        <div>
+          <label
+            className="block text-xs font-medium mb-1"
+            style={{ color: "var(--color-text-secondary)", letterSpacing: "0.05em" }}
+          >
+            {language === "es" ? "Correo (opcional)" : "Email (optional)"}
+          </label>
+          <div className="relative">
+            <div
+              className="absolute left-3 top-1/2 -translate-y-1/2"
+              style={{ color: "var(--color-text-muted)" }}
+            >
+              <Mail size={16} />
+            </div>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder={language === "es" ? "tu@correo.com" : "you@email.com"}
+              className="w-full pl-10 pr-4 py-3"
+              style={inputStyle(!!emailError)}
+              autoComplete="email"
+              onFocus={(e) => {
+                if (!emailError) e.currentTarget.style.borderColor = "var(--color-accent)";
+                e.currentTarget.style.background = "var(--color-bg-glass-hover)";
+              }}
+              onBlur={(e) => {
+                if (!emailError) e.currentTarget.style.borderColor = "var(--color-border-default)";
+                e.currentTarget.style.background = "var(--color-bg-input)";
+              }}
+            />
+          </div>
+          <AnimatePresence>
+            {emailError && (
+              <motion.p
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                className="mt-1 text-xs"
+                style={{ color: "#9B4D4D" }}
+              >
+                {emailError}
               </motion.p>
             )}
           </AnimatePresence>

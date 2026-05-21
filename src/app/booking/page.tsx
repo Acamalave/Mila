@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useBooking } from "@/providers/BookingProvider";
 import { useEventBus } from "@/providers/EventBusProvider";
+import { useLanguage } from "@/providers/LanguageProvider";
 import { useStaff } from "@/providers/StaffProvider";
 import { useToast } from "@/providers/ToastProvider";
 import { getStoredData, generateId, calculateTaxBreakdown } from "@/lib/utils";
@@ -28,6 +29,7 @@ export default function BookingPage() {
   const { user, isAuthenticated, hydrated } = useAuth();
   const { state, dispatch, resetBooking } = useBooking();
   const { emit } = useEventBus();
+  const { language } = useLanguage();
   const { allStylists } = useStaff();
   const { addToast } = useToast();
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -147,7 +149,12 @@ export default function BookingPage() {
 
     // No deposit was charged → it is safe to abort and ask for another slot.
     if (hasConflict && !depositTxnId) {
-      addToast("Este horario acaba de ser reservado. Selecciona otro.", "error");
+      addToast(
+        language === "es"
+          ? "Este horario acaba de ser reservado. Selecciona otro."
+          : "This time slot was just booked. Please pick another.",
+        "error"
+      );
       return;
     }
     // A conflict appeared after the deposit was already charged — keep the
@@ -209,7 +216,12 @@ export default function BookingPage() {
         state.selectedTimeSlot.endTime
       )
     ) {
-      addToast("Este horario acaba de ser reservado. Selecciona otro.", "error");
+      addToast(
+        language === "es"
+          ? "Este horario acaba de ser reservado. Selecciona otro."
+          : "This time slot was just booked. Please pick another.",
+        "error"
+      );
       return;
     }
 

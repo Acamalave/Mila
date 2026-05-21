@@ -9,6 +9,10 @@ import { useCommissions } from "@/providers/CommissionProvider";
 import { useExpenses } from "@/providers/ExpenseProvider";
 import { cn, formatPrice } from "@/lib/utils";
 import { totalGatewayFees, gatewayFeeForAmount, wasChargedByGateway, PF_FEE_PERCENT, PF_FEE_FIXED_USD } from "@/lib/gateway-fees";
+import {
+  invoicesInRange as invoicesInRangeHelper,
+  paidInvoicesInRange,
+} from "@/lib/revenue";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
@@ -78,16 +82,16 @@ export default function AccountingOverview() {
   }, []);
 
   // ── Slice data into the selected period ─────────────────────────────────
-  const invoicesInRange = useMemo(() => {
-    return invoices.filter((inv) => {
-      const d = (inv.paidAt ?? inv.date).slice(0, 10);
-      return d >= startDate && d <= endDate;
-    });
-  }, [invoices, startDate, endDate]);
+  // Uses the shared lib/revenue helpers so admin / accountant / billing all
+  // compute the same numbers from the same definitions.
+  const invoicesInRange = useMemo(
+    () => invoicesInRangeHelper(invoices, startDate, endDate),
+    [invoices, startDate, endDate]
+  );
 
   const paidInvoices = useMemo(
-    () => invoicesInRange.filter((inv) => inv.status === "paid"),
-    [invoicesInRange]
+    () => paidInvoicesInRange(invoices, startDate, endDate),
+    [invoices, startDate, endDate]
   );
 
   const cardPaid = useMemo(

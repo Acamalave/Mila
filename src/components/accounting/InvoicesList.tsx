@@ -7,6 +7,7 @@ import { useInvoices } from "@/providers/InvoiceProvider";
 import { cn, formatPrice } from "@/lib/utils";
 import { formatShortDate } from "@/lib/date-utils";
 import { services } from "@/data/services";
+import { invoicesInRange as invoicesInRangeHelper } from "@/lib/revenue";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import AdminInvoiceDetailModal from "@/components/admin/AdminInvoiceDetailModal";
@@ -76,11 +77,7 @@ export default function InvoicesList() {
   }, []);
 
   const invoicesInRange = useMemo(
-    () =>
-      invoices.filter((inv) => {
-        const d = (inv.paidAt ?? inv.date).slice(0, 10);
-        return d >= startDate && d <= endDate;
-      }),
+    () => invoicesInRangeHelper(invoices, startDate, endDate),
     [invoices, startDate, endDate]
   );
 

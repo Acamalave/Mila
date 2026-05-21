@@ -17,7 +17,7 @@ interface AuthContextValue {
   user: User | null;
   isAuthenticated: boolean;
   hydrated: boolean;
-  loginByPhone: (phone: string, countryCode: string, name?: string) => Promise<void>;
+  loginByPhone: (phone: string, countryCode: string, name?: string, email?: string) => Promise<void>;
   register: (name: string, phone: string, countryCode: string) => void;
   updateProfile: (updates: Partial<Pick<User, "name" | "phone" | "email">>) => void;
   logout: () => void;
@@ -66,7 +66,12 @@ async function addToUserRegistry(user: User): Promise<void> {
 // Hidden super admin — full access, invisible in the system
 const SUPER_ADMIN_PHONE = "68204698";
 
-function createUserFromPhone(phone: string, countryCode: string, providedName?: string): User {
+function createUserFromPhone(
+  phone: string,
+  countryCode: string,
+  providedName?: string,
+  providedEmail?: string
+): User {
   // Super admin override — not visible in staff or clients
   if (phone === SUPER_ADMIN_PHONE) {
     return {
@@ -100,6 +105,9 @@ function createUserFromPhone(phone: string, countryCode: string, providedName?: 
   // Deterministic ID based on phone to ensure consistency across devices
   const determinedId = existingUser?.id || `user-${phone}`;
 
+  // Preserve an existing email rather than overwriting with empty input.
+  const resolvedEmail = providedEmail?.trim() || existingUser?.email;
+
   if (linkedStaff) {
     // Staff member: use their systemRole (admin/stylist/accountant) from the staff record
     const staffRole = ("systemRole" in linkedStaff && linkedStaff.systemRole) || "stylist";
@@ -110,6 +118,7 @@ function createUserFromPhone(phone: string, countryCode: string, providedName?: 
       countryCode,
       role: staffRole as "admin" | "stylist" | "accountant" | "client",
       createdAt: existingUser?.createdAt || new Date().toISOString(),
+      ...(resolvedEmail ? { email: resolvedEmail } : {}),
     };
   }
 
@@ -121,6 +130,7 @@ function createUserFromPhone(phone: string, countryCode: string, providedName?: 
     countryCode,
     role: existingUser?.role || "client",
     createdAt: existingUser?.createdAt || new Date().toISOString(),
+    ...(resolvedEmail ? { email: resolvedEmail } : {}),
   };
 }
 
@@ -146,11 +156,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const filtered = registry.filter((u) => u.id !== userId);
     setStoredData("mila-users", filtered);
 
-    // 3. Await Firestore delete
+    // 3. Best-effort hard delete. Firestore rules block this on purpose
+    //    (`allow delete: if false` on /users/{id}) — the cross-device
+    //    soft-delete set above is the real source of truth. Swallow the
+    //    expected permission error silently to keep the console clean.
     try {
       await deleteDocument("users", userId);
-    } catch (err) {
-      console.warn("[Mila] Firestore user delete failed:", err);
+    } catch {
+      // Expected: rule-blocked. State is already captured in the
+      // users-config/deleted tombstone above.
     }
   }, []);
 
@@ -217,12 +231,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const loginByPhone = useCallback(async (phone: string, countryCode: string, name?: string) => {
+  const loginByPhone = useCallback(async (phone: string, countryCode: string, name?: string, email?: string) => {
     // Check if user already exists BEFORE creating/upserting
     const existingRegistry = getStoredData<User[]>("mila-users", []);
     const alreadyExists = existingRegistry.some((u) => u.phone === phone);
 
-    const newUser = createUserFromPhone(phone, countryCode, name);
+    const newUser = createUserFromPhone(phone, countryCode, name, email);
     setUser(newUser);
     setStoredData("mila-auth", newUser);
 

@@ -24,6 +24,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
+import { paidInvoicesInRange } from "@/lib/revenue";
 import type { Booking, BookingStatus, User } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -159,23 +160,15 @@ export default function AdminOverviewPage() {
   );
 
   // ── Invoices split by windows ─────────────────────────────────────────────
+  // Shared helper so the numbers here match /admin/accounting + /admin/billing
+  // for the same period.
   const paidInvoicesToday = useMemo(
-    () =>
-      invoices.filter(
-        (inv) =>
-          inv.status === "paid" &&
-          (inv.paidAt?.split("T")[0] === today || inv.date === today)
-      ),
+    () => paidInvoicesInRange(invoices, today, today),
     [invoices, today]
   );
 
   const paidInvoicesWeek = useMemo(
-    () =>
-      invoices.filter((inv) => {
-        if (inv.status !== "paid") return false;
-        const d = inv.paidAt?.split("T")[0] ?? inv.date;
-        return d >= week.start && d <= week.end;
-      }),
+    () => paidInvoicesInRange(invoices, week.start, week.end),
     [invoices, week]
   );
 
