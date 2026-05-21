@@ -552,7 +552,7 @@ export default function AdminBillingPage() {
           </div>
 
           {/* Table */}
-          <div className="overflow-x-auto">
+          <div className="lg:overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border-default text-left">
@@ -1002,7 +1002,7 @@ export default function AdminBillingPage() {
 
                     {/* Expanded detail */}
                     {isExpanded && (
-                      <div className="border-t border-border-default overflow-x-auto">
+                      <div className="border-t border-border-default lg:overflow-x-auto">
                         <table className="w-full">
                           <thead>
                             <tr className="border-b border-border-subtle text-left bg-white/[0.02]">

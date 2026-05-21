@@ -459,7 +459,7 @@ export default function AdminAnalyticsPage() {
               {t("admin", "commissionBreakdown")}
             </h2>
           </div>
-          <div className="overflow-x-auto">
+          <div className="lg:overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border-default text-left">

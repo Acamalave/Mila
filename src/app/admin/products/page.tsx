@@ -317,7 +317,7 @@ export default function AdminProductsPage() {
       {/* Products table */}
       <motion.div variants={fadeInUp}>
         <Card padding="none">
-          <div className="overflow-x-auto">
+          <div className="lg:overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border-default text-left">

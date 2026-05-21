@@ -219,7 +219,7 @@ export default function AdminOverviewPage() {
               {language === "es" ? "Reservas Recientes" : "Recent Bookings"}
             </h2>
           </div>
-          <div className="overflow-x-auto">
+          <div className="lg:overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border-default text-left">

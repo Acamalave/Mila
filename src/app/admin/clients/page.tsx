@@ -283,10 +283,14 @@ export default function AdminClientsPage() {
         </div>
       </motion.div>
 
-      {/* Clients table */}
+      {/* Clients table — only enable horizontal scroller on desktop. On
+          mobile the off-canvas columns are already hidden via
+          `hidden lg:table-cell` so the table fits naturally; an
+          unconditional `overflow-x-auto` traps vertical touch gestures
+          inside it on iOS Safari and blocks page scroll. */}
       <motion.div variants={fadeInUp}>
         <Card padding="none">
-          <div className="overflow-x-auto">
+          <div className="lg:overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border-default text-left">

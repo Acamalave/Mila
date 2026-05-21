@@ -603,7 +603,7 @@ export default function AdminServicesPage() {
           </Button>
         </div>
         <Card padding="none">
-          <div className="overflow-x-auto">
+          <div className="lg:overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border-default text-left">
@@ -674,7 +674,7 @@ export default function AdminServicesPage() {
             {category.name[language]}
           </h2>
           <Card padding="none">
-            <div className="overflow-x-auto">
+            <div className="lg:overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border-default text-left">
@@ -867,7 +867,7 @@ export default function AdminServicesPage() {
             {language === "es" ? "Sin categoría" : "Uncategorized"}
           </h2>
           <Card padding="none">
-            <div className="overflow-x-auto">
+            <div className="lg:overflow-x-auto">
               <table className="w-full">
                 <tbody className="divide-y divide-border-subtle">
                   {uncategorized.map((service) => (
