@@ -42,7 +42,7 @@ export default function AdminBillingPage() {
   const { language, t } = useLanguage();
   const { addToast } = useToast();
   const { invoices, addInvoice, updateInvoice, sendInvoice, deleteInvoice, markAsPaid, markAsDeclined } = useInvoices();
-  const { commissions, markCommissionPaid, markAllPaidForStylist } = useCommissions();
+  const { commissions, markAllPaidForStylist } = useCommissions();
   const { allStylists } = useStaff();
 
   const [view, setView] = useState<"invoices" | "commissions">("invoices");
@@ -63,6 +63,10 @@ export default function AdminBillingPage() {
   }, []);
   const [commissionStartDate, setCommissionStartDate] = useState<string>(firstOfMonthIso);
   const [commissionEndDate, setCommissionEndDate] = useState<string>(todayIso);
+  // Invoices view gets its own date range so each view remembers its own
+  // selection across toggles.
+  const [invoiceStartDate, setInvoiceStartDate] = useState<string>(firstOfMonthIso);
+  const [invoiceEndDate, setInvoiceEndDate] = useState<string>(todayIso);
   /** Which stylist cards are expanded — keyed by stylistId. */
   const [expandedStylists, setExpandedStylists] = useState<Set<string>>(new Set());
   const toggleExpanded = useCallback((stylistId: string) => {
@@ -74,57 +78,96 @@ export default function AdminBillingPage() {
     });
   }, []);
 
-  /** Quick-range presets for the date filter. */
-  const applyPreset = useCallback(
-    (preset: "thisWeek" | "thisMonth" | "last30" | "allTime") => {
+  /**
+   * Quick-range presets — generic so both the invoices view and the
+   * commissions view can reuse the same logic by passing their own setters.
+   */
+  type Preset = "thisWeek" | "thisMonth" | "last30" | "allTime";
+  const applyPresetTo = useCallback(
+    (
+      preset: Preset,
+      setStart: (v: string) => void,
+      setEnd: (v: string) => void
+    ) => {
       const today = new Date();
       const todayStr = today.toISOString().slice(0, 10);
       if (preset === "thisWeek") {
         const day = today.getDay();
         const diff = today.getDate() - day + (day === 0 ? -6 : 1);
         const monday = new Date(today.getFullYear(), today.getMonth(), diff);
-        setCommissionStartDate(monday.toISOString().slice(0, 10));
-        setCommissionEndDate(todayStr);
+        setStart(monday.toISOString().slice(0, 10));
+        setEnd(todayStr);
       } else if (preset === "thisMonth") {
-        setCommissionStartDate(
+        setStart(
           new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10)
         );
-        setCommissionEndDate(todayStr);
+        setEnd(todayStr);
       } else if (preset === "last30") {
         const d = new Date();
         d.setDate(d.getDate() - 30);
-        setCommissionStartDate(d.toISOString().slice(0, 10));
-        setCommissionEndDate(todayStr);
+        setStart(d.toISOString().slice(0, 10));
+        setEnd(todayStr);
       } else {
-        setCommissionStartDate("1970-01-01");
-        setCommissionEndDate(todayStr);
+        setStart("1970-01-01");
+        setEnd(todayStr);
       }
     },
     []
   );
+  const applyCommissionPreset = useCallback(
+    (preset: Preset) =>
+      applyPresetTo(preset, setCommissionStartDate, setCommissionEndDate),
+    [applyPresetTo]
+  );
+  const applyInvoicePreset = useCallback(
+    (preset: Preset) =>
+      applyPresetTo(preset, setInvoiceStartDate, setInvoiceEndDate),
+    [applyPresetTo]
+  );
+
+  const presetButtons: { key: Preset; label: string }[] = useMemo(
+    () => [
+      { key: "thisWeek", label: language === "es" ? "Semana" : "Week" },
+      { key: "thisMonth", label: language === "es" ? "Mes" : "Month" },
+      { key: "last30", label: language === "es" ? "Últimos 30 días" : "Last 30 days" },
+      { key: "allTime", label: language === "es" ? "Todo" : "All time" },
+    ],
+    [language]
+  );
+
+  /**
+   * Invoices in the selected date window. Window is inclusive on both ends.
+   * Status filter (draft/sent/paid/declined tabs) is applied on top.
+   */
+  const invoicesInRange = useMemo(() => {
+    const startMs = new Date(`${invoiceStartDate}T00:00:00`).getTime();
+    const endMs = new Date(`${invoiceEndDate}T23:59:59.999`).getTime();
+    return invoices.filter((inv) => {
+      const t = new Date(inv.date).getTime();
+      return t >= startMs && t <= endMs;
+    });
+  }, [invoices, invoiceStartDate, invoiceEndDate]);
 
   const filteredInvoices = useMemo(
     () =>
       activeTab === "all"
-        ? invoices
-        : invoices.filter((inv) => inv.status === activeTab),
-    [invoices, activeTab]
+        ? invoicesInRange
+        : invoicesInRange.filter((inv) => inv.status === activeTab),
+    [invoicesInRange, activeTab]
   );
 
   const summary = useMemo(() => {
-    // Total billed across every invoice (drafts and declined included).
-    const total = invoices.reduce((sum, inv) => sum + inv.amount, 0);
-    // Collected revenue — same definition the analytics page uses.
-    const paid = invoices
+    // Summary always reflects the selected date range so the cards match
+    // the table below them.
+    const total = invoicesInRange.reduce((sum, inv) => sum + inv.amount, 0);
+    const paid = invoicesInRange
       .filter((inv) => inv.status === "paid")
       .reduce((sum, inv) => sum + inv.amount, 0);
-    // Outstanding receivables: awaiting payment only. Drafts are not yet sent
-    // and declined invoices will not be collected, so both are excluded.
-    const pending = invoices
+    const pending = invoicesInRange
       .filter((inv) => inv.status === "sent" || inv.status === "overdue")
       .reduce((sum, inv) => sum + inv.amount, 0);
     return { total, paid, pending };
-  }, [invoices]);
+  }, [invoicesInRange]);
 
   /**
    * Commissions filtered by both date range AND status. The date range is
@@ -402,6 +445,66 @@ export default function AdminBillingPage() {
 
       {view === "invoices" && (
       <>
+      {/* Date range filter — same UX as the commissions view */}
+      <motion.div variants={fadeInUp}>
+        <Card padding="md">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span
+                className="text-xs uppercase tracking-wider font-medium mr-2"
+                style={{ color: "var(--color-text-muted)" }}
+              >
+                <Calendar size={12} className="inline mr-1" />
+                {language === "es" ? "Período" : "Period"}
+              </span>
+              {presetButtons.map((preset) => (
+                <button
+                  key={preset.key}
+                  onClick={() => applyInvoicePreset(preset.key)}
+                  className="px-3 py-1.5 rounded-md text-xs font-medium border border-border-default text-text-secondary hover:bg-white/5 hover:text-text-primary transition-colors cursor-pointer"
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label
+                  className="text-xs font-medium"
+                  style={{ color: "var(--color-text-muted)" }}
+                >
+                  {language === "es" ? "Desde" : "From"}
+                </label>
+                <input
+                  type="date"
+                  value={invoiceStartDate}
+                  onChange={(e) => setInvoiceStartDate(e.target.value)}
+                  max={invoiceEndDate}
+                  className="px-3 py-1.5 rounded-md text-sm bg-bg-input text-text-primary border border-border-default focus:border-mila-gold focus:outline-none"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label
+                  className="text-xs font-medium"
+                  style={{ color: "var(--color-text-muted)" }}
+                >
+                  {language === "es" ? "Hasta" : "To"}
+                </label>
+                <input
+                  type="date"
+                  value={invoiceEndDate}
+                  onChange={(e) => setInvoiceEndDate(e.target.value)}
+                  min={invoiceStartDate}
+                  max={todayIso}
+                  className="px-3 py-1.5 rounded-md text-sm bg-bg-input text-text-primary border border-border-default focus:border-mila-gold focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+        </Card>
+      </motion.div>
+
       {/* Summary */}
       <motion.div
         variants={fadeInUp}
@@ -701,15 +804,10 @@ export default function AdminBillingPage() {
                     <Calendar size={12} className="inline mr-1" />
                     {language === "es" ? "Período" : "Period"}
                   </span>
-                  {([
-                    { key: "thisWeek", label: language === "es" ? "Semana" : "Week" },
-                    { key: "thisMonth", label: language === "es" ? "Mes" : "Month" },
-                    { key: "last30", label: language === "es" ? "Últimos 30 días" : "Last 30 days" },
-                    { key: "allTime", label: language === "es" ? "Todo" : "All time" },
-                  ] as const).map((preset) => (
+                  {presetButtons.map((preset) => (
                     <button
                       key={preset.key}
-                      onClick={() => applyPreset(preset.key)}
+                      onClick={() => applyCommissionPreset(preset.key)}
                       className="px-3 py-1.5 rounded-md text-xs font-medium border border-border-default text-text-secondary hover:bg-white/5 hover:text-text-primary transition-colors cursor-pointer"
                     >
                       {preset.label}
@@ -875,8 +973,8 @@ export default function AdminBillingPage() {
                               <th className="px-3 sm:px-6 py-2 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider">
                                 {language === "es" ? "Servicio" : "Service"}
                               </th>
-                              <th className="px-3 sm:px-6 py-2 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider hidden md:table-cell">
-                                {language === "es" ? "Origen" : "Source"}
+                              <th className="px-3 sm:px-6 py-2 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider">
+                                {language === "es" ? "Cliente" : "Client"}
                               </th>
                               <th className="px-3 sm:px-6 py-2 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-right hidden sm:table-cell">
                                 {language === "es" ? "Precio" : "Price"}
@@ -886,12 +984,6 @@ export default function AdminBillingPage() {
                               </th>
                               <th className="px-3 sm:px-6 py-2 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-right">
                                 {t("admin", "commission")}
-                              </th>
-                              <th className="px-3 sm:px-6 py-2 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-center">
-                                {t("admin", "status")}
-                              </th>
-                              <th className="px-3 sm:px-6 py-2 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-center">
-                                {language === "es" ? "Acción" : "Action"}
                               </th>
                             </tr>
                           </thead>
@@ -903,6 +995,12 @@ export default function AdminBillingPage() {
                               const sourceInvoice = c.invoiceId
                                 ? invoices.find((i) => i.id === c.invoiceId)
                                 : null;
+                              // Client name comes from the source invoice when
+                              // this commission was generated from an invoice
+                              // (the common case). Booking-only commissions
+                              // don't carry the client name today, so we leave
+                              // it blank for those.
+                              const clientName = sourceInvoice?.clientName ?? "—";
                               return (
                                 <tr
                                   key={c.id}
@@ -914,18 +1012,21 @@ export default function AdminBillingPage() {
                                   <td className="px-3 sm:px-6 py-2 text-xs text-text-primary">
                                     {matchedService?.name[language] ?? c.serviceId}
                                   </td>
-                                  <td className="px-3 sm:px-6 py-2 text-xs text-text-muted hidden md:table-cell">
+                                  <td className="px-3 sm:px-6 py-2 text-xs text-text-secondary">
                                     {sourceInvoice ? (
                                       <button
                                         onClick={() => setViewingInvoice(sourceInvoice)}
-                                        className="font-mono hover:text-mila-gold transition-colors cursor-pointer"
+                                        className="hover:text-mila-gold transition-colors cursor-pointer text-left"
+                                        title={
+                                          language === "es"
+                                            ? "Ver factura"
+                                            : "View invoice"
+                                        }
                                       >
-                                        {sourceInvoice.id}
+                                        {clientName}
                                       </button>
-                                    ) : c.bookingId ? (
-                                      <span className="font-mono">{c.bookingId}</span>
                                     ) : (
-                                      "-"
+                                      <span>{clientName}</span>
                                     )}
                                   </td>
                                   <td className="px-3 sm:px-6 py-2 text-xs text-text-secondary text-right hidden sm:table-cell">
@@ -936,35 +1037,6 @@ export default function AdminBillingPage() {
                                   </td>
                                   <td className="px-3 sm:px-6 py-2 text-xs font-medium text-text-primary text-right">
                                     {formatPrice(c.commissionAmount)}
-                                  </td>
-                                  <td className="px-3 sm:px-6 py-2 text-center">
-                                    <Badge
-                                      variant={
-                                        c.status === "paid" ? "success" : "warning"
-                                      }
-                                    >
-                                      {c.status === "paid"
-                                        ? language === "es" ? "Pagada" : "Paid"
-                                        : language === "es" ? "Pendiente" : "Pending"}
-                                    </Badge>
-                                  </td>
-                                  <td className="px-3 sm:px-6 py-2 text-center">
-                                    {c.status === "pending" && (
-                                      <button
-                                        onClick={() => {
-                                          markCommissionPaid(c.id);
-                                          addToast(
-                                            language === "es"
-                                              ? "Comisión marcada como pagada"
-                                              : "Commission marked as paid",
-                                            "success"
-                                          );
-                                        }}
-                                        className="px-2.5 py-1 rounded text-[11px] font-medium bg-success/10 text-success hover:bg-success/20 transition-colors cursor-pointer"
-                                      >
-                                        {t("admin", "markPaid")}
-                                      </button>
-                                    )}
                                   </td>
                                 </tr>
                               );
