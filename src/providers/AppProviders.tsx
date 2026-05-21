@@ -16,6 +16,7 @@ import { PaymentProvider } from "@/providers/PaymentProvider";
 import { CartProvider } from "@/providers/CartProvider";
 import { CommissionProvider } from "@/providers/CommissionProvider";
 import { ExpenseProvider } from "@/providers/ExpenseProvider";
+import { ClientNoteProvider } from "@/providers/ClientNoteProvider";
 import { ReviewProvider } from "@/providers/ReviewProvider";
 
 export default function AppProviders({ children }: { children: ReactNode }) {
@@ -32,13 +33,15 @@ export default function AppProviders({ children }: { children: ReactNode }) {
                       <CommissionProvider>
                         <InvoiceProvider>
                           <ExpenseProvider>
-                            <ReviewProvider>
-                              <NotificationProvider>
-                                <PaymentProvider>
-                                  <CartProvider>{children}</CartProvider>
-                                </PaymentProvider>
-                              </NotificationProvider>
-                            </ReviewProvider>
+                            <ClientNoteProvider>
+                              <ReviewProvider>
+                                <NotificationProvider>
+                                  <PaymentProvider>
+                                    <CartProvider>{children}</CartProvider>
+                                  </PaymentProvider>
+                                </NotificationProvider>
+                              </ReviewProvider>
+                            </ClientNoteProvider>
                           </ExpenseProvider>
                         </InvoiceProvider>
                       </CommissionProvider>

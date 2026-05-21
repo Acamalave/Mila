@@ -9,3 +9,4 @@ export * from './payment';
 export * from './invoice';
 export * from './commission';
 export * from './expense';
+export * from './clientNote';

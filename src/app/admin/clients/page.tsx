@@ -13,6 +13,7 @@ import Button from "@/components/ui/Button";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
 import { Users, Search, Phone, Mail, CalendarDays, DollarSign, Star, Trash2 } from "lucide-react";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import ClientNotesHistory from "@/components/admin/ClientNotesHistory";
 import { useStaff } from "@/providers/StaffProvider";
 import { services } from "@/data/services";
 import { onCollectionChange, setDocument, getCollection, deleteDocument } from "@/lib/firestore";
@@ -517,6 +518,9 @@ export default function AdminClientsPage() {
                 )}
               </div>
             </div>
+
+            {/* Internal notes about this client (admin-only) */}
+            <ClientNotesHistory clientId={selectedUser.id} />
 
             {/* Close button */}
             <div className="flex justify-end pt-2 border-t border-border-default">

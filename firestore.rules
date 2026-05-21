@@ -166,6 +166,21 @@ service cloud.firestore {
       allow delete: if true;
     }
 
+    // ── Client notes (admin-only context — internal observations) ──────────
+    // NOTE: clients never read this collection from a UI surface — the
+    // visibility constraint is enforced UI-side (only admin pages query
+    // it). Rule mirrors the other domain collections (no auth tokens
+    // available yet; tighten when Firebase Auth is added).
+    match /clientNotes/{noteId} {
+      allow read: if true;
+      allow create, update: if isReasonableSize()
+        && request.resource.data.keys().hasAll(['clientId', 'text'])
+        && request.resource.data.clientId is string
+        && request.resource.data.text is string
+        && request.resource.data.text.size() <= 5000;
+      allow delete: if true; // admin can prune
+    }
+
     // ── Operating expenses (accountant-managed) ────────────────────────────
     match /expenses/{expenseId} {
       allow read: if true;

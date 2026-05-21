@@ -8,6 +8,8 @@ import { usePayment } from "@/providers/PaymentProvider";
 import { useCommissions } from "@/providers/CommissionProvider";
 import { useStaff } from "@/providers/StaffProvider";
 import { useToast } from "@/providers/ToastProvider";
+import { useClientNotes } from "@/providers/ClientNoteProvider";
+import { useAuth } from "@/providers/AuthProvider";
 import { calculateTaxBreakdown, generateId, getStoredData, setStoredData } from "@/lib/utils";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -63,6 +65,8 @@ export default function POSPage() {
   const { generatePOSCommissions } = useCommissions();
   const { allStylists } = useStaff();
   const { addToast } = useToast();
+  const { addNote } = useClientNotes();
+  const { user: currentStaff } = useAuth();
 
   const savedCart = getStoredData<{ client: POSClient | null; items: InvoiceItem[]; stylistId: string | null; discount: number } | null>("mila-pos-cart", null);
   const [step, setStep] = useState<Step>(savedCart?.items?.length ? "items" : "client");
@@ -593,6 +597,24 @@ export default function POSPage() {
                   clientName={client.name}
                   paymentMethod={lastPaymentMethod}
                   onNewSale={handleNewSale}
+                  onSaveNote={(text) => {
+                    addNote({
+                      clientId: client.id,
+                      text,
+                      source: "pos-sale",
+                      ...(lastInvoiceId ? { invoiceId: lastInvoiceId } : {}),
+                      ...(currentStaff?.id ? { createdBy: currentStaff.id } : {}),
+                      ...(currentStaff?.name
+                        ? { createdByName: currentStaff.name }
+                        : {}),
+                    });
+                    addToast(
+                      language === "es"
+                        ? "Nota agregada al perfil"
+                        : "Note added to profile",
+                      "success"
+                    );
+                  }}
                 />
               )}
             </motion.div>
