@@ -19,12 +19,13 @@ import {
   ShoppingCart,
   UserCheck,
   LogOut,
+  Wallet,
 } from "lucide-react";
 
 export default function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const { logout } = useAuth();
 
   const links = [
@@ -32,6 +33,11 @@ export default function AdminSidebar() {
     { href: "/admin/pos", icon: ShoppingCart, label: t("admin", "pos") },
     { href: "/admin/calendar", icon: CalendarDays, label: t("admin", "calendar") },
     { href: "/admin/billing", icon: Receipt, label: t("admin", "billing") },
+    {
+      href: "/admin/accounting",
+      icon: Wallet,
+      label: language === "es" ? "Contabilidad" : "Accounting",
+    },
     { href: "/admin/staff", icon: Users, label: t("admin", "staff") },
     { href: "/admin/clients", icon: UserCheck, label: t("admin", "clients") },
     { href: "/admin/services", icon: Scissors, label: t("admin", "services") },

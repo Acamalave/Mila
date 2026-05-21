@@ -21,6 +21,7 @@ import {
   ShoppingCart,
   LogOut,
   UserCheck,
+  Wallet,
   Bell,
   X,
   Check,
@@ -234,7 +235,7 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const { user, isAuthenticated, hydrated, logout } = useAuth();
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const router = useRouter();
   const pathname = usePathname();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -297,6 +298,11 @@ export default function AdminLayout({
     { href: "/admin/pos", icon: ShoppingCart, label: "POS" },
     { href: "/admin/calendar", icon: CalendarDays, label: t("admin", "calendar") },
     { href: "/admin/billing", icon: Receipt, label: t("admin", "billing") },
+    {
+      href: "/admin/accounting",
+      icon: Wallet,
+      label: language === "es" ? "Contabilidad" : "Accounting",
+    },
     { href: "/admin/staff", icon: Users, label: t("admin", "staff") },
     { href: "/admin/clients", icon: UserCheck, label: t("admin", "clients") },
     { href: "/admin/services", icon: Scissors, label: t("admin", "services") },
