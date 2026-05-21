@@ -83,7 +83,12 @@
    ─────────────────────────────────────────────── */
 @layer base {
   html {
-    overflow-x: hidden;
+    /* `overflow-x: clip` instead of `hidden` is critical: `hidden` makes the
+     * browser promote `overflow-y` from visible to auto, which turns
+     * <html>/<body> into a 100vh scroll container and breaks page scroll
+     * everywhere. `clip` prevents horizontal overflow without that side
+     * effect. Supported in Chrome 90+, Firefox 81+, Safari 16+. */
+    overflow-x: clip;
     -webkit-text-size-adjust: 100%;
     -ms-text-size-adjust: 100%;
   }
@@ -94,7 +99,7 @@
     background-color: var(--color-bg-page);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    overflow-x: hidden;
+    overflow-x: clip;
     overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
   }
