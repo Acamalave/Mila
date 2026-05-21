@@ -649,8 +649,10 @@ export default function InvoiceFormModal({
                     </button>
                   </div>
                   </div>
-                  {/* Stylist selector — services only */}
-                  {item.type === "service" && allStylists.length > 0 && (
+                  {/* Stylist selector — for services AND products. Products
+                      earn a flat commission too, so they need an assignable
+                      stylist just like services. */}
+                  {allStylists.length > 0 && (
                     <div className="mt-1 flex items-center gap-2 pl-8">
                       <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
                         {language === "es" ? "Estilista:" : "Stylist:"}

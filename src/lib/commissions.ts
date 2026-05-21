@@ -19,6 +19,14 @@
 
 import type { CommissionRecord, Invoice, Stylist } from "@/types";
 
+/**
+ * Flat commission paid to the stylist for every product unit sold,
+ * regardless of which product it is or which stylist sold it. Per operator
+ * policy: "$3 por producto, independientemente". Override the percentage
+ * formula used for services.
+ */
+export const PRODUCT_FLAT_COMMISSION_PER_UNIT = 3;
+
 export interface CommissionWarning {
   invoiceId: string;
   itemIndex: number;
@@ -173,6 +181,8 @@ export function buildCommissionsForInvoice(
       serviceAmount: commissionableBase,
       commissionRate: rate,
       commissionAmount,
+      quantity: 1,
+      itemType: "service",
       status: "pending",
       createdAt: new Date().toISOString(),
     });
@@ -235,6 +245,33 @@ export function buildCommissionsForInvoice(
       return;
     }
 
+    // ── Products: flat amount per unit ───────────────────────────────────
+    // Policy: every product sale pays a flat commission to the stylist who
+    // sold it, independent of the product price or which stylist it is.
+    // We still record the gross sale amount in serviceAmount for audit
+    // purposes; commissionRate is 0 because there's no percentage involved.
+    if (item.type === "product") {
+      const itemNet = Math.round(itemGross * (1 - discountPct / 100) * 100) / 100;
+      const commissionAmount =
+        Math.round(PRODUCT_FLAT_COMMISSION_PER_UNIT * item.quantity * 100) / 100;
+      records.push({
+        id: buildCommissionId(invoice.id, index, stylist.id),
+        stylistId: stylist.id,
+        invoiceId: invoice.id,
+        serviceId: item.id,
+        serviceAmount: itemNet,
+        commissionRate: 0,
+        commissionAmount,
+        commissionFlatPerUnit: PRODUCT_FLAT_COMMISSION_PER_UNIT,
+        quantity: item.quantity,
+        itemType: "product",
+        status: "pending",
+        createdAt,
+      });
+      return;
+    }
+
+    // ── Services: percentage of net amount ───────────────────────────────
     const rate = commissionRateFor(stylist, item.id, item.type);
     if (rate < 0 || rate > 100 || Number.isNaN(rate)) {
       warnings.push({
@@ -260,6 +297,8 @@ export function buildCommissionsForInvoice(
       serviceAmount: itemNet,
       commissionRate: rate,
       commissionAmount,
+      quantity: item.quantity,
+      itemType: "service",
       status: "pending",
       createdAt,
     });

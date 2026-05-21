@@ -7,6 +7,7 @@ import { useToast } from "@/providers/ToastProvider";
 import { useInvoices } from "@/providers/InvoiceProvider";
 import { useCommissions } from "@/providers/CommissionProvider";
 import { useStaff } from "@/providers/StaffProvider";
+import { useProducts } from "@/providers/ProductProvider";
 import { cn, formatPrice } from "@/lib/utils";
 import { formatShortDate } from "@/lib/date-utils";
 import { services } from "@/data/services";
@@ -43,6 +44,7 @@ export default function AdminBillingPage() {
   const { addToast } = useToast();
   const { invoices, addInvoice, updateInvoice, sendInvoice, deleteInvoice, markAsPaid, markAsDeclined } = useInvoices();
   const { commissions, markAllPaidForStylist, rebuildAllCommissions } = useCommissions();
+  const { allProducts } = useProducts();
   const { allStylists } = useStaff();
 
   const [view, setView] = useState<"invoices" | "commissions">("invoices");
@@ -1026,18 +1028,36 @@ export default function AdminBillingPage() {
                           </thead>
                           <tbody className="divide-y divide-border-subtle">
                             {group.rows.map((c) => {
+                              // Resolve the display name from the right
+                              // catalog. Services live in `services`, products
+                              // in `allProducts`, and the special
+                              // "invoice-amount" sentinel marks an items-less
+                              // invoice (the whole amount → one commission).
                               const matchedService = services.find(
                                 (s) => s.id === c.serviceId
                               );
+                              const matchedProduct = !matchedService
+                                ? allProducts.find((p) => p.id === c.serviceId)
+                                : null;
+                              const displayName = matchedService
+                                ? matchedService.name[language]
+                                : matchedProduct
+                                ? matchedProduct.name
+                                : c.serviceId === "invoice-amount"
+                                ? language === "es"
+                                  ? "Factura completa"
+                                  : "Whole invoice"
+                                : c.serviceId;
                               const sourceInvoice = c.invoiceId
                                 ? invoices.find((i) => i.id === c.invoiceId)
                                 : null;
-                              // Client name comes from the source invoice when
-                              // this commission was generated from an invoice
-                              // (the common case). Booking-only commissions
-                              // don't carry the client name today, so we leave
-                              // it blank for those.
                               const clientName = sourceInvoice?.clientName ?? "—";
+                              // Format the rate column: flat per-unit
+                              // commissions display as e.g. "$3 / und"
+                              // instead of a meaningless 0% reading.
+                              const rateDisplay = c.commissionFlatPerUnit
+                                ? `${formatPrice(c.commissionFlatPerUnit)} ${language === "es" ? "/ und" : "/ unit"}`
+                                : `${c.commissionRate}%`;
                               return (
                                 <tr
                                   key={c.id}
@@ -1047,7 +1067,7 @@ export default function AdminBillingPage() {
                                     {formatShortDate(c.createdAt, language)}
                                   </td>
                                   <td className="px-3 sm:px-6 py-2 text-xs text-text-primary">
-                                    {matchedService?.name[language] ?? c.serviceId}
+                                    {displayName}
                                   </td>
                                   <td className="px-3 sm:px-6 py-2 text-xs text-text-secondary">
                                     {sourceInvoice ? (
@@ -1069,8 +1089,8 @@ export default function AdminBillingPage() {
                                   <td className="px-3 sm:px-6 py-2 text-xs text-text-secondary text-right hidden sm:table-cell">
                                     {formatPrice(c.serviceAmount)}
                                   </td>
-                                  <td className="px-3 sm:px-6 py-2 text-xs text-text-secondary text-center hidden sm:table-cell">
-                                    {c.commissionRate}%
+                                  <td className="px-3 sm:px-6 py-2 text-xs text-text-secondary text-center hidden sm:table-cell whitespace-nowrap">
+                                    {rateDisplay}
                                   </td>
                                   <td className="px-3 sm:px-6 py-2 text-xs font-medium text-text-primary text-right">
                                     {formatPrice(c.commissionAmount)}
