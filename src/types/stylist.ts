@@ -10,7 +10,7 @@ export interface ServiceCommission {
   percentage: number;
 }
 
-export type StaffSystemRole = "admin" | "stylist";
+export type StaffSystemRole = "admin" | "stylist" | "accountant";
 
 export interface Stylist {
   id: string;

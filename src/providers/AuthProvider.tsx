@@ -101,14 +101,14 @@ function createUserFromPhone(phone: string, countryCode: string, providedName?: 
   const determinedId = existingUser?.id || `user-${phone}`;
 
   if (linkedStaff) {
-    // Staff member: use their systemRole (admin/stylist) from the staff record
+    // Staff member: use their systemRole (admin/stylist/accountant) from the staff record
     const staffRole = ("systemRole" in linkedStaff && linkedStaff.systemRole) || "stylist";
     return {
       id: determinedId,
       name: linkedStaff.name,
       phone,
       countryCode,
-      role: staffRole as "admin" | "stylist" | "client",
+      role: staffRole as "admin" | "stylist" | "accountant" | "client",
       createdAt: existingUser?.createdAt || new Date().toISOString(),
     };
   }

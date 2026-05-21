@@ -8,3 +8,4 @@ export * from './notification';
 export * from './payment';
 export * from './invoice';
 export * from './commission';
+export * from './expense';

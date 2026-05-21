@@ -183,14 +183,28 @@ export default function Header() {
                         }}
                       >
                         <Link
-                          href={user.role === "admin" ? "/admin" : "/dashboard"}
+                          href={
+                            user.role === "admin"
+                              ? "/admin"
+                              : user.role === "stylist"
+                                ? "/stylist"
+                                : user.role === "accountant"
+                                  ? "/accountant"
+                                  : "/dashboard"
+                          }
                           className="block px-4 py-3 text-sm transition-colors"
                           style={{ color: "var(--color-text-primary)", transition: "background 0.2s ease, color 0.3s ease" }}
                           onClick={() => setProfileOpen(false)}
                           onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-bg-glass-hover)")}
                           onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                         >
-                          {user.role === "admin" ? t("nav", "admin") : t("nav", "dashboard")}
+                          {user.role === "admin"
+                            ? t("nav", "admin")
+                            : user.role === "stylist"
+                              ? t("nav", "dashboard")
+                              : user.role === "accountant"
+                                ? (language === "es" ? "Contador" : "Accountant")
+                                : t("nav", "dashboard")}
                         </Link>
                         <button
                           onClick={() => {

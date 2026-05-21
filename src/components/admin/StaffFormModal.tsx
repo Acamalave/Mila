@@ -570,6 +570,7 @@ export default function StaffFormModal({
             >
               <option value="stylist">{language === "es" ? "Estilista" : "Stylist"}</option>
               <option value="admin">{language === "es" ? "Administrador" : "Administrator"}</option>
+              <option value="accountant">{language === "es" ? "Contador" : "Accountant"}</option>
             </select>
           </div>
           <div>

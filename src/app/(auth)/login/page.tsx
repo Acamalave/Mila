@@ -46,6 +46,7 @@ export default function LoginPage() {
   const doRedirect = (role: string) => {
     if (role === "admin") router.push("/admin");
     else if (role === "stylist") router.push("/stylist");
+    else if (role === "accountant") router.push("/accountant");
     else router.push("/dashboard");
   };
 
