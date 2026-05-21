@@ -12,14 +12,104 @@ import {
   Send,
   ShieldCheck,
   Smartphone,
+  Wallet,
+  Receipt,
 } from "lucide-react";
+import type { PaymentMethod } from "@/types";
+
+/** Method selectable from the POS — excludes "card" because card flows
+ *  through onSendRequest (gateway), not the unified counter-style handler. */
+export type CounterMethod = "yappy" | "cubo" | "cash" | "counter";
 
 interface POSPaymentSelectorProps {
   total: number;
-  onPayCounter: (note: string) => void;
+  /**
+   * Called for every non-card method (yappy / cubo / cash / counter).
+   * `note` is whatever the operator typed in the contextual field
+   * (reference number for Yappy/Cubo, free-form for counter, optional
+   * for cash).
+   */
+  onPayCounter: (method: CounterMethod, note: string) => void;
+  /** Card flow — sends a payment request to the client (gateway). */
   onSendRequest: () => void;
   isProcessing: boolean;
 }
+
+interface MethodMeta {
+  key: PaymentMethod;
+  icon: typeof CreditCard;
+  label: { es: string; en: string };
+  description: { es: string; en: string };
+  /** Label shown above the contextual note input. Empty = no input. */
+  notePrompt?: { es: string; en: string };
+  notePlaceholder?: { es: string; en: string };
+  noteRequired?: boolean;
+}
+
+const METHODS: MethodMeta[] = [
+  {
+    key: "card",
+    icon: CreditCard,
+    label: { es: "Tarjeta", en: "Card" },
+    description: {
+      es: "Cobro online vía Paguelo Fácil",
+      en: "Online charge via Paguelo Fácil",
+    },
+  },
+  {
+    key: "yappy",
+    icon: Smartphone,
+    label: { es: "Yappy", en: "Yappy" },
+    description: {
+      es: "Pago móvil Banco General",
+      en: "Banco General mobile payment",
+    },
+    notePrompt: {
+      es: "Número de referencia Yappy",
+      en: "Yappy reference number",
+    },
+    notePlaceholder: { es: "Ej: YAP-123456", en: "e.g. YAP-123456" },
+    noteRequired: true,
+  },
+  {
+    key: "cubo",
+    icon: Wallet,
+    label: { es: "Cubo", en: "Cubo" },
+    description: { es: "Pago móvil Cubo", en: "Cubo mobile payment" },
+    notePrompt: {
+      es: "Número de referencia Cubo",
+      en: "Cubo reference number",
+    },
+    notePlaceholder: { es: "Ej: CB-123456", en: "e.g. CB-123456" },
+    noteRequired: true,
+  },
+  {
+    key: "cash",
+    icon: Banknote,
+    label: { es: "Efectivo", en: "Cash" },
+    description: { es: "Pago en efectivo", en: "Cash payment" },
+    notePrompt: { es: "Notas (opcional)", en: "Notes (optional)" },
+    notePlaceholder: {
+      es: "Ej: pagó con $50, vuelto $5",
+      en: "e.g. paid $50, change $5",
+    },
+  },
+  {
+    key: "counter",
+    icon: Receipt,
+    label: { es: "Otro / Mostrador", en: "Other / Counter" },
+    description: {
+      es: "Cheque, transferencia, etc.",
+      en: "Check, transfer, etc.",
+    },
+    notePrompt: { es: "Detalle del pago", en: "Payment detail" },
+    notePlaceholder: {
+      es: "Describe el método y referencia",
+      en: "Describe the method and reference",
+    },
+    noteRequired: true,
+  },
+];
 
 export default function POSPaymentSelector({
   total,
@@ -28,8 +118,8 @@ export default function POSPaymentSelector({
   isProcessing,
 }: POSPaymentSelectorProps) {
   const { language, t } = useLanguage();
-  const [method, setMethod] = useState<"card" | "counter" | null>(null);
-  const [counterNote, setCounterNote] = useState("");
+  const [selected, setSelected] = useState<PaymentMethod | null>(null);
+  const [note, setNote] = useState("");
 
   if (isProcessing) {
     return (
@@ -46,22 +136,17 @@ export default function POSPaymentSelector({
         >
           {t("pos", "processingPayment")}
         </p>
-        <div className="flex items-center gap-2 mt-2">
-          <ShieldCheck size={14} style={{ color: "var(--color-text-muted)" }} />
-          <span
-            className="text-xs"
-            style={{ color: "var(--color-text-muted)" }}
-          >
-            {t("pos", "poweredBy")} PagueloFacil
-          </span>
-        </div>
       </div>
     );
   }
 
+  const selectedMeta = METHODS.find((m) => m.key === selected) ?? null;
+  const requiresNote = !!selectedMeta?.noteRequired;
+  const canRegister =
+    selected !== null && selected !== "card" && (!requiresNote || note.trim().length > 0);
+
   return (
     <div className="space-y-4">
-      {/* Method tabs */}
       <p
         className="text-sm font-medium"
         style={{ color: "var(--color-text-secondary)" }}
@@ -69,81 +154,56 @@ export default function POSPaymentSelector({
         {t("pos", "paymentMethod")}
       </p>
 
-      <div className="grid grid-cols-2 gap-3">
-        {/* Card option */}
-        <button
-          onClick={() => setMethod("card")}
-          className="flex flex-col items-center gap-2 p-4 rounded-xl transition-all cursor-pointer"
-          style={{
-            background:
-              method === "card"
-                ? "var(--color-accent-subtle)"
-                : "var(--color-bg-glass)",
-            border:
-              method === "card"
-                ? "2px solid var(--color-border-accent)"
-                : "1px solid var(--color-border-default)",
-            color:
-              method === "card"
-                ? "var(--color-accent)"
-                : "var(--color-text-primary)",
-            padding: method === "card" ? "15px" : "16px",
-          }}
-        >
-          <CreditCard size={24} />
-          <span className="text-sm font-semibold">{t("pos", "card")}</span>
-          <span
-            className="text-[11px] text-center leading-tight"
-            style={{
-              color:
-                method === "card"
+      {/* Method tiles — 2 cols on mobile, 3 on tablet+, 5 on wide screens */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+        {METHODS.map((m) => {
+          const Icon = m.icon;
+          const isActive = selected === m.key;
+          return (
+            <button
+              key={m.key}
+              onClick={() => {
+                setSelected(m.key);
+                // Clear note when switching method so prior input doesn't
+                // bleed into a method that didn't ask for it.
+                setNote("");
+              }}
+              className="flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all cursor-pointer text-center"
+              style={{
+                background: isActive
+                  ? "var(--color-accent-subtle)"
+                  : "var(--color-bg-glass)",
+                border: isActive
+                  ? "2px solid var(--color-border-accent)"
+                  : "1px solid var(--color-border-default)",
+                color: isActive
                   ? "var(--color-accent)"
-                  : "var(--color-text-muted)",
-            }}
-          >
-            {t("pos", "cardDescription")}
-          </span>
-        </button>
-
-        {/* Counter option */}
-        <button
-          onClick={() => setMethod("counter")}
-          className="flex flex-col items-center gap-2 p-4 rounded-xl transition-all cursor-pointer"
-          style={{
-            background:
-              method === "counter"
-                ? "var(--color-accent-subtle)"
-                : "var(--color-bg-glass)",
-            border:
-              method === "counter"
-                ? "2px solid var(--color-border-accent)"
-                : "1px solid var(--color-border-default)",
-            color:
-              method === "counter"
-                ? "var(--color-accent)"
-                : "var(--color-text-primary)",
-            padding: method === "counter" ? "15px" : "16px",
-          }}
-        >
-          <Banknote size={24} />
-          <span className="text-sm font-semibold">{t("pos", "counter")}</span>
-          <span
-            className="text-[11px] text-center leading-tight"
-            style={{
-              color:
-                method === "counter"
-                  ? "var(--color-accent)"
-                  : "var(--color-text-muted)",
-            }}
-          >
-            {t("pos", "counterDescription")}
-          </span>
-        </button>
+                  : "var(--color-text-primary)",
+                padding: isActive ? "11px" : "12px",
+              }}
+            >
+              <Icon size={22} />
+              <span className="text-xs sm:text-sm font-semibold">
+                {m.label[language]}
+              </span>
+              <span
+                className="text-[10px] leading-tight"
+                style={{
+                  color: isActive
+                    ? "var(--color-accent)"
+                    : "var(--color-text-muted)",
+                }}
+              >
+                {m.description[language]}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Payment details */}
+      {/* Contextual details + CTA per selected method */}
       <AnimatePresence mode="wait">
-        {method === "card" && (
+        {selected === "card" && (
           <motion.div
             key="card"
             initial={{ opacity: 0, height: 0 }}
@@ -168,10 +228,7 @@ export default function POSPaymentSelector({
                   border: "1px solid var(--color-border-accent)",
                 }}
               >
-                <Smartphone
-                  size={24}
-                  style={{ color: "var(--color-accent)" }}
-                />
+                <Smartphone size={24} style={{ color: "var(--color-accent)" }} />
               </div>
               <div className="space-y-1">
                 <p
@@ -187,12 +244,11 @@ export default function POSPaymentSelector({
                   style={{ color: "var(--color-text-muted)" }}
                 >
                   {language === "es"
-                    ? "El cliente recibirá una notificación en su dashboard para completar el pago con su tarjeta registrada o agregar una nueva."
-                    : "The client will receive a notification on their dashboard to complete payment with their saved card or add a new one."}
+                    ? "El cliente recibirá una notificación en su dashboard para completar el pago con su tarjeta."
+                    : "The client will receive a notification on their dashboard to complete payment with their card."}
                 </p>
               </div>
 
-              {/* PagueloFacil branding */}
               <div className="flex items-center justify-center gap-2 pt-1">
                 <ShieldCheck
                   size={14}
@@ -214,53 +270,87 @@ export default function POSPaymentSelector({
           </motion.div>
         )}
 
-        {method === "counter" && (
+        {selectedMeta && selected !== "card" && (
           <motion.div
-            key="counter"
+            key={selected}
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             className="space-y-4 overflow-hidden"
           >
-            <div>
-              <label
-                className="block text-sm font-medium mb-2"
-                style={{ color: "var(--color-text-secondary)" }}
-              >
-                {t("pos", "paymentDetails")}
-              </label>
-              <textarea
-                value={counterNote}
-                onChange={(e) => setCounterNote(e.target.value)}
-                placeholder={t("pos", "paymentDetailsPlaceholder")}
-                rows={3}
-                className="w-full px-4 py-3 rounded-lg resize-none text-sm transition-all duration-200"
-                style={{
-                  background: "var(--color-bg-input)",
-                  color: "var(--color-text-primary)",
-                  border: "1px solid var(--color-border-default)",
-                  outline: "none",
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "var(--color-accent)";
-                  e.currentTarget.style.boxShadow =
-                    "0 0 0 2px var(--color-accent-glow)";
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor =
-                    "var(--color-border-default)";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-              />
-            </div>
+            {selectedMeta.notePrompt && (
+              <div>
+                <label
+                  className="block text-sm font-medium mb-2"
+                  style={{ color: "var(--color-text-secondary)" }}
+                >
+                  {selectedMeta.notePrompt[language]}
+                  {selectedMeta.noteRequired && (
+                    <span style={{ color: "#9B4D4D" }}> *</span>
+                  )}
+                </label>
+                {/* Compact input for reference-number style methods, textarea
+                    for free-form notes. Heuristic: textarea when the
+                    description suggests it. */}
+                {selected === "counter" || selected === "cash" ? (
+                  <textarea
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder={selectedMeta.notePlaceholder?.[language] ?? ""}
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-lg resize-none text-sm transition-all duration-200"
+                    style={{
+                      background: "var(--color-bg-input)",
+                      color: "var(--color-text-primary)",
+                      border: "1px solid var(--color-border-default)",
+                      outline: "none",
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = "var(--color-accent)";
+                      e.currentTarget.style.boxShadow =
+                        "0 0 0 2px var(--color-accent-glow)";
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor =
+                        "var(--color-border-default)";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder={selectedMeta.notePlaceholder?.[language] ?? ""}
+                    className="w-full px-4 py-3 rounded-lg text-sm transition-all duration-200"
+                    style={{
+                      background: "var(--color-bg-input)",
+                      color: "var(--color-text-primary)",
+                      border: "1px solid var(--color-border-default)",
+                      outline: "none",
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = "var(--color-accent)";
+                      e.currentTarget.style.boxShadow =
+                        "0 0 0 2px var(--color-accent-glow)";
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor =
+                        "var(--color-border-default)";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  />
+                )}
+              </div>
+            )}
 
             <Button
               fullWidth
               size="lg"
-              onClick={() => onPayCounter(counterNote)}
-              disabled={!counterNote.trim()}
+              onClick={() => onPayCounter(selected as CounterMethod, note)}
+              disabled={!canRegister}
             >
-              <Banknote size={16} />
+              <selectedMeta.icon size={16} />
               {t("pos", "registerPayment")} — {formatPrice(total)}
             </Button>
           </motion.div>

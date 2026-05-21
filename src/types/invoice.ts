@@ -1,5 +1,14 @@
 export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue" | "declined";
-export type PaymentMethod = "card" | "counter";
+/**
+ * - `card`     — charged through Paguelo Facil (only one that pays
+ *                gateway fees in accounting).
+ * - `yappy`    — Banco General's instant mobile payment app.
+ * - `cubo`     — Cubo mobile wallet (Panamá).
+ * - `cash`     — Efectivo handed at the counter.
+ * - `counter`  — Generic counter payment (legacy; kept for old records and
+ *                as the fallback when none of the specific methods fit).
+ */
+export type PaymentMethod = "card" | "counter" | "yappy" | "cubo" | "cash";
 
 export interface Invoice {
   id: string;

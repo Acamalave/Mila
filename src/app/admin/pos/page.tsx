@@ -37,8 +37,9 @@ import {
   ChevronLeft,
   Save,
 } from "lucide-react";
-import type { InvoiceItem } from "@/types";
+import type { InvoiceItem, PaymentMethod } from "@/types";
 import type { POSClient } from "@/components/admin/pos/POSClientSelector";
+import type { CounterMethod } from "@/components/admin/pos/POSPaymentSelector";
 
 type Step = "client" | "items" | "review" | "payment" | "pending" | "success";
 
@@ -67,7 +68,7 @@ export default function POSPage() {
   const [items, setItems] = useState<InvoiceItem[]>(savedCart?.items ?? []);
   const [discount, setDiscount] = useState<number>(savedCart?.discount ?? 0);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [lastPaymentMethod, setLastPaymentMethod] = useState<"card" | "counter">("counter");
+  const [lastPaymentMethod, setLastPaymentMethod] = useState<PaymentMethod>("counter");
   const [lastInvoiceId, setLastInvoiceId] = useState<string | null>(null);
   const [stylistId, setStylistId] = useState<string | null>(savedCart?.stylistId ?? null);
   /** Stashed drafts so the operator can step away from a sale and pick it
@@ -153,13 +154,21 @@ export default function POSPage() {
     }
   };
 
-  const handlePayCounter = async (note: string) => {
+  /**
+   * One handler covers every non-card method (yappy / cubo / cash / counter).
+   * The chosen method is persisted on the invoice so the accountant
+   * dashboard can break revenue down by source, and the gateway-fee
+   * helper knows not to subtract a card-processor cut.
+   */
+  const handleCounterStyleMethod = async (
+    method: CounterMethod,
+    note: string
+  ) => {
     if (!client) return;
     setIsProcessing(true);
 
     await new Promise((r) => setTimeout(r, 500));
 
-    // Create paid invoice in one step
     const invoice = createAndPayInvoice(
       {
         clientId: client.id,
@@ -172,8 +181,11 @@ export default function POSPage() {
         taxAmount,
         taxRate,
         items: itemsWithStylist,
-        paymentMethod: "counter",
-        counterNote: note,
+        paymentMethod: method,
+        // Keep using the existing `counterNote` field on Invoice as the
+        // universal "free-text detail" — Yappy/Cubo reference numbers
+        // and cash change notes all flow through it.
+        ...(note.trim() ? { counterNote: note.trim() } : {}),
         status: "paid",
         date: new Date().toISOString().split("T")[0],
         description:
@@ -182,17 +194,18 @@ export default function POSPage() {
             : "Point of sale transaction",
         ...(stylistId ? { stylistId } : {}),
       } as Omit<typeof invoice, "id" | "createdAt">,
-      `txn-counter-${generateId()}`
+      `txn-${method}-${generateId()}`
     );
 
-    // Record counter payment
+    // Mirror legacy bookkeeping — counter payment provider tracks all
+    // non-gateway settlements in the same way.
     processCounterPayment(invoice.id, total, note);
 
-    // Guarantee commissions are generated for this POS sale (safety net in
-    // case the invoice:paid listener didn't catch the emission).
+    // Safety-net: ensure commissions land even if the invoice:paid event
+    // listener didn't catch the emission.
     generatePOSCommissions(invoice);
 
-    setLastPaymentMethod("counter");
+    setLastPaymentMethod(method);
     setIsProcessing(false);
     setStep("success");
     addToast(
@@ -494,7 +507,7 @@ export default function POSPage() {
               {step === "payment" && client && (
                 <POSPaymentSelector
                   total={total}
-                  onPayCounter={handlePayCounter}
+                  onPayCounter={handleCounterStyleMethod}
                   onSendRequest={handleSendRequest}
                   isProcessing={isProcessing}
                 />

@@ -6,14 +6,23 @@ import { useLanguage } from "@/providers/LanguageProvider";
 import { formatPrice } from "@/lib/utils";
 import Button from "@/components/ui/Button";
 import { Check, FileText, Plus } from "lucide-react";
+import type { PaymentMethod } from "@/types";
 
 interface POSSuccessViewProps {
   total: number;
   clientName: string;
-  paymentMethod: "card" | "counter";
+  paymentMethod: PaymentMethod;
   onNewSale: () => void;
   onViewInvoice?: () => void;
 }
+
+const METHOD_LABEL: Record<PaymentMethod, { es: string; en: string }> = {
+  card: { es: "Pagado con tarjeta", en: "Paid by card" },
+  yappy: { es: "Pagado con Yappy", en: "Paid with Yappy" },
+  cubo: { es: "Pagado con Cubo", en: "Paid with Cubo" },
+  cash: { es: "Pagado en efectivo", en: "Paid in cash" },
+  counter: { es: "Pago en mostrador", en: "Counter payment" },
+};
 
 export default function POSSuccessView({
   total,
@@ -109,13 +118,7 @@ export default function POSSuccessView({
             className="text-xs"
             style={{ color: "var(--color-text-muted)" }}
           >
-            {paymentMethod === "card"
-              ? language === "es"
-                ? "Pagado con tarjeta"
-                : "Paid by card"
-              : language === "es"
-              ? "Pago en mostrador"
-              : "Counter payment"}
+            {(METHOD_LABEL[paymentMethod] ?? METHOD_LABEL.counter)[language]}
           </p>
         </motion.div>
       )}

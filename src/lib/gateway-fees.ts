@@ -28,21 +28,26 @@ export function gatewayFeeForAmount(amount: number): number {
 }
 
 /**
- * True when an invoice was charged via the gateway (card). Counter / cash
- * payments are zero-fee. The signal is `paymentMethod === "card"` when
- * set, with a fallback to `paymentTransactionId` presence for older
- * records that didn't store the method explicitly.
+ * True when an invoice was charged via the gateway (card). Counter /
+ * Yappy / Cubo / Cash payments are all zero-fee — the gateway is only
+ * paid when a real card transaction clears Paguelo Facil.
+ *
+ * If `paymentMethod` is set, it's the source of truth. For legacy paid
+ * invoices that didn't store the method explicitly, we assume gateway
+ * only when the transaction id doesn't look like one of our manual
+ * markers.
  */
 export function wasChargedByGateway(invoice: Invoice): boolean {
   if (invoice.paymentMethod === "card") return true;
-  if (invoice.paymentMethod === "counter") return false;
-  // Legacy: assume any paid invoice with a transaction id (not a manual
-  // marker like `manual-…`) went through the gateway.
+  if (invoice.paymentMethod) return false; // any explicit non-card method
   return (
     invoice.status === "paid" &&
     !!invoice.paymentTransactionId &&
     !invoice.paymentTransactionId.startsWith("manual-") &&
-    !invoice.paymentTransactionId.startsWith("counter-")
+    !invoice.paymentTransactionId.startsWith("counter-") &&
+    !invoice.paymentTransactionId.startsWith("yappy-") &&
+    !invoice.paymentTransactionId.startsWith("cubo-") &&
+    !invoice.paymentTransactionId.startsWith("cash-")
   );
 }
 
