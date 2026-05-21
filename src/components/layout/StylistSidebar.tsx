@@ -34,7 +34,7 @@ export default function StylistSidebar() {
   ];
 
   return (
-    <aside className="w-64 bg-mila-espresso p-6 hidden lg:flex lg:flex-col lg:sticky lg:top-0 lg:self-start lg:h-screen lg:overflow-y-auto">
+    <aside className="w-64 bg-mila-espresso p-6 hidden lg:flex lg:flex-col lg:fixed lg:top-0 lg:left-0 lg:bottom-0 lg:overflow-y-auto lg:z-30">
       <Link
         href="/"
         className="flex items-center gap-2 text-sm text-mila-taupe hover:text-mila-gold transition-colors mb-8"

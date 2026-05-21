@@ -305,8 +305,8 @@ export default function AdminLayout({
   ];
 
   return (
-    <div className="flex min-h-screen">
-      {/* Desktop sidebar */}
+    <div className="min-h-screen">
+      {/* Desktop sidebar — fixed-position, doesn't participate in flex flow */}
       <AdminSidebar />
 
       {/* Mobile header: logo + horizontally scrollable tabs */}
@@ -360,14 +360,13 @@ export default function AdminLayout({
         </div>
       </div>
 
-      {/* Main content. Padding-top covers the fixed mobile header
-          (~84px logo bar + tab bar) plus a small breathing room.
-          `min-w-0` lets the flex child shrink and prevents nested
-          overflow from breaking horizontal layout. We deliberately
-          DO NOT set overflow-y on main — the page body handles
-          vertical scroll natively, which is the only reliable
-          behaviour on iOS Safari + small screens. */}
-      <main className="flex-1 min-w-0 bg-surface-primary pt-[100px] p-3 lg:p-10 lg:pt-10 relative">
+      {/* Main content.
+          • pt-[100px] covers the fixed mobile header on mobile;
+            lg:pt-10 resets it on desktop where the mobile header is hidden.
+          • lg:ml-64 leaves room for the fixed desktop sidebar (w-64).
+          • No overflow-y on main — body handles vertical scroll natively,
+            the only reliable behaviour across iOS Safari and small screens. */}
+      <main className="bg-surface-primary pt-[100px] p-3 lg:p-10 lg:pt-10 lg:ml-64 relative">
         {/* Desktop notification bell */}
         <div className="hidden lg:block fixed top-5 right-8 z-50">
           <AdminNotificationBell />

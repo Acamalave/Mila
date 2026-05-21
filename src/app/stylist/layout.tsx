@@ -64,7 +64,7 @@ export default function StylistLayout({
   ];
 
   return (
-    <div className="flex min-h-screen">
+    <div className="min-h-screen">
       <StylistSidebar />
 
       <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-mila-espresso px-4 py-3 flex items-center justify-between">
@@ -129,8 +129,9 @@ export default function StylistLayout({
       )}
 
       {/* Body handles vertical scroll natively — no overflow-y on main
-          (nested scroll containers break on iOS Safari + small screens). */}
-      <main className="flex-1 min-w-0 bg-surface-primary pt-16 lg:pt-0 p-6 lg:p-8">
+          (nested scroll containers break on iOS Safari + small screens).
+          lg:ml-64 leaves room for the fixed desktop sidebar. */}
+      <main className="bg-surface-primary pt-16 lg:pt-8 p-6 lg:p-8 lg:ml-64">
         {children}
       </main>
     </div>
