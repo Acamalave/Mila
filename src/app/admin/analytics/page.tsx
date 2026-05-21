@@ -96,23 +96,14 @@ export default function AdminAnalyticsPage() {
     return Number((sum / reviews.length).toFixed(1));
   }, [reviews]);
 
-  // Total revenue: paid invoices (POS + dashboard checkout) — uses invoice
-  // amounts which include ITBMS, but that's the actual money received.
-  // De-duplicate against booking.totalPrice when an invoice already references
-  // the booking, so we don't double-count.
+  // Ingresos = SOLO facturas pagadas. Una reserva en estado "confirmed" no es
+  // dinero recibido, es solo un cupo apartado; contarla aquí inflaba el total
+  // con ventas que aún no existían.
   const totalRevenue = useMemo(() => {
-    const paidInvoices = invoices.filter((inv) => inv.status === "paid");
-    const invoiceRevenue = paidInvoices.reduce((sum, inv) => sum + (inv.amount ?? 0), 0);
-    const bookingIdsCovered = new Set(
-      paidInvoices.map((inv) => inv.bookingId).filter(Boolean) as string[]
-    );
-    const bookingRevenue = bookings
-      .filter(
-        (b) => (b.status === "completed" || b.status === "confirmed") && !bookingIdsCovered.has(b.id)
-      )
-      .reduce((sum, b) => sum + (b.totalPrice ?? 0), 0);
-    return invoiceRevenue + bookingRevenue;
-  }, [invoices, bookings]);
+    return invoices
+      .filter((inv) => inv.status === "paid")
+      .reduce((sum, inv) => sum + (inv.amount ?? 0), 0);
+  }, [invoices]);
 
   // Most popular service — only count bookings that actually happened or
   // are scheduled to happen. Cancelled rows don't represent demand.
@@ -145,26 +136,25 @@ export default function AdminAnalyticsPage() {
     return allStylists.find((s) => s.id === topStylistId) || null;
   }, [bookings, allStylists]);
 
-  // Revenue by service category
+  // Ingresos por categoría = derivados de facturas pagadas (items tipo
+  // "service" mapeados a su categoría). Antes se calculaba sobre bookings
+  // confirmados, lo que mostraba ingresos por categoría sin que existiera
+  // una venta real.
   const revenueByCategory = useMemo(() => {
     const catRevenue: Record<string, number> = {};
     serviceCategories.forEach((cat) => {
       catRevenue[cat.id] = 0;
     });
 
-    bookings
-      .filter(
-        (b) => b.status === "confirmed" || b.status === "completed"
-      )
-      .forEach((b) => {
-        const svcIds = b.serviceIds ?? [];
-        const share = svcIds.length > 0 ? b.totalPrice / svcIds.length : 0;
-        svcIds.forEach((svcId) => {
-          const service = services.find((s) => s.id === svcId);
-          if (service) {
-            catRevenue[service.categoryId] =
-              (catRevenue[service.categoryId] || 0) + share;
-          }
+    invoices
+      .filter((inv) => inv.status === "paid")
+      .forEach((inv) => {
+        (inv.items ?? []).forEach((item) => {
+          if (item.type !== "service") return;
+          const service = services.find((s) => s.id === item.id);
+          if (!service) return;
+          catRevenue[service.categoryId] =
+            (catRevenue[service.categoryId] || 0) + item.price * item.quantity;
         });
       });
 
@@ -176,7 +166,7 @@ export default function AdminAnalyticsPage() {
       revenue: catRevenue[cat.id] || 0,
       percent: Math.round(((catRevenue[cat.id] || 0) / maxRevenue) * 100),
     }));
-  }, [bookings, language]);
+  }, [invoices, language]);
 
   // Bookings per day of week — excludes cancelled / no-show so the
   // weekday demand chart reflects real foot traffic.
