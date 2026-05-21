@@ -87,11 +87,25 @@ export default function POSPage() {
   const { discountAmount, afterDiscount, taxAmount, taxRate, total } = calculateTaxBreakdown(subtotal, discount);
   const currentStepIndex = STEPS.indexOf(step);
 
-  // Services missing a stylist assignment (neither per-item nor invoice-level)
-  const unassignedServices = items.filter(
+  // Items (services + products) missing a stylist assignment. We don't fall
+  // back to invoice-level here on the `items` step because the goal is to
+  // FORCE the operator to assign per-item before continuing — that's the
+  // safest data shape for commissions and matches the "haz que falle
+  // temprano" UX the operator asked for.
+  const unassignedItemIndexes = useMemo(() => {
+    const set = new Set<number>();
+    items.forEach((item, idx) => {
+      if ((item.type === "service" || item.type === "product") && !item.stylistId) {
+        set.add(idx);
+      }
+    });
+    return set;
+  }, [items]);
+  const hasUnassignedItem = unassignedItemIndexes.size > 0;
+  // Review step still allows the invoice-level stylist as a fallback.
+  const hasUnassignedServiceForReview = items.some(
     (item) => item.type === "service" && !item.stylistId && !stylistId
   );
-  const hasUnassignedService = unassignedServices.length > 0;
 
   // Fill missing per-item stylist with the invoice-level stylist so commission
   // generation correctly attributes earnings (CommissionProvider reads
@@ -112,14 +126,18 @@ export default function POSPage() {
       case "client":
         return !!client;
       case "items":
-        return items.length > 0;
+        // Must have at least one item AND every item (service or product)
+        // must have a stylist assigned. Blocking here surfaces the gap
+        // immediately instead of letting it slip to review/payment.
+        return items.length > 0 && !hasUnassignedItem;
       case "review":
-        // Block payment if any service item lacks a stylist assignment
-        return !hasUnassignedService;
+        // Review step lets the invoice-level stylist cover any service
+        // that still doesn't have its own assignment.
+        return !hasUnassignedServiceForReview;
       default:
         return false;
     }
-  }, [step, client, items, hasUnassignedService]);
+  }, [step, client, items, hasUnassignedItem, hasUnassignedServiceForReview]);
 
   const goNext = () => {
     const idx = STEPS.indexOf(step);
@@ -455,7 +473,11 @@ export default function POSPage() {
               )}
 
               {step === "items" && (
-                <POSItemSelector items={items} onItemsChange={setItems} />
+                <POSItemSelector
+                  items={items}
+                  onItemsChange={setItems}
+                  unassignedIndexes={unassignedItemIndexes}
+                />
               )}
 
               {step === "review" && client && (

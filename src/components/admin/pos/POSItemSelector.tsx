@@ -13,6 +13,7 @@ import {
   Scissors,
   ShoppingBag,
   PackageOpen,
+  AlertCircle,
 } from "lucide-react";
 import type { InvoiceItem } from "@/types";
 import { useStaff } from "@/providers/StaffProvider";
@@ -20,11 +21,16 @@ import { useStaff } from "@/providers/StaffProvider";
 interface POSItemSelectorProps {
   items: InvoiceItem[];
   onItemsChange: (items: InvoiceItem[]) => void;
+  /** Indexes of items missing a stylist assignment. The parent computes
+   *  this so the "Continuar" button stays in sync with what's highlighted
+   *  here. */
+  unassignedIndexes?: ReadonlySet<number>;
 }
 
 export default function POSItemSelector({
   items,
   onItemsChange,
+  unassignedIndexes,
 }: POSItemSelectorProps) {
   const { language, t } = useLanguage();
   const { allProducts } = useProducts();
@@ -271,6 +277,37 @@ export default function POSItemSelector({
         </div>
       </div>
 
+      {/* Inline validation banner — surfaces missing stylist assignments
+          BEFORE the operator hits "Continuar" and gets a disabled button
+          with no explanation. */}
+      {items.length > 0 && unassignedIndexes && unassignedIndexes.size > 0 && (
+        <div
+          className="flex items-start gap-2.5 rounded-lg px-3 py-2.5"
+          style={{
+            background: "rgba(239, 68, 68, 0.08)",
+            border: "1px solid rgba(239, 68, 68, 0.25)",
+          }}
+        >
+          <AlertCircle
+            size={16}
+            style={{ color: "#ef4444", marginTop: 1, flexShrink: 0 }}
+          />
+          <div className="text-xs leading-snug" style={{ color: "var(--color-text-primary)" }}>
+            {language === "es"
+              ? `Asigna un estilista a ${
+                  unassignedIndexes.size === 1
+                    ? "el item marcado"
+                    : `los ${unassignedIndexes.size} items marcados`
+                } antes de continuar — cada venta debe atribuirse a alguien para que la comisión se calcule.`
+              : `Assign a stylist to ${
+                  unassignedIndexes.size === 1
+                    ? "the highlighted item"
+                    : `the ${unassignedIndexes.size} highlighted items`
+                } before continuing — every sale must be attributed so commissions can be calculated.`}
+          </div>
+        </div>
+      )}
+
       {/* Current items */}
       {items.length > 0 ? (
         <div
@@ -290,7 +327,9 @@ export default function POSItemSelector({
           >
             {t("pos", "orderSummary")} ({items.length} {t("pos", "items")})
           </div>
-          {items.map((item, idx) => (
+          {items.map((item, idx) => {
+            const isUnassigned = unassignedIndexes?.has(idx) ?? false;
+            return (
             <div
               key={`${item.type}-${item.id}-${idx}`}
               className="px-4 py-3"
@@ -299,6 +338,13 @@ export default function POSItemSelector({
                   idx < items.length - 1
                     ? "1px solid var(--color-border-default)"
                     : "none",
+                // Tint the row when its stylist is missing so the operator
+                // can scan and fix immediately. Soft red — same palette as
+                // the validation banner above.
+                background: isUnassigned ? "rgba(239, 68, 68, 0.06)" : undefined,
+                boxShadow: isUnassigned
+                  ? "inset 3px 0 0 0 #ef4444"
+                  : undefined,
               }}
             >
               <div className="flex items-center gap-3">
@@ -387,11 +433,15 @@ export default function POSItemSelector({
                 <Trash2 size={14} />
               </button>
               </div>
-              {/* Stylist selector — services only */}
-              {item.type === "service" && allStylists.length > 0 && (
+              {/* Stylist selector — for services AND products. Products
+                  earn a flat commission too, so they need an assigned
+                  stylist just like services. Required field — when blank
+                  the dropdown is outlined red to match the banner. */}
+              {allStylists.length > 0 && (
                 <div className="mt-1.5 flex items-center gap-2 pl-10">
                   <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
                     {language === "es" ? "Estilista:" : "Stylist:"}
+                    <span style={{ color: "#ef4444" }}> *</span>
                   </span>
                   <select
                     value={item.stylistId ?? ""}
@@ -399,8 +449,12 @@ export default function POSItemSelector({
                     className="text-xs rounded-md px-2 py-1 flex-1"
                     style={{
                       background: "var(--color-bg-input)",
-                      border: "1px solid var(--color-border-default)",
-                      color: item.stylistId ? "var(--color-text-primary)" : "var(--color-text-muted)",
+                      border: isUnassigned
+                        ? "1px solid #ef4444"
+                        : "1px solid var(--color-border-default)",
+                      color: item.stylistId
+                        ? "var(--color-text-primary)"
+                        : "#ef4444",
                       outline: "none",
                     }}
                   >
@@ -412,7 +466,8 @@ export default function POSItemSelector({
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
           {/* Subtotal bar */}
           <div
             className="flex items-center justify-between px-4 py-3 font-semibold"
