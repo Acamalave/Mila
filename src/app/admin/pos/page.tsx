@@ -11,6 +11,7 @@ import { useToast } from "@/providers/ToastProvider";
 import { calculateTaxBreakdown, generateId, getStoredData, setStoredData } from "@/lib/utils";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import POSClientSelector from "@/components/admin/pos/POSClientSelector";
 import POSItemSelector from "@/components/admin/pos/POSItemSelector";
 import POSOrderReview from "@/components/admin/pos/POSOrderReview";
@@ -36,6 +37,7 @@ import {
   ChevronRight,
   ChevronLeft,
   Save,
+  RotateCcw,
 } from "lucide-react";
 import type { InvoiceItem, PaymentMethod } from "@/types";
 import type { POSClient } from "@/components/admin/pos/POSClientSelector";
@@ -74,6 +76,9 @@ export default function POSPage() {
   /** Stashed drafts so the operator can step away from a sale and pick it
    *  up later. Local-only — see lib/pos-drafts.ts. */
   const [drafts, setDrafts] = useState<POSDraft[]>(() => listDrafts());
+  /** Controls the "Comenzar de cero" confirm dialog. We always confirm
+   *  before wiping non-trivial state to avoid losing work to a stray click. */
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Persist cart to localStorage
   useEffect(() => {
@@ -336,6 +341,28 @@ export default function POSPage() {
     [language, addToast]
   );
 
+  /**
+   * "Comenzar de cero" button handler. Confirms before wiping when
+   * there's meaningful state in the cart so a stray click doesn't lose
+   * work. When the cart is already empty, just resets silently.
+   */
+  const handleRequestReset = useCallback(() => {
+    if (!isCartDraftWorthy(client, items, stylistId)) {
+      handleNewSale();
+      return;
+    }
+    setShowResetConfirm(true);
+  }, [client, items, stylistId]);
+
+  const confirmReset = useCallback(() => {
+    setShowResetConfirm(false);
+    handleNewSale();
+    addToast(
+      language === "es" ? "Punto de venta limpiado" : "POS cleared",
+      "info"
+    );
+  }, [language, addToast]);
+
   const stepLabel = (s: Step) => {
     switch (s) {
       case "client":
@@ -359,22 +386,48 @@ export default function POSPage() {
       className="space-y-6 max-w-2xl mx-auto"
     >
       {/* Header */}
-      <motion.div variants={fadeInUp} className="flex items-center gap-3">
-        <ShoppingCart size={24} style={{ color: "var(--color-accent)" }} />
-        <div>
-          <h1
-            className="text-2xl font-bold font-[family-name:var(--font-display)]"
-            style={{ color: "var(--color-text-primary)" }}
-          >
-            {t("pos", "title")}
-          </h1>
-          <p
-            className="text-sm"
-            style={{ color: "var(--color-text-muted)" }}
-          >
-            {t("pos", "subtitle")}
-          </p>
+      <motion.div
+        variants={fadeInUp}
+        className="flex items-center justify-between gap-3"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <ShoppingCart size={24} style={{ color: "var(--color-accent)" }} />
+          <div className="min-w-0">
+            <h1
+              className="text-2xl font-bold font-[family-name:var(--font-display)] truncate"
+              style={{ color: "var(--color-text-primary)" }}
+            >
+              {t("pos", "title")}
+            </h1>
+            <p
+              className="text-sm truncate"
+              style={{ color: "var(--color-text-muted)" }}
+            >
+              {t("pos", "subtitle")}
+            </p>
+          </div>
         </div>
+
+        {/* Reset / start-over button. Always visible while a sale is in
+            progress so the operator can wipe and restart at any moment.
+            Hidden once the sale lands on pending/success — those screens
+            already have their own "Nueva venta" buttons. */}
+        {step !== "pending" && step !== "success" && (
+          <button
+            onClick={handleRequestReset}
+            title={
+              language === "es"
+                ? "Limpia el panel y comienza una venta nueva"
+                : "Clear the panel and start a fresh sale"
+            }
+            className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-border-default text-text-secondary hover:bg-white/5 hover:text-text-primary transition-colors cursor-pointer"
+          >
+            <RotateCcw size={14} />
+            <span className="hidden sm:inline">
+              {language === "es" ? "Comenzar de cero" : "Start over"}
+            </span>
+          </button>
+        )}
       </motion.div>
 
       {/* Step indicator */}
@@ -610,6 +663,27 @@ export default function POSPage() {
           />
         </motion.div>
       )}
+
+      {/* Reset confirmation. Only mounts when the cart has meaningful
+          state; empty carts skip the prompt entirely. */}
+      <ConfirmDialog
+        isOpen={showResetConfirm}
+        title={
+          language === "es" ? "¿Comenzar de cero?" : "Start over?"
+        }
+        message={
+          language === "es"
+            ? "Esto vacía el cliente, los items y el descuento de la venta actual. Si querés conservarla, cancelá y usá \"Guardar borrador\" primero."
+            : "This wipes the client, items, and discount of the current sale. If you want to keep it, cancel and use \"Save draft\" first."
+        }
+        confirmLabel={
+          language === "es" ? "Sí, comenzar de cero" : "Yes, start over"
+        }
+        cancelLabel={language === "es" ? "Cancelar" : "Cancel"}
+        variant="warning"
+        onConfirm={confirmReset}
+        onCancel={() => setShowResetConfirm(false)}
+      />
     </motion.div>
   );
 }
