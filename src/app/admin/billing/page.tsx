@@ -13,10 +13,27 @@ import { services } from "@/data/services";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
+import Avatar from "@/components/ui/Avatar";
 import InvoiceFormModal from "@/components/admin/InvoiceFormModal";
 import DeleteConfirmModal from "@/components/admin/DeleteConfirmModal";
+import AdminInvoiceDetailModal from "@/components/admin/AdminInvoiceDetailModal";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
-import { DollarSign, CheckCircle2, Clock, Plus, Send, Edit2, Trash2, FileText, Percent, XCircle, RefreshCw } from "lucide-react";
+import {
+  DollarSign,
+  CheckCircle2,
+  Clock,
+  Plus,
+  Send,
+  Edit2,
+  Trash2,
+  FileText,
+  Percent,
+  XCircle,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  Calendar,
+} from "lucide-react";
 import type { Invoice, InvoiceStatus } from "@/types";
 
 type FilterTab = "all" | "draft" | "sent" | "paid" | "declined";
@@ -34,6 +51,57 @@ export default function AdminBillingPage() {
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [deletingInvoice, setDeletingInvoice] = useState<Invoice | null>(null);
+  /** Read-only detail popup shown when clicking an invoice row. */
+  const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+
+  // ── Commission period filter ──
+  // Default to "this month" — most operators settle commissions monthly.
+  const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const firstOfMonthIso = useMemo(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  }, []);
+  const [commissionStartDate, setCommissionStartDate] = useState<string>(firstOfMonthIso);
+  const [commissionEndDate, setCommissionEndDate] = useState<string>(todayIso);
+  /** Which stylist cards are expanded — keyed by stylistId. */
+  const [expandedStylists, setExpandedStylists] = useState<Set<string>>(new Set());
+  const toggleExpanded = useCallback((stylistId: string) => {
+    setExpandedStylists((prev) => {
+      const next = new Set(prev);
+      if (next.has(stylistId)) next.delete(stylistId);
+      else next.add(stylistId);
+      return next;
+    });
+  }, []);
+
+  /** Quick-range presets for the date filter. */
+  const applyPreset = useCallback(
+    (preset: "thisWeek" | "thisMonth" | "last30" | "allTime") => {
+      const today = new Date();
+      const todayStr = today.toISOString().slice(0, 10);
+      if (preset === "thisWeek") {
+        const day = today.getDay();
+        const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(today.getFullYear(), today.getMonth(), diff);
+        setCommissionStartDate(monday.toISOString().slice(0, 10));
+        setCommissionEndDate(todayStr);
+      } else if (preset === "thisMonth") {
+        setCommissionStartDate(
+          new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10)
+        );
+        setCommissionEndDate(todayStr);
+      } else if (preset === "last30") {
+        const d = new Date();
+        d.setDate(d.getDate() - 30);
+        setCommissionStartDate(d.toISOString().slice(0, 10));
+        setCommissionEndDate(todayStr);
+      } else {
+        setCommissionStartDate("1970-01-01");
+        setCommissionEndDate(todayStr);
+      }
+    },
+    []
+  );
 
   const filteredInvoices = useMemo(
     () =>
@@ -58,16 +126,63 @@ export default function AdminBillingPage() {
     return { total, paid, pending };
   }, [invoices]);
 
+  /**
+   * Commissions filtered by both date range AND status. The date range is
+   * inclusive on both ends (we add 1 day to the end so it captures everything
+   * created during the chosen end day).
+   */
   const filteredCommissions = useMemo(() => {
-    const sorted = [...commissions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    return commissionFilter === "all" ? sorted : sorted.filter((c) => c.status === commissionFilter);
-  }, [commissions, commissionFilter]);
+    const startMs = new Date(`${commissionStartDate}T00:00:00`).getTime();
+    const endMs = new Date(`${commissionEndDate}T23:59:59.999`).getTime();
+    const inRange = commissions.filter((c) => {
+      const t = new Date(c.createdAt).getTime();
+      return t >= startMs && t <= endMs;
+    });
+    const sorted = [...inRange].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    return commissionFilter === "all"
+      ? sorted
+      : sorted.filter((c) => c.status === commissionFilter);
+  }, [commissions, commissionFilter, commissionStartDate, commissionEndDate]);
 
+  /** Totals — always computed off the filtered (period-scoped) list. */
   const commissionSummary = useMemo(() => {
-    const pending = commissions.filter((c) => c.status === "pending").reduce((sum, c) => sum + c.commissionAmount, 0);
-    const paid = commissions.filter((c) => c.status === "paid").reduce((sum, c) => sum + c.commissionAmount, 0);
+    const pending = filteredCommissions
+      .filter((c) => c.status === "pending")
+      .reduce((sum, c) => sum + c.commissionAmount, 0);
+    const paid = filteredCommissions
+      .filter((c) => c.status === "paid")
+      .reduce((sum, c) => sum + c.commissionAmount, 0);
     return { total: pending + paid, pending, paid };
-  }, [commissions]);
+  }, [filteredCommissions]);
+
+  /**
+   * One bucket per stylist in the filtered window. Stylists without
+   * commissions in the period don't appear. Sorted by total earned desc
+   * so the highest earners surface first.
+   */
+  const commissionsByStylist = useMemo(() => {
+    const groups = new Map<
+      string,
+      { stylistId: string; rows: typeof filteredCommissions; total: number; pending: number; paid: number }
+    >();
+    for (const c of filteredCommissions) {
+      const bucket = groups.get(c.stylistId) ?? {
+        stylistId: c.stylistId,
+        rows: [],
+        total: 0,
+        pending: 0,
+        paid: 0,
+      };
+      bucket.rows.push(c);
+      bucket.total += c.commissionAmount;
+      if (c.status === "paid") bucket.paid += c.commissionAmount;
+      else bucket.pending += c.commissionAmount;
+      groups.set(c.stylistId, bucket);
+    }
+    return Array.from(groups.values()).sort((a, b) => b.total - a.total);
+  }, [filteredCommissions]);
 
   const getService = (id: string) => services.find((s) => s.id === id);
 
@@ -392,7 +507,8 @@ export default function AdminBillingPage() {
                     return (
                       <tr
                         key={invoice.id}
-                        className="hover:bg-white/5 transition-colors"
+                        onClick={() => setViewingInvoice(invoice)}
+                        className="hover:bg-white/5 transition-colors cursor-pointer"
                       >
                         <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm font-mono text-text-primary font-medium">
                           {invoice.id}
@@ -416,7 +532,10 @@ export default function AdminBillingPage() {
                             {statusLabel(invoice.status)}
                           </Badge>
                         </td>
-                        <td className="px-3 sm:px-6 py-2 sm:py-4 text-center">
+                        <td
+                          className="px-3 sm:px-6 py-2 sm:py-4 text-center"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <div className="flex items-center justify-center gap-1">
                             {canMarkPaid && (
                               <button
@@ -532,6 +651,7 @@ export default function AdminBillingPage() {
         message={t("admin", "confirmDeleteInvoice")}
         itemName={deletingInvoice?.id ?? ""}
       />
+
       </>
       )}
 
@@ -568,85 +688,305 @@ export default function AdminBillingPage() {
             </Card>
           </motion.div>
 
-          {/* Commission table */}
+          {/* Date range + status filter */}
           <motion.div variants={fadeInUp}>
-            <Card padding="none">
-              <div className="flex items-center gap-1 p-4 border-b border-border-default">
-                {(["all", "pending", "paid"] as const).map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => setCommissionFilter(f)}
-                    className={cn(
-                      "px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer",
-                      commissionFilter === f
-                        ? "bg-mila-gold/10 text-mila-gold"
-                        : "text-text-muted hover:text-text-primary hover:bg-white/5"
-                    )}
+            <Card padding="md">
+              <div className="flex flex-col gap-3">
+                {/* Quick presets */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span
+                    className="text-xs uppercase tracking-wider font-medium mr-2"
+                    style={{ color: "var(--color-text-muted)" }}
                   >
-                    {f === "all" ? (language === "es" ? "Todas" : "All") : f === "pending" ? (language === "es" ? "Pendientes" : "Pending") : (language === "es" ? "Pagadas" : "Paid")}
-                  </button>
-                ))}
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border-default text-left">
-                      <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider">{language === "es" ? "Estilista" : "Stylist"}</th>
-                      <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider hidden md:table-cell">{language === "es" ? "Servicio" : "Service"}</th>
-                      <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-right hidden lg:table-cell">{language === "es" ? "Precio" : "Price"}</th>
-                      <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-center">{language === "es" ? "Tasa" : "Rate"}</th>
-                      <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-right">{t("admin", "commission")}</th>
-                      <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-center">{t("admin", "status")}</th>
-                      <th className="px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-center">{language === "es" ? "Acciones" : "Actions"}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border-subtle">
-                    {filteredCommissions.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="px-6 py-12 text-center text-text-muted">
-                          {language === "es" ? "Sin comisiones" : "No commissions"}
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredCommissions.map((c) => {
-                        const stylist = allStylists.find((s) => s.id === c.stylistId);
-                        const service = services.find((s) => s.id === c.serviceId);
-                        return (
-                          <tr key={c.id} className="hover:bg-white/5 transition-colors">
-                            <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm font-medium text-text-primary">{stylist?.name ?? c.stylistId}</td>
-                            <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-text-secondary hidden md:table-cell">{service?.name[language] ?? c.serviceId}</td>
-                            <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-text-secondary text-right hidden lg:table-cell">{formatPrice(c.serviceAmount)}</td>
-                            <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-text-secondary text-center">{c.commissionRate}%</td>
-                            <td className="px-3 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm font-medium text-text-primary text-right">{formatPrice(c.commissionAmount)}</td>
-                            <td className="px-3 sm:px-6 py-2 sm:py-4 text-center">
-                              <Badge variant={c.status === "paid" ? "success" : "warning"}>
-                                {c.status === "paid" ? (language === "es" ? "Pagada" : "Paid") : (language === "es" ? "Pendiente" : "Pending")}
-                              </Badge>
-                            </td>
-                            <td className="px-3 sm:px-6 py-2 sm:py-4 text-center">
-                              {c.status === "pending" && (
-                                <button
-                                  onClick={() => {
-                                    markCommissionPaid(c.id);
-                                    addToast(language === "es" ? "Comision marcada como pagada" : "Commission marked as paid", "success");
-                                  }}
-                                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-success/10 text-success hover:bg-success/20 transition-colors cursor-pointer"
-                                >
-                                  {t("admin", "markPaid")}
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
+                    <Calendar size={12} className="inline mr-1" />
+                    {language === "es" ? "Período" : "Period"}
+                  </span>
+                  {([
+                    { key: "thisWeek", label: language === "es" ? "Semana" : "Week" },
+                    { key: "thisMonth", label: language === "es" ? "Mes" : "Month" },
+                    { key: "last30", label: language === "es" ? "Últimos 30 días" : "Last 30 days" },
+                    { key: "allTime", label: language === "es" ? "Todo" : "All time" },
+                  ] as const).map((preset) => (
+                    <button
+                      key={preset.key}
+                      onClick={() => applyPreset(preset.key)}
+                      className="px-3 py-1.5 rounded-md text-xs font-medium border border-border-default text-text-secondary hover:bg-white/5 hover:text-text-primary transition-colors cursor-pointer"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Explicit date inputs + status pills */}
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <label
+                      className="text-xs font-medium"
+                      style={{ color: "var(--color-text-muted)" }}
+                    >
+                      {language === "es" ? "Desde" : "From"}
+                    </label>
+                    <input
+                      type="date"
+                      value={commissionStartDate}
+                      onChange={(e) => setCommissionStartDate(e.target.value)}
+                      max={commissionEndDate}
+                      className="px-3 py-1.5 rounded-md text-sm bg-bg-input text-text-primary border border-border-default focus:border-mila-gold focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label
+                      className="text-xs font-medium"
+                      style={{ color: "var(--color-text-muted)" }}
+                    >
+                      {language === "es" ? "Hasta" : "To"}
+                    </label>
+                    <input
+                      type="date"
+                      value={commissionEndDate}
+                      onChange={(e) => setCommissionEndDate(e.target.value)}
+                      min={commissionStartDate}
+                      max={todayIso}
+                      className="px-3 py-1.5 rounded-md text-sm bg-bg-input text-text-primary border border-border-default focus:border-mila-gold focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 ml-auto">
+                    {(["all", "pending", "paid"] as const).map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => setCommissionFilter(f)}
+                        className={cn(
+                          "px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 cursor-pointer",
+                          commissionFilter === f
+                            ? "bg-mila-gold/10 text-mila-gold"
+                            : "text-text-muted hover:text-text-primary hover:bg-white/5"
+                        )}
+                      >
+                        {f === "all"
+                          ? language === "es" ? "Todas" : "All"
+                          : f === "pending"
+                          ? language === "es" ? "Pendientes" : "Pending"
+                          : language === "es" ? "Pagadas" : "Paid"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </Card>
           </motion.div>
+
+          {/* Stylist cards */}
+          <motion.div variants={fadeInUp} className="space-y-3">
+            {commissionsByStylist.length === 0 ? (
+              <Card padding="lg">
+                <p className="text-center text-text-muted py-8">
+                  {language === "es"
+                    ? "Sin comisiones en este período"
+                    : "No commissions in this period"}
+                </p>
+              </Card>
+            ) : (
+              commissionsByStylist.map((group) => {
+                const stylist = allStylists.find((s) => s.id === group.stylistId);
+                const isExpanded = expandedStylists.has(group.stylistId);
+                const hasPending = group.pending > 0;
+                return (
+                  <Card key={group.stylistId} padding="none">
+                    {/* Summary row */}
+                    <button
+                      onClick={() => toggleExpanded(group.stylistId)}
+                      className="w-full flex items-center gap-4 p-4 hover:bg-white/5 transition-colors cursor-pointer text-left"
+                    >
+                      <Avatar
+                        src={stylist?.avatar ?? ""}
+                        alt={stylist?.name ?? group.stylistId}
+                        size="md"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-text-primary truncate">
+                          {stylist?.name ?? group.stylistId}
+                        </p>
+                        <div className="text-[11px] text-text-muted mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                          <span>
+                            {group.rows.length}{" "}
+                            {language === "es"
+                              ? group.rows.length === 1
+                                ? "comisión"
+                                : "comisiones"
+                              : group.rows.length === 1
+                              ? "commission"
+                              : "commissions"}
+                          </span>
+                          {group.pending > 0 && (
+                            <span className="text-warning">
+                              · {language === "es" ? "Pendiente" : "Pending"}:{" "}
+                              {formatPrice(group.pending)}
+                            </span>
+                          )}
+                          {group.paid > 0 && (
+                            <span className="text-success">
+                              · {language === "es" ? "Pagado" : "Paid"}:{" "}
+                              {formatPrice(group.paid)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] uppercase tracking-wider text-text-muted">
+                          {language === "es" ? "Total" : "Total"}
+                        </p>
+                        <p className="text-lg sm:text-xl font-bold text-mila-gold">
+                          {formatPrice(group.total)}
+                        </p>
+                      </div>
+                      {hasPending && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            markAllPaidForStylist(group.stylistId);
+                            addToast(
+                              language === "es"
+                                ? "Comisiones marcadas como pagadas"
+                                : "Commissions marked as paid",
+                              "success"
+                            );
+                          }}
+                          className="hidden sm:inline-flex px-3 py-1.5 rounded-lg text-xs font-medium bg-success/10 text-success hover:bg-success/20 transition-colors cursor-pointer"
+                        >
+                          {language === "es" ? "Pagar todo" : "Pay all"}
+                        </button>
+                      )}
+                      {isExpanded ? (
+                        <ChevronUp size={18} className="text-text-muted" />
+                      ) : (
+                        <ChevronDown size={18} className="text-text-muted" />
+                      )}
+                    </button>
+
+                    {/* Expanded detail */}
+                    {isExpanded && (
+                      <div className="border-t border-border-default overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b border-border-subtle text-left bg-white/[0.02]">
+                              <th className="px-3 sm:px-6 py-2 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider">
+                                {language === "es" ? "Fecha" : "Date"}
+                              </th>
+                              <th className="px-3 sm:px-6 py-2 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider">
+                                {language === "es" ? "Servicio" : "Service"}
+                              </th>
+                              <th className="px-3 sm:px-6 py-2 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider hidden md:table-cell">
+                                {language === "es" ? "Origen" : "Source"}
+                              </th>
+                              <th className="px-3 sm:px-6 py-2 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-right hidden sm:table-cell">
+                                {language === "es" ? "Precio" : "Price"}
+                              </th>
+                              <th className="px-3 sm:px-6 py-2 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-center hidden sm:table-cell">
+                                {language === "es" ? "Tasa" : "Rate"}
+                              </th>
+                              <th className="px-3 sm:px-6 py-2 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-right">
+                                {t("admin", "commission")}
+                              </th>
+                              <th className="px-3 sm:px-6 py-2 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-center">
+                                {t("admin", "status")}
+                              </th>
+                              <th className="px-3 sm:px-6 py-2 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider text-center">
+                                {language === "es" ? "Acción" : "Action"}
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border-subtle">
+                            {group.rows.map((c) => {
+                              const matchedService = services.find(
+                                (s) => s.id === c.serviceId
+                              );
+                              const sourceInvoice = c.invoiceId
+                                ? invoices.find((i) => i.id === c.invoiceId)
+                                : null;
+                              return (
+                                <tr
+                                  key={c.id}
+                                  className="hover:bg-white/[0.03] transition-colors"
+                                >
+                                  <td className="px-3 sm:px-6 py-2 text-xs text-text-secondary whitespace-nowrap">
+                                    {formatShortDate(c.createdAt, language)}
+                                  </td>
+                                  <td className="px-3 sm:px-6 py-2 text-xs text-text-primary">
+                                    {matchedService?.name[language] ?? c.serviceId}
+                                  </td>
+                                  <td className="px-3 sm:px-6 py-2 text-xs text-text-muted hidden md:table-cell">
+                                    {sourceInvoice ? (
+                                      <button
+                                        onClick={() => setViewingInvoice(sourceInvoice)}
+                                        className="font-mono hover:text-mila-gold transition-colors cursor-pointer"
+                                      >
+                                        {sourceInvoice.id}
+                                      </button>
+                                    ) : c.bookingId ? (
+                                      <span className="font-mono">{c.bookingId}</span>
+                                    ) : (
+                                      "-"
+                                    )}
+                                  </td>
+                                  <td className="px-3 sm:px-6 py-2 text-xs text-text-secondary text-right hidden sm:table-cell">
+                                    {formatPrice(c.serviceAmount)}
+                                  </td>
+                                  <td className="px-3 sm:px-6 py-2 text-xs text-text-secondary text-center hidden sm:table-cell">
+                                    {c.commissionRate}%
+                                  </td>
+                                  <td className="px-3 sm:px-6 py-2 text-xs font-medium text-text-primary text-right">
+                                    {formatPrice(c.commissionAmount)}
+                                  </td>
+                                  <td className="px-3 sm:px-6 py-2 text-center">
+                                    <Badge
+                                      variant={
+                                        c.status === "paid" ? "success" : "warning"
+                                      }
+                                    >
+                                      {c.status === "paid"
+                                        ? language === "es" ? "Pagada" : "Paid"
+                                        : language === "es" ? "Pendiente" : "Pending"}
+                                    </Badge>
+                                  </td>
+                                  <td className="px-3 sm:px-6 py-2 text-center">
+                                    {c.status === "pending" && (
+                                      <button
+                                        onClick={() => {
+                                          markCommissionPaid(c.id);
+                                          addToast(
+                                            language === "es"
+                                              ? "Comisión marcada como pagada"
+                                              : "Commission marked as paid",
+                                            "success"
+                                          );
+                                        }}
+                                        className="px-2.5 py-1 rounded text-[11px] font-medium bg-success/10 text-success hover:bg-success/20 transition-colors cursor-pointer"
+                                      >
+                                        {t("admin", "markPaid")}
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </Card>
+                );
+              })
+            )}
+          </motion.div>
         </>
       )}
+
+      {/* Detail modal — shared by invoices and commissions views */}
+      <AdminInvoiceDetailModal
+        isOpen={!!viewingInvoice}
+        onClose={() => setViewingInvoice(null)}
+        invoice={viewingInvoice}
+      />
     </motion.div>
   );
 }
