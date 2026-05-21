@@ -17,6 +17,14 @@ import POSOrderReview from "@/components/admin/pos/POSOrderReview";
 import POSPaymentSelector from "@/components/admin/pos/POSPaymentSelector";
 import POSPendingView from "@/components/admin/pos/POSPendingView";
 import POSSuccessView from "@/components/admin/pos/POSSuccessView";
+import POSDraftsList from "@/components/admin/pos/POSDraftsList";
+import {
+  listDrafts,
+  saveDraft,
+  removeDraft,
+  isCartDraftWorthy,
+  type POSDraft,
+} from "@/lib/pos-drafts";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
 import {
   ShoppingCart,
@@ -27,6 +35,7 @@ import {
   Check,
   ChevronRight,
   ChevronLeft,
+  Save,
 } from "lucide-react";
 import type { InvoiceItem } from "@/types";
 import type { POSClient } from "@/components/admin/pos/POSClientSelector";
@@ -61,6 +70,9 @@ export default function POSPage() {
   const [lastPaymentMethod, setLastPaymentMethod] = useState<"card" | "counter">("counter");
   const [lastInvoiceId, setLastInvoiceId] = useState<string | null>(null);
   const [stylistId, setStylistId] = useState<string | null>(savedCart?.stylistId ?? null);
+  /** Stashed drafts so the operator can step away from a sale and pick it
+   *  up later. Local-only — see lib/pos-drafts.ts. */
+  const [drafts, setDrafts] = useState<POSDraft[]>(() => listDrafts());
 
   // Persist cart to localStorage
   useEffect(() => {
@@ -233,6 +245,65 @@ export default function POSPage() {
     setIsProcessing(false);
     setStoredData("mila-pos-cart", null);
   };
+
+  /**
+   * Snapshot the current cart as a draft and reset the flow. The active
+   * `mila-pos-cart` is cleared so the operator gets a blank canvas; the
+   * draft appears in the list below ready to be resumed later.
+   */
+  const handleSaveDraft = useCallback(() => {
+    if (!isCartDraftWorthy(client, items, stylistId)) {
+      addToast(
+        language === "es"
+          ? "Agrega items o un cliente y estilista antes de guardar"
+          : "Add items or a client and stylist before saving",
+        "info"
+      );
+      return;
+    }
+    saveDraft({ client, items, stylistId, discount });
+    setDrafts(listDrafts());
+    handleNewSale();
+    addToast(
+      language === "es" ? "Borrador guardado" : "Draft saved",
+      "success"
+    );
+  }, [client, items, stylistId, discount, language, addToast]);
+
+  /**
+   * Replace the current cart with the draft's contents and resume editing
+   * from the items step (it's the most common place an operator wants to
+   * pick up — they already have a client + items selected, may want to
+   * tweak before checkout). The draft is removed from the list.
+   */
+  const handleResumeDraft = useCallback(
+    (draft: POSDraft) => {
+      setClient(draft.client);
+      setItems(draft.items);
+      setStylistId(draft.stylistId);
+      setDiscount(draft.discount);
+      setStep(draft.client ? "items" : "client");
+      removeDraft(draft.id);
+      setDrafts(listDrafts());
+      addToast(
+        language === "es" ? "Borrador retomado" : "Draft resumed",
+        "success"
+      );
+    },
+    [language, addToast]
+  );
+
+  const handleDeleteDraft = useCallback(
+    (draftId: string) => {
+      removeDraft(draftId);
+      setDrafts(listDrafts());
+      addToast(
+        language === "es" ? "Borrador eliminado" : "Draft removed",
+        "info"
+      );
+    },
+    [language, addToast]
+  );
 
   const stepLabel = (s: Step) => {
     switch (s) {
@@ -445,15 +516,30 @@ export default function POSPage() {
       {step !== "pending" && step !== "success" && step !== "payment" && (
         <motion.div
           variants={fadeInUp}
-          className="flex items-center justify-between"
+          className="flex items-center justify-between gap-2 flex-wrap"
         >
-          <div>
+          <div className="flex items-center gap-2">
             {currentStepIndex > 0 && (
               <Button variant="ghost" onClick={goBack}>
                 <ChevronLeft size={16} />
                 {t("pos", "back")}
               </Button>
             )}
+            {/* Save current cart as a draft. Disabled when there's nothing
+                worth saving (empty cart with no client+stylist combo). */}
+            <Button
+              variant="ghost"
+              onClick={handleSaveDraft}
+              disabled={!isCartDraftWorthy(client, items, stylistId)}
+              title={
+                language === "es"
+                  ? "Pausa esta venta y guárdala para retomarla luego"
+                  : "Pause this sale and save it to pick up later"
+              }
+            >
+              <Save size={16} />
+              {language === "es" ? "Guardar borrador" : "Save draft"}
+            </Button>
           </div>
           <div>
             {step !== "review" ? (
@@ -474,6 +560,19 @@ export default function POSPage() {
               </Button>
             )}
           </div>
+        </motion.div>
+      )}
+
+      {/* Saved drafts — sit under the main card so the operator sees
+          pending work at a glance. Hidden while in pending/success states
+          since the operator's focus is on finishing the current sale. */}
+      {step !== "pending" && step !== "success" && drafts.length > 0 && (
+        <motion.div variants={fadeInUp}>
+          <POSDraftsList
+            drafts={drafts}
+            onResume={handleResumeDraft}
+            onDelete={handleDeleteDraft}
+          />
         </motion.div>
       )}
     </motion.div>
