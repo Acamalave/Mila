@@ -40,7 +40,7 @@ export default function AdminSidebar() {
   ];
 
   return (
-    <aside className="w-64 bg-mila-espresso min-h-screen p-6 hidden lg:flex lg:flex-col">
+    <aside className="w-64 bg-mila-espresso p-6 hidden lg:flex lg:flex-col lg:sticky lg:top-0 lg:self-start lg:h-screen lg:overflow-y-auto">
       {/* Back to home */}
       <Link
         href="/"

@@ -360,8 +360,14 @@ export default function AdminLayout({
         </div>
       </div>
 
-      {/* Main content — adjust top padding for mobile header (logo bar ~44px + tab bar ~40px = ~84px) */}
-      <main className="flex-1 bg-surface-primary min-h-screen overflow-y-auto pt-[100px] p-3 lg:p-10 lg:pt-10 relative">
+      {/* Main content. Padding-top covers the fixed mobile header
+          (~84px logo bar + tab bar) plus a small breathing room.
+          `min-w-0` lets the flex child shrink and prevents nested
+          overflow from breaking horizontal layout. We deliberately
+          DO NOT set overflow-y on main — the page body handles
+          vertical scroll natively, which is the only reliable
+          behaviour on iOS Safari + small screens. */}
+      <main className="flex-1 min-w-0 bg-surface-primary pt-[100px] p-3 lg:p-10 lg:pt-10 relative">
         {/* Desktop notification bell */}
         <div className="hidden lg:block fixed top-5 right-8 z-50">
           <AdminNotificationBell />

@@ -8,6 +8,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
 import StylistSidebar from "@/components/layout/StylistSidebar";
 import { cn } from "@/lib/utils";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import {
   Menu,
   X,
@@ -40,6 +41,14 @@ export default function StylistLayout({
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
+
+  // Lock body scroll while the mobile menu overlay is open. Without this
+  // the background page scrolls underneath the menu, which feels broken
+  // on phones and can leave the user mid-page after they close it.
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    return lockBodyScroll();
+  }, [mobileMenuOpen]);
 
   if (!hydrated || !isAuthenticated || user?.role !== "stylist") {
     return null;
@@ -119,7 +128,9 @@ export default function StylistLayout({
         </div>
       )}
 
-      <main className="flex-1 bg-surface-primary min-h-screen overflow-y-auto pt-16 lg:pt-0 p-6 lg:p-8">
+      {/* Body handles vertical scroll natively — no overflow-y on main
+          (nested scroll containers break on iOS Safari + small screens). */}
+      <main className="flex-1 min-w-0 bg-surface-primary pt-16 lg:pt-0 p-6 lg:p-8">
         {children}
       </main>
     </div>

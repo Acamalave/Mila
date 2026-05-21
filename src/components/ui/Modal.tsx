@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { X } from "lucide-react";
 import { useEffect } from "react";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 interface ModalProps {
   isOpen: boolean;
@@ -26,13 +27,13 @@ export default function Modal({
   children,
   size = "md",
 }: ModalProps) {
+  // Reference-counted body-scroll lock — multiple open modals (or a modal
+  // opening over a mobile menu) all hold a lock, and the body unlocks only
+  // when every caller releases. Avoids the "page stuck after closing a
+  // modal" bug.
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
+    if (!isOpen) return;
+    return lockBodyScroll();
   }, [isOpen]);
 
   return (
