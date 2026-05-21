@@ -220,7 +220,10 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
     // devices' Firestore listeners stop re-adding the row.
     markDeleted("invoices", invoiceId);
     deleteDocument("invoices", invoiceId).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
-    emit("invoice:updated", { id: invoiceId, updates: { status: "cancelled" } });
+    // Real delete signal so listeners (CommissionProvider, etc.) can clean up
+    // any records they generated from this invoice — most importantly, the
+    // stylist commissions tied to it.
+    emit("invoice:deleted", { id: invoiceId });
   }, [emit, persist]);
 
   const getInvoicesForClient = useCallback(

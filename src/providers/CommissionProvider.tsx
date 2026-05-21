@@ -7,6 +7,7 @@ import {
   useCallback,
   useMemo,
   useEffect,
+  useRef,
   type ReactNode,
 } from "react";
 import type { CommissionRecord, Booking, Invoice, Stylist } from "@/types";
@@ -34,6 +35,15 @@ interface CommissionContextValue {
   markCommissionPaid: (commissionId: string) => void;
   markAllPaidForStylist: (stylistId: string) => void;
   deleteCommission: (commissionId: string) => void;
+  /** Delete every commission record tied to a given invoice id. */
+  deleteCommissionsForInvoice: (invoiceId: string) => void;
+  /**
+   * Sweep every commission whose invoiceId no longer corresponds to a live
+   * invoice and remove it. Returns the number of orphans cleaned. Reads
+   * the current invoice snapshot from localStorage so it works without
+   * depending on InvoiceProvider being a parent.
+   */
+  cleanupOrphanedCommissions: () => number;
   getCommissionsForStylist: (stylistId: string) => CommissionRecord[];
   getStylistEarnings: (stylistId: string, period?: "week" | "month" | "all") => {
     total: number;
@@ -244,6 +254,148 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
     deleteDocument("commissions", commissionId).catch((err) => console.warn("[Mila] Firestore sync failed:", err));
   }, [persist]);
 
+  // ── Lifecycle reactions to invoice changes ─────────────────────────────
+  // When an invoice is updated, declined, or deleted, the commissions that
+  // were derived from it become stale: the amount may have changed, the
+  // stylist may have been re-assigned, or the whole invoice may no longer
+  // exist. Operators expect the commissions list to reflect this within
+  // seconds — not stay frozen with phantom entries.
+
+  /** Drop every commission row whose `invoiceId` matches the given id. */
+  const deleteCommissionsForInvoice = useCallback(
+    (invoiceId: string) => {
+      const idsToDelete: string[] = [];
+      setCommissions((prev) => {
+        const next: CommissionRecord[] = [];
+        for (const c of prev) {
+          if (c.invoiceId === invoiceId) idsToDelete.push(c.id);
+          else next.push(c);
+        }
+        if (idsToDelete.length === 0) return prev;
+        persist(next);
+        return next;
+      });
+      for (const id of idsToDelete) {
+        markDeleted("commissions", id);
+        deleteDocument("commissions", id).catch((err) =>
+          console.warn("[Commissions] delete failed:", id, err)
+        );
+      }
+      if (idsToDelete.length > 0) {
+        console.log(
+          `[Commissions] Removed ${idsToDelete.length} record(s) for invoice ${invoiceId}`
+        );
+      }
+    },
+    [persist]
+  );
+
+  /**
+   * Regenerate commissions for an invoice — used when the invoice's items,
+   * amount, discount, or per-item stylist assignment changes after it was
+   * already paid. Behaviour:
+   *  • Compute the FRESH set of records from the latest invoice data.
+   *  • Delete any old records for this invoice whose ids are NOT in the
+   *    fresh set (items removed, stylist re-assigned, etc.).
+   *  • Upsert the fresh set. If a record already exists with status "paid",
+   *    that status is preserved — we never re-open a settled payout.
+   */
+  const regenerateCommissionsForInvoice = useCallback(
+    (invoice: Invoice) => {
+      const stylistsById = new Map<string, Stylist>(
+        allStylists.map((s) => [s.id, s])
+      );
+      const { records, warnings } = buildCommissionsForInvoice(
+        invoice,
+        stylistsById
+      );
+
+      for (const warning of warnings) {
+        if (warning.reason === "non_billable_item_type") continue;
+        persistCommissionWarning(warning);
+      }
+
+      const newIds = new Set(records.map((r) => r.id));
+      const toDelete: string[] = [];
+
+      setCommissions((prev) => {
+        const byId = new Map(prev.map((c) => [c.id, c]));
+        // Find stale records for this invoice — ids no longer in the fresh set
+        for (const c of prev) {
+          if (c.invoiceId === invoice.id && !newIds.has(c.id)) {
+            toDelete.push(c.id);
+            byId.delete(c.id);
+          }
+        }
+        // Upsert fresh records (preserve status if already settled)
+        for (const rec of records) {
+          const existing = byId.get(rec.id);
+          byId.set(
+            rec.id,
+            existing
+              ? { ...rec, status: existing.status, paidAt: existing.paidAt }
+              : rec
+          );
+        }
+        const next = Array.from(byId.values());
+        persist(next);
+        return next;
+      });
+
+      for (const id of toDelete) {
+        markDeleted("commissions", id);
+        deleteDocument("commissions", id).catch((err) =>
+          console.warn("[Commissions] delete failed:", id, err)
+        );
+      }
+      for (const rec of records) {
+        const { id, ...data } = rec;
+        setDocument("commissions", id, data).catch((err) =>
+          console.warn("[Mila] Firestore sync failed:", err)
+        );
+      }
+    },
+    [allStylists, persist]
+  );
+
+  /**
+   * Find commissions whose source invoice no longer exists and delete them.
+   * Reads invoices directly from localStorage so the cleanup is robust to
+   * provider order. Returns the number of orphan records removed so admin
+   * UI can surface a toast.
+   */
+  const cleanupOrphanedCommissions = useCallback((): number => {
+    const liveInvoices = getStoredData<Invoice[]>("mila-invoices", []);
+    if (liveInvoices.length === 0 && commissions.length > 0) {
+      // Safety guard — if invoices haven't hydrated yet, refuse to delete
+      // anything. Otherwise we'd wipe out every commission on a fresh tab.
+      console.warn(
+        "[Commissions] Skipping orphan cleanup — invoice cache is empty"
+      );
+      return 0;
+    }
+    const liveIds = new Set(liveInvoices.map((i) => i.id));
+    const orphans: string[] = [];
+    for (const c of commissions) {
+      if (c.invoiceId && !liveIds.has(c.invoiceId)) orphans.push(c.id);
+    }
+    if (orphans.length === 0) return 0;
+    const orphanSet = new Set(orphans);
+    setCommissions((prev) => {
+      const next = prev.filter((c) => !orphanSet.has(c.id));
+      persist(next);
+      return next;
+    });
+    for (const id of orphans) {
+      markDeleted("commissions", id);
+      deleteDocument("commissions", id).catch((err) =>
+        console.warn("[Commissions] orphan delete failed:", id, err)
+      );
+    }
+    console.log(`[Commissions] Cleaned ${orphans.length} orphan record(s)`);
+    return orphans.length;
+  }, [commissions, persist]);
+
   const getCommissionsForStylist = useCallback(
     (stylistId: string) =>
       commissions
@@ -316,6 +468,67 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
     return unsub;
   }, [on, generateCommissionFromInvoice]);
 
+  /**
+   * Keep commissions in sync with invoice edits. Three signals:
+   *   • invoice:updated — re-read the latest invoice from local storage.
+   *     If still paid → regenerate (covers edited items / amount / stylist).
+   *     If now non-paid → wipe the commissions (status was downgraded).
+   *   • invoice:declined — drop commissions outright.
+   *   • invoice:deleted — drop commissions outright.
+   *
+   * Using localStorage as the source of truth here is intentional —
+   * CommissionProvider is mounted ABOVE InvoiceProvider in the tree, so
+   * we can't useInvoices() from inside. The InvoiceProvider already
+   * persists every mutation through `persist()` before emitting the
+   * corresponding event, so this read is always fresh.
+   */
+  useEffect(() => {
+    const unsubs = [
+      on("invoice:updated", (payload) => {
+        const id =
+          (payload as { id?: string } | undefined)?.id ??
+          (payload as Invoice | undefined)?.id;
+        if (!id) return;
+        const liveInvoices = getStoredData<Invoice[]>("mila-invoices", []);
+        const current = liveInvoices.find((i) => i.id === id);
+        if (!current) {
+          // Invoice no longer exists (race: delete via another tab) — wipe.
+          deleteCommissionsForInvoice(id);
+          return;
+        }
+        if (current.status === "paid") {
+          regenerateCommissionsForInvoice(current);
+        } else {
+          deleteCommissionsForInvoice(id);
+        }
+      }),
+      on("invoice:declined", (payload) => {
+        const invoice = payload as Invoice | undefined;
+        if (invoice?.id) deleteCommissionsForInvoice(invoice.id);
+      }),
+      on("invoice:deleted", (payload) => {
+        const id = (payload as { id?: string } | undefined)?.id;
+        if (id) deleteCommissionsForInvoice(id);
+      }),
+    ];
+    return () => unsubs.forEach((u) => u());
+  }, [
+    on,
+    regenerateCommissionsForInvoice,
+    deleteCommissionsForInvoice,
+  ]);
+
+  // Auto-cleanup orphans whenever the commissions set settles. Debounced so
+  // bursts of Firestore sync events don't trigger N cleanups in a row.
+  const cleanupOrphanedCommissionsRef = useRef(cleanupOrphanedCommissions);
+  cleanupOrphanedCommissionsRef.current = cleanupOrphanedCommissions;
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      cleanupOrphanedCommissionsRef.current();
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [commissions.length]);
+
   const value = useMemo(
     () => ({
       commissions,
@@ -324,10 +537,23 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
       markCommissionPaid,
       markAllPaidForStylist,
       deleteCommission,
+      deleteCommissionsForInvoice,
+      cleanupOrphanedCommissions,
       getCommissionsForStylist,
       getStylistEarnings,
     }),
-    [commissions, generateCommission, generatePOSCommissions, markCommissionPaid, markAllPaidForStylist, deleteCommission, getCommissionsForStylist, getStylistEarnings]
+    [
+      commissions,
+      generateCommission,
+      generatePOSCommissions,
+      markCommissionPaid,
+      markAllPaidForStylist,
+      deleteCommission,
+      deleteCommissionsForInvoice,
+      cleanupOrphanedCommissions,
+      getCommissionsForStylist,
+      getStylistEarnings,
+    ]
   );
 
   return (

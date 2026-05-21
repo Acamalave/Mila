@@ -42,7 +42,7 @@ export default function AdminBillingPage() {
   const { language, t } = useLanguage();
   const { addToast } = useToast();
   const { invoices, addInvoice, updateInvoice, sendInvoice, deleteInvoice, markAsPaid, markAsDeclined } = useInvoices();
-  const { commissions, markAllPaidForStylist } = useCommissions();
+  const { commissions, markAllPaidForStylist, cleanupOrphanedCommissions } = useCommissions();
   const { allStylists } = useStaff();
 
   const [view, setView] = useState<"invoices" | "commissions">("invoices");
@@ -813,6 +813,30 @@ export default function AdminBillingPage() {
                       {preset.label}
                     </button>
                   ))}
+                  <button
+                    onClick={() => {
+                      const removed = cleanupOrphanedCommissions();
+                      addToast(
+                        removed > 0
+                          ? language === "es"
+                            ? `Se eliminaron ${removed} comisión(es) huérfana(s)`
+                            : `Cleaned ${removed} orphan commission(s)`
+                          : language === "es"
+                            ? "No hay comisiones huérfanas"
+                            : "No orphan commissions found",
+                        removed > 0 ? "success" : "info"
+                      );
+                    }}
+                    title={
+                      language === "es"
+                        ? "Elimina comisiones cuya factura ya no existe"
+                        : "Remove commissions whose source invoice no longer exists"
+                    }
+                    className="ml-auto px-3 py-1.5 rounded-md text-xs font-medium border border-border-default text-text-secondary hover:bg-white/5 hover:text-text-primary transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <RefreshCw size={12} />
+                    {language === "es" ? "Limpiar huérfanas" : "Clean orphans"}
+                  </button>
                 </div>
 
                 {/* Explicit date inputs + status pills */}

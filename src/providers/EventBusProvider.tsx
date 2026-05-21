@@ -7,7 +7,7 @@ export type EventType =
   | "product:created" | "product:updated" | "product:deleted"
   | "service:created" | "service:updated" | "service:deleted"
   | "service-category:created" | "service-category:updated" | "service-category:deleted"
-  | "invoice:created" | "invoice:updated" | "invoice:sent" | "invoice:paid" | "invoice:declined"
+  | "invoice:created" | "invoice:updated" | "invoice:sent" | "invoice:paid" | "invoice:declined" | "invoice:deleted"
   | "notification:created" | "notification:read"
   | "payment:completed" | "payment:failed"
   | "booking:updated";
