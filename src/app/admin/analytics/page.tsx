@@ -9,7 +9,6 @@ import { useStaff } from "@/providers/StaffProvider";
 import { useCommissions } from "@/providers/CommissionProvider";
 import { useInvoices } from "@/providers/InvoiceProvider";
 import { useReviews } from "@/providers/ReviewProvider";
-import { getInitialDemoAppointments } from "@/data/appointments";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Avatar from "@/components/ui/Avatar";
@@ -39,10 +38,12 @@ export default function AdminAnalyticsPage() {
 
   useEffect(() => {
     const deletedSet = getDeletedSet("bookings");
-    let stored = getStoredData<Booking[]>("mila-bookings", []).filter((b) => !deletedSet.has(b.id));
-    if (stored.length === 0) {
-      stored = getInitialDemoAppointments();
-    }
+    // Hydrate from the local cache only — Firestore is the source of truth
+    // and overwrites a moment later. No demo fallback: an empty salon
+    // shows zeros, not fake numbers.
+    const stored = getStoredData<Booking[]>("mila-bookings", []).filter(
+      (b) => !deletedSet.has(b.id)
+    );
     setBookings(stored);
 
     const unsubBookings = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
@@ -76,8 +77,15 @@ export default function AdminAnalyticsPage() {
     const mondayStr = monday.toISOString().split("T")[0];
     const sundayStr = sunday.toISOString().split("T")[0];
 
+    // Exclude cancelled / no-show so the number reflects business that
+    // actually happened (or is about to). Counting cancelled rows
+    // inflates the "this week" metric without representing real demand.
     return bookings.filter(
-      (b) => b.date >= mondayStr && b.date <= sundayStr
+      (b) =>
+        b.date >= mondayStr &&
+        b.date <= sundayStr &&
+        b.status !== "cancelled" &&
+        b.status !== "no-show"
     ).length;
   }, [bookings]);
 
@@ -106,26 +114,31 @@ export default function AdminAnalyticsPage() {
     return invoiceRevenue + bookingRevenue;
   }, [invoices, bookings]);
 
-  // Most popular service
+  // Most popular service — only count bookings that actually happened or
+  // are scheduled to happen. Cancelled rows don't represent demand.
   const mostPopularService = useMemo(() => {
     const countMap: Record<string, number> = {};
-    bookings.forEach((b) => {
-      (b.serviceIds ?? []).forEach((svcId) => {
-        countMap[svcId] = (countMap[svcId] || 0) + 1;
+    bookings
+      .filter((b) => b.status !== "cancelled" && b.status !== "no-show")
+      .forEach((b) => {
+        (b.serviceIds ?? []).forEach((svcId) => {
+          countMap[svcId] = (countMap[svcId] || 0) + 1;
+        });
       });
-    });
     const topServiceId = Object.entries(countMap).sort(
       (a, b) => b[1] - a[1]
     )[0]?.[0];
     return services.find((s) => s.id === topServiceId) || null;
   }, [bookings]);
 
-  // Top stylist (by number of bookings)
+  // Top stylist (by number of bookings that didn't get cancelled).
   const topStylist = useMemo(() => {
     const countMap: Record<string, number> = {};
-    bookings.forEach((b) => {
-      countMap[b.stylistId] = (countMap[b.stylistId] || 0) + 1;
-    });
+    bookings
+      .filter((b) => b.status !== "cancelled" && b.status !== "no-show")
+      .forEach((b) => {
+        countMap[b.stylistId] = (countMap[b.stylistId] || 0) + 1;
+      });
     const topStylistId = Object.entries(countMap).sort(
       (a, b) => b[1] - a[1]
     )[0]?.[0];
@@ -165,16 +178,19 @@ export default function AdminAnalyticsPage() {
     }));
   }, [bookings, language]);
 
-  // Bookings per day of week
+  // Bookings per day of week — excludes cancelled / no-show so the
+  // weekday demand chart reflects real foot traffic.
   const bookingsPerDay = useMemo(() => {
     // counts indexed 0=Mon .. 6=Sun
     const counts = [0, 0, 0, 0, 0, 0, 0];
-    bookings.forEach((b) => {
-      const d = new Date(b.date);
-      const jsDay = d.getDay(); // 0=Sun
-      const idx = jsDay === 0 ? 6 : jsDay - 1; // shift to Mon=0
-      counts[idx]++;
-    });
+    bookings
+      .filter((b) => b.status !== "cancelled" && b.status !== "no-show")
+      .forEach((b) => {
+        const d = new Date(b.date);
+        const jsDay = d.getDay(); // 0=Sun
+        const idx = jsDay === 0 ? 6 : jsDay - 1; // shift to Mon=0
+        counts[idx]++;
+      });
 
     const max = Math.max(...counts, 1);
     const dayNames = language === "es" ? DAY_NAMES_ES : DAY_NAMES_EN;
