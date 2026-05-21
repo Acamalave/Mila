@@ -298,20 +298,11 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                   {service.name[language]}
                 </p>
 
-                {/* Price + Deposit badge + Info button */}
+                {/* Deposit badge + Info button. Service price is intentionally
+                    hidden from the client-side catalog — operator policy is
+                    that clients book without seeing prices upfront. */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <span
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: isSelected ? "var(--color-accent)" : "rgba(196, 169, 106, 0.7)",
-                        fontFamily: "var(--font-display)",
-                        transition: "color 0.3s ease",
-                      }}
-                    >
-                      {formatServicePrice(service.price, service.priceMax)}
-                    </span>
                     {depositOverrides[service.id]?.requiresDeposit && (
                       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-medium" style={{ background: "rgba(196,169,106,0.15)", color: "var(--color-accent)", border: "1px solid rgba(196,169,106,0.25)" }}>
                         <CreditCard size={8} />
@@ -464,14 +455,8 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                         ~{activeDetailService.durationMinutes} min
                       </span>
                     </div>
-                    <span style={{
-                      fontSize: 18,
-                      fontWeight: 600,
-                      color: "var(--color-accent)",
-                      fontFamily: "var(--font-display)",
-                    }}>
-                      {formatServicePrice(activeDetailService.price, activeDetailService.priceMax)}
-                    </span>
+                    {/* Price intentionally hidden — clients book without
+                        seeing prices per operator policy. */}
                   </div>
 
                   {/* Add/Remove button */}
@@ -536,27 +521,15 @@ export default function ServiceSelector({ stylistId, onContinue }: ServiceSelect
                   {!isGeneral ? (
                     <>
                       <div className="flex items-center gap-3">
-                        <p style={{
-                          color: "var(--color-text-primary)",
-                          fontSize: 20,
-                          fontWeight: 700,
-                          fontFamily: "var(--font-display)",
-                        }}>
-                          {formatPrice(totalPrice)}
-                        </p>
-                        <div
-                          style={{
-                            width: 1,
-                            height: 16,
-                            background: "rgba(196, 169, 106, 0.4)",
-                          }}
-                        />
+                        {/* Total price hidden by operator policy — show
+                            duration + selection count instead. */}
                         <div className="flex items-center gap-1.5">
-                          <Clock size={13} style={{ color: "var(--color-accent)" }} />
+                          <Clock size={16} style={{ color: "var(--color-accent)" }} />
                           <span style={{
-                            fontSize: 13,
-                            fontWeight: 500,
-                            color: "var(--color-text-secondary)",
+                            fontSize: 15,
+                            fontWeight: 600,
+                            color: "var(--color-text-primary)",
+                            fontFamily: "var(--font-display)",
                           }}>
                             {totalDuration >= 60
                               ? `${Math.floor(totalDuration / 60)}h ${totalDuration % 60 > 0 ? `${totalDuration % 60}min` : ""}`

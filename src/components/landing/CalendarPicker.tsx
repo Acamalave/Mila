@@ -630,11 +630,9 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
                   <p style={{ fontSize: 13, color: "var(--color-accent)" }}>
                     {formatTimeDisplay(state.selectedTimeSlot.startTime)} - {formatTimeDisplay(state.selectedTimeSlot.endTime)}
                   </p>
-                  {!state.isGeneralAppointment && (
-                    <p style={{ fontSize: 14, color: "var(--color-accent)", fontWeight: 700, marginTop: 4 }}>
-                      {formatPrice(totalPrice)}
-                    </p>
-                  )}
+                  {/* Total price hidden by operator policy — the client
+                      books without seeing the price upfront. The amount is
+                      surfaced later through the invoice / payment flow. */}
                 </div>
               </div>
 

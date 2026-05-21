@@ -251,15 +251,9 @@ export default function BookingSuccess({ onGoToDashboard, onBookAnother }: Booki
             </div>
           </div>
 
-          {/* Total */}
-          {!state.isGeneralAppointment && totalPrice > 0 && (
-            <div className="pt-4 flex items-center justify-between">
-              <span style={{ fontSize: 14, color: "var(--color-text-muted)" }}>Total</span>
-              <span style={{ fontSize: 20, color: "var(--color-accent)", fontWeight: 700 }}>
-                {formatPrice(totalPrice)}
-              </span>
-            </div>
-          )}
+          {/* Total intentionally hidden on the booking confirmation —
+              operator policy: clients book without seeing prices. The
+              amount is surfaced through the invoice / payment flow later. */}
         </motion.div>
 
         {/* Actions */}
