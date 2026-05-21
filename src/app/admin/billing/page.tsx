@@ -42,7 +42,7 @@ export default function AdminBillingPage() {
   const { language, t } = useLanguage();
   const { addToast } = useToast();
   const { invoices, addInvoice, updateInvoice, sendInvoice, deleteInvoice, markAsPaid, markAsDeclined } = useInvoices();
-  const { commissions, markAllPaidForStylist, cleanupOrphanedCommissions } = useCommissions();
+  const { commissions, markAllPaidForStylist, rebuildAllCommissions } = useCommissions();
   const { allStylists } = useStaff();
 
   const [view, setView] = useState<"invoices" | "commissions">("invoices");
@@ -815,27 +815,40 @@ export default function AdminBillingPage() {
                   ))}
                   <button
                     onClick={() => {
-                      const removed = cleanupOrphanedCommissions();
+                      const { regenerated, orphansRemoved } = rebuildAllCommissions();
+                      const parts: string[] = [];
+                      if (regenerated > 0) {
+                        parts.push(
+                          language === "es"
+                            ? `${regenerated} factura(s) reprocesada(s)`
+                            : `${regenerated} invoice(s) reprocessed`
+                        );
+                      }
+                      if (orphansRemoved > 0) {
+                        parts.push(
+                          language === "es"
+                            ? `${orphansRemoved} huérfana(s) eliminada(s)`
+                            : `${orphansRemoved} orphan(s) removed`
+                        );
+                      }
                       addToast(
-                        removed > 0
-                          ? language === "es"
-                            ? `Se eliminaron ${removed} comisión(es) huérfana(s)`
-                            : `Cleaned ${removed} orphan commission(s)`
+                        parts.length
+                          ? parts.join(" · ")
                           : language === "es"
-                            ? "No hay comisiones huérfanas"
-                            : "No orphan commissions found",
-                        removed > 0 ? "success" : "info"
+                            ? "Comisiones ya están al día"
+                            : "Commissions already up to date",
+                        parts.length ? "success" : "info"
                       );
                     }}
                     title={
                       language === "es"
-                        ? "Elimina comisiones cuya factura ya no existe"
-                        : "Remove commissions whose source invoice no longer exists"
+                        ? "Recalcula comisiones para todas las facturas pagadas + elimina huérfanas"
+                        : "Recompute commissions for all paid invoices + remove orphans"
                     }
                     className="ml-auto px-3 py-1.5 rounded-md text-xs font-medium border border-border-default text-text-secondary hover:bg-white/5 hover:text-text-primary transition-colors cursor-pointer flex items-center gap-1.5"
                   >
                     <RefreshCw size={12} />
-                    {language === "es" ? "Limpiar huérfanas" : "Clean orphans"}
+                    {language === "es" ? "Reconstruir comisiones" : "Rebuild commissions"}
                   </button>
                 </div>
 

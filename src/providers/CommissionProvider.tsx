@@ -44,6 +44,13 @@ interface CommissionContextValue {
    * depending on InvoiceProvider being a parent.
    */
   cleanupOrphanedCommissions: () => number;
+  /**
+   * One-shot recovery action: cleans orphan commissions, then regenerates
+   * commissions for every paid invoice using the latest stylist data and
+   * invoice state. Use after schema changes or to backfill missing rows.
+   * Returns a summary {regenerated, orphansRemoved}.
+   */
+  rebuildAllCommissions: () => { regenerated: number; orphansRemoved: number };
   getCommissionsForStylist: (stylistId: string) => CommissionRecord[];
   getStylistEarnings: (stylistId: string, period?: "week" | "month" | "all") => {
     total: number;
@@ -396,6 +403,29 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
     return orphans.length;
   }, [commissions, persist]);
 
+  /**
+   * Run a full rebuild: clean orphans + regenerate commissions for every
+   * paid invoice using the latest staff/stylist data. Use this when:
+   *   • the operator changed a stylist's commission rate
+   *   • the commission rules in lib/commissions changed
+   *   • there's drift between commissions and what the invoices say
+   */
+  const rebuildAllCommissions = useCallback((): {
+    regenerated: number;
+    orphansRemoved: number;
+  } => {
+    const orphansRemoved = cleanupOrphanedCommissions();
+    const liveInvoices = getStoredData<Invoice[]>("mila-invoices", []);
+    const paidInvoices = liveInvoices.filter((i) => i.status === "paid");
+    for (const inv of paidInvoices) {
+      regenerateCommissionsForInvoice(inv);
+    }
+    console.log(
+      `[Commissions] Rebuild done — regenerated ${paidInvoices.length} invoice(s), removed ${orphansRemoved} orphan(s)`
+    );
+    return { regenerated: paidInvoices.length, orphansRemoved };
+  }, [cleanupOrphanedCommissions, regenerateCommissionsForInvoice]);
+
   const getCommissionsForStylist = useCallback(
     (stylistId: string) =>
       commissions
@@ -539,6 +569,7 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
       deleteCommission,
       deleteCommissionsForInvoice,
       cleanupOrphanedCommissions,
+      rebuildAllCommissions,
       getCommissionsForStylist,
       getStylistEarnings,
     }),
@@ -551,6 +582,7 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
       deleteCommission,
       deleteCommissionsForInvoice,
       cleanupOrphanedCommissions,
+      rebuildAllCommissions,
       getCommissionsForStylist,
       getStylistEarnings,
     ]

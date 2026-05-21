@@ -86,8 +86,11 @@ export function buildCommissionId(
  * Caller is responsible for writing the records (and any warnings) to
  * Firestore or local state.
  *
- * Returns an empty result for invoices that are not yet `paid`, or that have
- * no items. Per-item warnings are returned alongside the records so the
+ * Returns an empty result for invoices that are not yet `paid`. For invoices
+ * with no items[] but a `stylistId` + `amount`, falls back to generating a
+ * SINGLE commission for that stylist on the full invoice amount — this
+ * covers "quick invoices" created from the admin form without explicit
+ * line items. Per-item warnings are returned alongside the records so the
  * caller can surface them to an admin queue.
  */
 export function buildCommissionsForInvoice(
@@ -98,7 +101,83 @@ export function buildCommissionsForInvoice(
   const warnings: CommissionWarning[] = [];
 
   if (invoice.status !== "paid") return { records, warnings };
-  if (!invoice.items || invoice.items.length === 0) return { records, warnings };
+
+  // Fallback path: no items[]. Operators commonly create "quick invoices"
+  // through the admin form by typing just a total + stylist + description.
+  // Without this fallback those invoices would silently generate zero
+  // commissions even though they're paid.
+  if (!invoice.items || invoice.items.length === 0) {
+    if (!invoice.stylistId) {
+      warnings.push({
+        invoiceId: invoice.id,
+        itemIndex: 0,
+        itemId: invoice.serviceId ?? "invoice-amount",
+        itemType: "service",
+        reason: "missing_stylist_id",
+        detail:
+          "Invoice has no items[] and no invoice-level stylistId — no one to pay the commission to.",
+      });
+      return { records, warnings };
+    }
+    const stylist = stylistsById.get(invoice.stylistId);
+    if (!stylist) {
+      warnings.push({
+        invoiceId: invoice.id,
+        itemIndex: 0,
+        itemId: invoice.serviceId ?? "invoice-amount",
+        itemType: "service",
+        reason: "stylist_not_found",
+        stylistId: invoice.stylistId,
+      });
+      return { records, warnings };
+    }
+    if (typeof invoice.amount !== "number" || invoice.amount <= 0) {
+      warnings.push({
+        invoiceId: invoice.id,
+        itemIndex: 0,
+        itemId: invoice.serviceId ?? "invoice-amount",
+        itemType: "service",
+        reason: "zero_amount",
+        stylistId: invoice.stylistId,
+      });
+      return { records, warnings };
+    }
+    // `invoice.amount` is already the FINAL total (post-discount + tax),
+    // so we don't re-apply the discount here. We do strip the tax portion
+    // when present, so the stylist only earns commission on the service /
+    // product portion (not on what the gov takes).
+    const taxAmount = invoice.taxAmount ?? 0;
+    const commissionableBase =
+      Math.round(Math.max(0, invoice.amount - taxAmount) * 100) / 100;
+    const serviceId = invoice.serviceId ?? "invoice-amount";
+    const rate = commissionRateFor(stylist, serviceId, "service");
+    if (rate < 0 || rate > 100 || Number.isNaN(rate)) {
+      warnings.push({
+        invoiceId: invoice.id,
+        itemIndex: 0,
+        itemId: serviceId,
+        itemType: "service",
+        reason: "invalid_rate",
+        stylistId: invoice.stylistId,
+        detail: `Rate ${rate} is outside [0, 100]`,
+      });
+      return { records, warnings };
+    }
+    const commissionAmount =
+      Math.round(((commissionableBase * rate) / 100) * 100) / 100;
+    records.push({
+      id: buildCommissionId(invoice.id, 0, stylist.id),
+      stylistId: stylist.id,
+      invoiceId: invoice.id,
+      serviceId,
+      serviceAmount: commissionableBase,
+      commissionRate: rate,
+      commissionAmount,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+    });
+    return { records, warnings };
+  }
 
   const discountPct = invoice.discount ?? 0;
   const createdAt = new Date().toISOString();
