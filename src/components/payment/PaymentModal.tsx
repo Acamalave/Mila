@@ -118,14 +118,18 @@ export default function PaymentModal({
   );
 
   const handleStartCard = useCallback(() => {
-    if (!invoice) return;
-    // 3D Secure flow: instead of collecting the card in-app (the direct
-    // AUTH_CAPTURE charge gets declined when the CCLW enforces 3DS), forward
-    // the customer to the /pay landing, which builds a Paguelo Facil hosted
-    // checkout URL and redirects there. Paguelo Facil performs the 3DS
-    // challenge on their page, then the webhook marks the invoice as paid.
-    window.location.href = `/pay?invoice=${encodeURIComponent(invoice.id)}`;
-  }, [invoice]);
+    // Embedded card flow (your own aesthetic, no redirect): the direct
+    // AUTH_CAPTURE charge runs through /api/payments/process. Paguelo Facil's
+    // anti-fraud rejects charges submitted with a synthetic email, so if the
+    // account has no real email yet, collect one first.
+    // (The hosted /pay checkout remains available as a fallback for links sent
+    // by email/WhatsApp from the POS, where an embedded form isn't possible.)
+    if (!isValidEmail(user?.email) && !isValidEmail(billingEmail)) {
+      setStep("email");
+      return;
+    }
+    setStep("new-card");
+  }, [user?.email, billingEmail]);
 
   const handleEmailContinue = useCallback(() => {
     if (!isValidEmail(billingEmail)) {

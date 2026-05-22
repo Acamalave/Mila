@@ -12,8 +12,7 @@ import { useToast } from "@/providers/ToastProvider";
 import { getStoredData, generateId, calculateTaxBreakdown } from "@/lib/utils";
 import { getCollection, setDocument } from "@/lib/firestore";
 import { getEffectiveService } from "@/lib/service-overrides";
-import { useInvoices } from "@/providers/InvoiceProvider";
-import type { Booking, Invoice } from "@/types";
+import type { Booking } from "@/types";
 import type { ServiceDepositConfig } from "@/types/service";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -21,6 +20,7 @@ import SpecialistSlider from "@/components/landing/SpecialistSlider";
 import ServiceSelector from "@/components/landing/ServiceSelector";
 import CalendarPicker from "@/components/landing/CalendarPicker";
 import PhoneLoginModal from "@/components/landing/PhoneLoginModal";
+import DepositPaymentModal from "@/components/booking/DepositPaymentModal";
 
 type DepositOverrides = Record<string, ServiceDepositConfig>;
 
@@ -32,8 +32,8 @@ export default function BookingPage() {
   const { language } = useLanguage();
   const { allStylists } = useStaff();
   const { addToast } = useToast();
-  const { addInvoice } = useInvoices();
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showDepositModal, setShowDepositModal] = useState(false);
   const [pendingBook, setPendingBook] = useState(false);
 
   const servicesRef = useRef<HTMLDivElement>(null);
@@ -114,120 +114,93 @@ export default function BookingPage() {
     []
   );
 
-  // Build + persist the booking from the current flow state and return it.
-  // Returns null if a slot conflict aborts creation. Does NOT navigate or
-  // reset — the caller decides what happens next (go to dashboard, or redirect
-  // to the deposit checkout).
-  const persistBookingFromState = useCallback(
-    async (status: Booking["status"]): Promise<Booking | null> => {
-      if (!state.selectedStylistId || !state.selectedDate || !state.selectedTimeSlot) return null;
+  // Finalize the booking (called after deposit payment or directly if no deposit)
+  const finalizeBooking = useCallback(async (depositTxnId?: string) => {
+    if (!state.selectedStylistId || !state.selectedDate || !state.selectedTimeSlot) return;
 
-      const selectedServices = state.isGeneralAppointment ? [] : state.selectedServiceIds;
-      // Use admin-overridden prices so what the client pays matches what the
-      // admin configured in /admin/services.
-      const subtotal = selectedServices.reduce((sum, sId) => {
-        return sum + (getEffectiveService(sId)?.price ?? 0);
-      }, 0);
-      const tax = calculateTaxBreakdown(subtotal, 0);
+    const selectedServices = state.isGeneralAppointment ? [] : state.selectedServiceIds;
+    // Use admin-overridden prices so what the client pays matches what the
+    // admin configured in /admin/services.
+    const subtotal = selectedServices.reduce((sum, sId) => {
+      return sum + (getEffectiveService(sId)?.price ?? 0);
+    }, 0);
+    const tax = calculateTaxBreakdown(subtotal, 0);
 
-      // Cross-device conflict check: pull current bookings from Firestore so two
-      // clients on different devices can't grab the same slot at the same time.
-      let firestoreBookings: Booking[] = [];
-      try {
-        firestoreBookings = await getCollection<Booking>("bookings");
-      } catch {
-        // Firestore unavailable — fall back to local-only check
-        firestoreBookings = getStoredData<Booking[]>("mila-bookings", []);
-      }
+    // Cross-device conflict check: pull current bookings from Firestore so two
+    // clients on different devices can't grab the same slot at the same time.
+    let firestoreBookings: Booking[] = [];
+    try {
+      firestoreBookings = await getCollection<Booking>("bookings");
+    } catch {
+      // Firestore unavailable — fall back to local-only check
+      firestoreBookings = getStoredData<Booking[]>("mila-bookings", []);
+    }
 
-      const startTime = state.selectedTimeSlot.startTime;
-      const endTime = state.selectedTimeSlot.endTime;
-      const hasConflict = firestoreBookings.some(
-        (b) =>
-          b.stylistId === state.selectedStylistId &&
-          b.date === state.selectedDate &&
-          (b.status === "confirmed" || b.status === "pending") &&
-          startTime < b.endTime &&
-          endTime > b.startTime
+    const startTime = state.selectedTimeSlot.startTime;
+    const endTime = state.selectedTimeSlot.endTime;
+    const hasConflict = firestoreBookings.some(
+      (b) =>
+        b.stylistId === state.selectedStylistId &&
+        b.date === state.selectedDate &&
+        (b.status === "confirmed" || b.status === "pending") &&
+        startTime < b.endTime &&
+        endTime > b.startTime
+    );
+
+    // No deposit was charged → it is safe to abort and ask for another slot.
+    if (hasConflict && !depositTxnId) {
+      addToast(
+        language === "es"
+          ? "Este horario acaba de ser reservado. Selecciona otro."
+          : "This time slot was just booked. Please pick another.",
+        "error"
       );
+      return;
+    }
+    // A conflict appeared after the deposit was already charged — keep the
+    // booking so the customer's payment is not lost; an admin resolves the overlap.
+    if (hasConflict && depositTxnId) {
+      addToast(
+        "Tu anticipo fue procesado. Confirmaremos tu horario en breve.",
+        "info"
+      );
+    }
 
-      // Abort before creating anything / charging any deposit.
-      if (hasConflict) {
-        addToast(
-          language === "es"
-            ? "Este horario acaba de ser reservado. Selecciona otro."
-            : "This time slot was just booked. Please pick another.",
-          "error"
-        );
-        return null;
-      }
+    // With a deposit the booking is fully confirmed; without one it starts as
+    // `pending` so an admin can review/confirm.
+    const initialStatus: Booking["status"] = depositTxnId ? "confirmed" : "pending";
 
-      const booking: Booking = {
-        id: generateId(),
-        serviceIds: selectedServices,
-        stylistId: state.selectedStylistId,
-        stylistName: allStylists.find((s) => s.id === state.selectedStylistId)?.name,
-        clientId: user?.id ?? null,
-        clientName: user?.name,
-        date: state.selectedDate,
-        startTime,
-        endTime,
-        status,
-        totalPrice: tax.total,
-        notes: state.notes,
-        createdAt: new Date().toISOString(),
-      };
+    const booking: Booking = {
+      id: generateId(),
+      serviceIds: selectedServices,
+      stylistId: state.selectedStylistId,
+      stylistName: allStylists.find((s) => s.id === state.selectedStylistId)?.name,
+      clientId: user?.id ?? null,
+      clientName: user?.name,
+      date: state.selectedDate,
+      startTime,
+      endTime,
+      status: initialStatus,
+      totalPrice: tax.total,
+      notes: state.notes,
+      createdAt: new Date().toISOString(),
+      ...(depositTxnId && { depositTransactionId: depositTxnId, depositPaid: true }),
+    };
 
-      const { id, ...bookingData } = booking;
-      // Include tax breakdown so analytics + dashboard reconcile against invoices
-      const enrichedBookingData = {
-        ...bookingData,
-        subtotal: tax.subtotal,
-        taxAmount: tax.taxAmount,
-        taxRate: tax.taxRate,
-      };
-      setDocument("bookings", id, enrichedBookingData).catch((err) => console.warn("[Mila] Booking sync failed:", err));
-      emit("booking:updated", booking);
-      return booking;
-    },
-    [state, user, allStylists, emit, addToast, language]
-  );
+    const { id, ...bookingData } = booking;
+    // Include tax breakdown so analytics + dashboard reconcile against invoices
+    const enrichedBookingData = {
+      ...bookingData,
+      subtotal: tax.subtotal,
+      taxAmount: tax.taxAmount,
+      taxRate: tax.taxRate,
+    };
+    setDocument("bookings", id, enrichedBookingData).catch((err) => console.warn("[Mila] Booking sync failed:", err));
+    emit("booking:updated", booking);
 
-  // No-deposit path: create the booking as `pending` (admin reviews/confirms)
-  // and send the client to their dashboard.
-  const finalizeBooking = useCallback(async () => {
-    const booking = await persistBookingFromState("pending");
-    if (!booking) return;
     resetBooking();
     router.push("/dashboard");
-  }, [persistBookingFromState, resetBooking, router]);
-
-  // Deposit path: create the booking as `pending` (slot held) plus a deposit
-  // invoice, then redirect to the hosted Paguelo Facil checkout (/pay) where
-  // the 3D Secure challenge happens. The webhook confirms the booking once the
-  // deposit invoice is paid.
-  const startDepositPayment = useCallback(async () => {
-    const booking = await persistBookingFromState("pending");
-    if (!booking) return;
-
-    const depositInvoice = addInvoice({
-      clientId: user?.id ?? "",
-      clientName: user?.name ?? "Cliente",
-      amount: depositInfo.totalDeposit,
-      bookingId: booking.id,
-      isDeposit: true,
-      stylistId: booking.stylistId,
-      status: "sent",
-      date: new Date().toISOString().split("T")[0],
-      description: {
-        es: "Anticipo de reserva — Mila Concept",
-        en: "Booking deposit — Mila Concept",
-      },
-    } as Omit<Invoice, "id" | "createdAt">);
-
-    resetBooking();
-    window.location.href = `/pay?invoice=${encodeURIComponent(depositInvoice.id)}`;
-  }, [persistBookingFromState, addInvoice, user, depositInfo, resetBooking]);
+  }, [state, user, allStylists, resetBooking, router, emit, addToast]);
 
   // Handle booking — check if deposit is needed
   const handleBook = useCallback(() => {
@@ -253,11 +226,17 @@ export default function BookingPage() {
     }
 
     if (depositInfo.hasDeposit) {
-      startDepositPayment();
+      setShowDepositModal(true);
     } else {
       finalizeBooking();
     }
-  }, [state, depositInfo, finalizeBooking, startDepositPayment, hasSlotConflict, addToast, language]);
+  }, [state, depositInfo, finalizeBooking, hasSlotConflict, addToast]);
+
+  // Handle deposit payment complete
+  const handleDepositComplete = useCallback((txnId: string) => {
+    setShowDepositModal(false);
+    finalizeBooking(txnId);
+  }, [finalizeBooking]);
 
   const handleLoginRequired = useCallback(() => {
     setPendingBook(true);
@@ -331,6 +310,14 @@ export default function BookingPage() {
           setPendingBook(false);
         }}
         onSuccess={handleLoginSuccess}
+      />
+
+      <DepositPaymentModal
+        isOpen={showDepositModal}
+        onClose={() => setShowDepositModal(false)}
+        onPaymentComplete={handleDepositComplete}
+        depositServices={depositInfo.depositServices}
+        totalDeposit={depositInfo.totalDeposit}
       />
     </>
   );
