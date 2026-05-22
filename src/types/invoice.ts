@@ -31,6 +31,13 @@ export interface Invoice {
   status: InvoiceStatus;
   paymentMethod?: PaymentMethod;
   counterNote?: string;
+  /**
+   * Marks an invoice that represents a booking deposit (partial pre-payment to
+   * hold a slot) rather than a full sale. The webhook uses this to (a) confirm
+   * the linked booking when the deposit is paid and (b) skip stylist commission
+   * generation — a deposit is not a completed sale.
+   */
+  isDeposit?: boolean;
   sentAt?: string;
   paidAt?: string;
   declinedAt?: string;

@@ -381,12 +381,36 @@ export async function POST(request: NextRequest) {
         `[Webhook] Invoice ${invoiceId} marked as paid (txn: ${transactionId})`
       );
 
+      // 2b. Booking deposit → confirm the linked booking. The deposit invoice
+      //     carries `bookingId` + `isDeposit`; the booking was created as
+      //     `pending` (slot held) when the customer started checkout, and is
+      //     promoted to `confirmed` only once the deposit is actually paid.
+      if (invoice?.isDeposit && invoice.bookingId) {
+        try {
+          await setDocument("bookings", invoice.bookingId, {
+            status: "confirmed",
+            depositPaid: true,
+            depositTransactionId: transactionId,
+          });
+          console.log(
+            `[Webhook] Booking ${invoice.bookingId} confirmed via paid deposit invoice ${invoiceId}`
+          );
+        } catch (err) {
+          console.warn(
+            `[Webhook] Could not confirm booking ${invoice.bookingId} after deposit payment:`,
+            err
+          );
+        }
+      }
+
       // 3. Generate stylist commissions server-side. Uses deterministic ids
       //    so this is idempotent with any client-side generation that may
       //    also fire (POS / billing modal). We use a fresh copy of the
       //    invoice that includes the `paid` status we just wrote — without
-      //    that, buildCommissionsForInvoice short-circuits.
-      if (invoice) {
+      //    that, buildCommissionsForInvoice short-circuits. Deposit invoices
+      //    are skipped: a deposit is a partial pre-payment, not a completed
+      //    sale, so it must not generate commissions.
+      if (invoice && !invoice.isDeposit) {
         const paidInvoice: Invoice = {
           ...invoice,
           status: "paid",
