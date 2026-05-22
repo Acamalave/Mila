@@ -531,3 +531,116 @@ export async function processCardPayment(
     };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Transaction lookup — Consulta de Transacciones
+// ---------------------------------------------------------------------------
+// After a customer pays on the hosted page (LinkDeamon), Paguelo Facil
+// redirects the browser back to RETURN_URL with the result in query params.
+// Those params are browser-supplied and therefore spoofable, so before we mark
+// an invoice paid we re-confirm the transaction server-side against Paguelo
+// Facil's authoritative record:
+//
+//   GET https://admin.paguelofacil.com/PFManagementServices/api/v1/MerchantTransactions?filter=codOper::<oper>
+//   Header: authorization: <token>
+//
+// The exact response envelope isn't published, so we parse defensively across
+// the field-name variants Paguelo Facil uses elsewhere.
+
+const ADMIN_URL = "https://admin.paguelofacil.com";
+
+export interface TxLookupResult {
+  /** The lookup itself succeeded and a matching transaction was found. */
+  found: boolean;
+  approved: boolean;
+  declined: boolean;
+  /** Amount actually charged, when the record exposes it. */
+  amount: number | null;
+}
+
+export async function queryTransactionByOper(
+  oper: string
+): Promise<TxLookupResult | null> {
+  const code = clean(oper);
+  if (!code) return null;
+
+  let token: string;
+  try {
+    ({ token } = getCredentials());
+  } catch {
+    return null;
+  }
+
+  try {
+    const url = `${ADMIN_URL}/PFManagementServices/api/v1/MerchantTransactions?filter=codOper::${encodeURIComponent(
+      code
+    )}`;
+    const res = await fetch(url, {
+      method: "GET",
+      headers: { Authorization: token, Accept: "application/json" },
+    });
+    const text = await res.text();
+    let data: unknown = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      // non-JSON — treat as inconclusive
+    }
+    if (!res.ok || !data || typeof data !== "object") return null;
+
+    // Locate the transaction list across the shapes PF may return.
+    const root = data as Record<string, unknown>;
+    const inner = (root.data ?? root) as Record<string, unknown>;
+    const list: unknown[] = Array.isArray(root.data)
+      ? (root.data as unknown[])
+      : Array.isArray(inner)
+        ? (inner as unknown[])
+        : Array.isArray(inner.rows)
+          ? (inner.rows as unknown[])
+          : Array.isArray(inner.transactions)
+            ? (inner.transactions as unknown[])
+            : [];
+
+    if (list.length === 0) {
+      return { found: false, approved: false, declined: false, amount: null };
+    }
+
+    const matchOper = (t: Record<string, unknown>) =>
+      String(t.codOper ?? t.cod_oper ?? t.oper ?? "") === code;
+    const tx =
+      (list.find(
+        (t) => t && typeof t === "object" && matchOper(t as Record<string, unknown>)
+      ) as Record<string, unknown> | undefined) ??
+      (list[0] as Record<string, unknown>);
+
+    const rawStatus = (tx.status ?? tx.authStatus ?? tx.estado ?? tx.state) as
+      | string
+      | number
+      | undefined;
+    const amountRaw = tx.totalPay ?? tx.total ?? tx.amount ?? tx.totalPagado;
+    const amount =
+      amountRaw != null && Number.isFinite(Number(amountRaw))
+        ? Number(amountRaw)
+        : null;
+
+    const statusStr = String(rawStatus ?? "").toLowerCase();
+    const approved =
+      APPROVED_STATUSES.has(rawStatus ?? "") ||
+      rawStatus === 1 ||
+      rawStatus === "1" ||
+      statusStr === "aprobada" ||
+      statusStr === "approved";
+    const declined =
+      DECLINED_STATUSES.has(rawStatus ?? "") ||
+      rawStatus === 0 ||
+      rawStatus === "0" ||
+      statusStr === "denegada" ||
+      statusStr === "rechazada" ||
+      statusStr === "declined";
+
+    return { found: true, approved, declined, amount };
+  } catch (err) {
+    console.warn("[PagueloFacil] queryTransactionByOper failed:", err);
+    return null;
+  }
+}
