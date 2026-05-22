@@ -116,7 +116,7 @@ function layout(content: string, preheader: string): string {
               </div>
               <div style="font-size:12px;color:#555555;line-height:1.6;">
                 Panama City, Panama<br>
-                <a href="https://milaconcept.com" style="color:#C4A96A;text-decoration:none;">milaconcept.com</a>
+                <a href="https://www.milapty.com" style="color:#C4A96A;text-decoration:none;">milapty.com</a>
               </div>
               <div style="margin-top:16px;font-size:11px;color:#444444;">
                 &copy; ${new Date().getFullYear()} Mila Concept. All rights reserved.
@@ -296,7 +296,7 @@ export function buildBookingCancellation(data: BookingData, lang: Language): Tem
     </p>
 
     <div style="text-align:center;margin:32px 0 16px 0;">
-      <a href="https://milaconcept.com/book" ${styles.button}>
+      <a href="https://www.milapty.com/book" ${styles.button}>
         ${isEs ? "Reservar Nueva Cita" : "Book New Appointment"}
       </a>
     </div>
@@ -316,7 +316,7 @@ export function buildBookingCancellation(data: BookingData, lang: Language): Tem
 
 export function buildInvoiceSent(data: InvoiceData, lang: Language): TemplateResult {
   const isEs = lang === "es";
-  const payLink = data.payLink || "https://milaconcept.com/pay";
+  const payLink = data.payLink || "https://www.milapty.com/pay";
 
   const subject = isEs
     ? `Factura #${data.invoiceId} - Mila Concept`
@@ -362,7 +362,7 @@ export function buildInvoiceSent(data: InvoiceData, lang: Language): TemplateRes
 
 export function buildInvoiceOverdue(data: InvoiceData, lang: Language): TemplateResult {
   const isEs = lang === "es";
-  const payLink = data.payLink || "https://milaconcept.com/pay";
+  const payLink = data.payLink || "https://www.milapty.com/pay";
   const days = typeof data.daysOverdue === "number" ? data.daysOverdue : 14;
 
   const subject = isEs
@@ -475,7 +475,7 @@ export function buildPaymentConfirmed(data: PaymentData, lang: Language): Templa
 
 export function buildPaymentDeclined(data: PaymentDeclinedData, lang: Language): TemplateResult {
   const isEs = lang === "es";
-  const retryLink = data.retryLink || `https://milaconcept.com/pay?invoice=${data.invoiceId}`;
+  const retryLink = data.retryLink || `https://www.milapty.com/pay?invoice=${data.invoiceId}`;
 
   // Red-accented variant of the luxury layout (instead of the usual gold).
   const declinedStyles = {
@@ -578,7 +578,7 @@ export function buildWelcome(data: WelcomeData, lang: Language): TemplateResult 
     </div>
 
     <div style="text-align:center;margin:32px 0 16px 0;">
-      <a href="https://milaconcept.com/book" ${styles.button}>
+      <a href="https://www.milapty.com/book" ${styles.button}>
         ${isEs ? "Reservar Tu Primera Cita" : "Book Your First Appointment"}
       </a>
     </div>

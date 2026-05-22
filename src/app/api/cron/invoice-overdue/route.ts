@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
       const client = usersMap.get(invoice.clientId);
       const clientName = invoice.clientName || client?.name || "";
       const amount = `$${(invoice.amount ?? 0).toFixed(2)}`;
-      const paymentLink = `https://milaconcept.com/pay?invoice=${invoice.id}`;
+      const paymentLink = `https://www.milapty.com/pay?invoice=${invoice.id}`;
 
       // Calculate days overdue for messaging
       const reference = invoice.sentAt ?? invoice.createdAt!;

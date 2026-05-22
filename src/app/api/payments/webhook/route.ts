@@ -471,7 +471,7 @@ export async function POST(request: NextRequest) {
           amount: amountDisplay,
           invoiceId,
           reason: String(payload.status ?? "Payment declined"),
-          retryLink: `https://milaconcept.com/pay?invoice=${invoiceId}`,
+          retryLink: `https://www.milapty.com/pay?invoice=${invoiceId}`,
         });
       }
       if (client?.phone) {
@@ -485,7 +485,7 @@ export async function POST(request: NextRequest) {
             amount: String(payload.amount ?? invoice?.amount ?? "0.00"),
             invoiceId,
             reason: String(payload.status ?? ""),
-            retryLink: `https://milaconcept.com/pay?invoice=${invoiceId}`,
+            retryLink: `https://www.milapty.com/pay?invoice=${invoiceId}`,
           }
         );
       }

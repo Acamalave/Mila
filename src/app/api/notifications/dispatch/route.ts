@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
       const clientName = invoice.clientName || recipient?.name || "Cliente";
       const amountNum = typeof invoice.amount === "number" ? invoice.amount : 0;
       const amountDisplay = `$${amountNum.toFixed(2)}`;
-      const payLink = `https://milaconcept.com/pay?invoice=${invoice.id}`;
+      const payLink = `https://www.milapty.com/pay?invoice=${invoice.id}`;
 
       if (event === "invoice-sent") {
         emailData = {
