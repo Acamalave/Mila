@@ -6,22 +6,22 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useStaff } from "@/providers/StaffProvider";
 import { useCommissions } from "@/providers/CommissionProvider";
+import { useInvoices } from "@/providers/InvoiceProvider";
+import { useService } from "@/providers/ServiceProvider";
+import { useProducts } from "@/providers/ProductProvider";
+import { commissionWorkDate } from "@/lib/commissions";
 import { cn, formatPrice } from "@/lib/utils";
 import { formatShortDate } from "@/lib/date-utils";
 import {
   getCurrentQuincena,
-  getPreviousQuincena,
   getQuincenaOf,
   quincenaLabel,
   type Quincena,
 } from "@/lib/quincena";
-import { services } from "@/data/services";
 import Card from "@/components/ui/Card";
 import { fadeInUp, staggerContainer } from "@/styles/animations";
 import {
   CalendarDays,
-  CalendarRange,
-  TrendingUp,
   ChevronDown,
   ChevronUp,
   FileText,
@@ -91,9 +91,15 @@ interface QuincenaGroup {
 function CommissionRows({
   items,
   language,
+  resolveName,
+  resolveDate,
 }: {
   items: CommissionRecord[];
   language: "es" | "en";
+  /** Display name for the commission's service/product. */
+  resolveName: (c: CommissionRecord) => string;
+  /** Effective YYYY-MM-DD date of the work (invoice date, not typing date). */
+  resolveDate: (c: CommissionRecord) => string;
 }) {
   if (items.length === 0) {
     return (
@@ -131,7 +137,6 @@ function CommissionRows({
         </thead>
         <tbody className="divide-y divide-border-default">
           {items.map((c) => {
-            const service = services.find((s) => s.id === c.serviceId);
             const isFlat = !!c.commissionFlatPerUnit;
             const isBooking = !!c.bookingId;
             const isInvoice = !!c.invoiceId;
@@ -146,7 +151,7 @@ function CommissionRows({
             return (
               <tr key={c.id} className="hover:bg-white/5 transition-colors">
                 <td className="px-4 sm:px-6 py-3 sm:py-4 text-sm font-medium text-text-primary">
-                  {service?.name[language] ?? c.serviceId}
+                  {resolveName(c)}
                 </td>
                 <td className="px-4 sm:px-6 py-3 sm:py-4 text-sm text-text-secondary hidden md:table-cell">
                   {sourceId ? (
@@ -166,7 +171,7 @@ function CommissionRows({
                   )}
                 </td>
                 <td className="px-4 sm:px-6 py-3 sm:py-4 text-sm text-text-secondary hidden md:table-cell">
-                  {formatShortDate(c.createdAt, language)}
+                  {formatShortDate(resolveDate(c), language)}
                 </td>
                 <td className="px-4 sm:px-6 py-3 sm:py-4 text-sm text-text-secondary text-right hidden lg:table-cell">
                   {formatPrice(c.serviceAmount)}
@@ -193,8 +198,49 @@ export default function StylistEarningsPage() {
   const { language, t } = useLanguage();
   const { getStylistByPhone } = useStaff();
   const { getCommissionsForStylist } = useCommissions();
+  const { invoices } = useInvoices();
+  const { allServices } = useService();
+  const { allProducts } = useProducts();
 
-  const [preset, setPreset] = useState<PresetRange>("thisYear");
+  // Source-invoice issue dates — fallback for commissions created before
+  // `workDate` existed, so old records still land in the right quincena.
+  const invoiceDateById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const inv of invoices) if (inv.date) map.set(inv.id, inv.date);
+    return map;
+  }, [invoices]);
+
+  /** Effective YYYY-MM-DD the work happened (workDate → invoice date → createdAt). */
+  const resolveDate = useMemo(
+    () => (c: CommissionRecord) => commissionWorkDate(c, invoiceDateById),
+    [invoiceDateById]
+  );
+
+  /** Name from the record itself, then the live catalogs (incl. custom
+   * services/products the static seed doesn't know about), then the line
+   * item on the source invoice (covers catalog items deleted since). */
+  const resolveName = useMemo(
+    () => (c: CommissionRecord): string => {
+      if (c.serviceName) return c.serviceName;
+      const service = allServices.find((s) => s.id === c.serviceId);
+      if (service) return service.name[language];
+      const product = allProducts.find((p) => p.id === c.serviceId);
+      if (product) return product.name;
+      if (c.invoiceId) {
+        const item = invoices
+          .find((inv) => inv.id === c.invoiceId)
+          ?.items?.find((it) => it.id === c.serviceId);
+        if (item?.name) return item.name;
+      }
+      if (c.serviceId === "invoice-amount") {
+        return language === "es" ? "Factura completa" : "Whole invoice";
+      }
+      return c.serviceId;
+    },
+    [allServices, allProducts, invoices, language]
+  );
+
+  const [preset, setPreset] = useState<PresetRange>("current");
   const [customFrom, setCustomFrom] = useState<string>("");
   const [customTo, setCustomTo] = useState<string>("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -214,62 +260,52 @@ export default function StylistEarningsPage() {
     [preset, customFrom, customTo]
   );
 
-  // Filter by createdAt within the selected range.
+  // Filter by the date the work happened (not when it was typed into the
+  // system) within the selected range. Noon anchors the YYYY-MM-DD string
+  // safely inside the local day regardless of timezone.
   const inRange = useMemo(() => {
     const fromMs = range.from.getTime();
     const toMs = range.to.getTime();
     return commissions.filter((c) => {
-      const t = new Date(c.createdAt).getTime();
+      const t = new Date(`${resolveDate(c)}T12:00:00`).getTime();
       return t >= fromMs && t <= toMs;
     });
-  }, [commissions, range]);
+  }, [commissions, range, resolveDate]);
 
-  // At-a-glance cards: the three most recent quincenas, each with its own
-  // date range and total — so the operator can compare period-to-period
-  // instead of seeing overlapping month/year rollups.
+  // At-a-glance card: the current quincena only — historic periods are
+  // reachable through the range filter below instead of fixed KPI cards.
   const currentQ = useMemo(() => getCurrentQuincena(), []);
-  const previousQ = useMemo(() => getPreviousQuincena(currentQ), [currentQ]);
-  const priorQ = useMemo(() => getPreviousQuincena(previousQ), [previousQ]);
 
-  const totalForQuincena = (q: Quincena): number => {
-    const fromMs = q.start.getTime();
-    const toMs = q.end.getTime();
+  const currentQuincenaTotal = useMemo(() => {
+    const fromMs = currentQ.start.getTime();
+    const toMs = currentQ.end.getTime();
     let sum = 0;
     for (const c of commissions) {
-      const t = new Date(c.createdAt).getTime();
+      const t = new Date(`${resolveDate(c)}T12:00:00`).getTime();
       if (t >= fromMs && t <= toMs) sum += c.commissionAmount;
     }
     return sum;
-  };
+  }, [commissions, resolveDate, currentQ]);
 
-  const quincenaTotals = useMemo(
-    () => ({
-      current: totalForQuincena(currentQ),
-      previous: totalForQuincena(previousQ),
-      prior: totalForQuincena(priorQ),
-    }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [commissions, currentQ, previousQ, priorQ]
-  );
-
-  // Group filtered commissions by quincena (newest first).
+  // Group filtered commissions by the quincena the work happened in
+  // (newest first).
   const groups = useMemo<QuincenaGroup[]>(() => {
     const byId = new Map<string, { q: Quincena; items: CommissionRecord[] }>();
     for (const c of inRange) {
-      const q = getQuincenaOf(c.createdAt);
+      const q = getQuincenaOf(`${resolveDate(c)}T12:00:00`);
       if (!byId.has(q.id)) byId.set(q.id, { q, items: [] });
       byId.get(q.id)!.items.push(c);
     }
     return Array.from(byId.values())
       .map(({ q, items }) => ({
         q,
-        items: items.sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        items: items.sort((a, b) =>
+          resolveDate(b).localeCompare(resolveDate(a))
         ),
         total: items.reduce((s, c) => s + c.commissionAmount, 0),
       }))
       .sort((a, b) => b.q.start.getTime() - a.q.start.getTime());
-  }, [inRange]);
+  }, [inRange, resolveDate]);
 
   const rangeTotal = useMemo(
     () => inRange.reduce((s, c) => s + c.commissionAmount, 0),
@@ -291,33 +327,6 @@ export default function StylistEarningsPage() {
       return next;
     });
   };
-
-  const summaryCards = [
-    {
-      icon: CalendarDays,
-      value: formatPrice(quincenaTotals.current),
-      label: language === "es" ? "Quincena actual" : "Current fortnight",
-      hint: quincenaLabel(currentQ, language),
-      color: "text-mila-gold",
-      bg: "bg-mila-gold/10",
-    },
-    {
-      icon: CalendarRange,
-      value: formatPrice(quincenaTotals.previous),
-      label: language === "es" ? "Quincena anterior" : "Previous fortnight",
-      hint: quincenaLabel(previousQ, language),
-      color: "text-info",
-      bg: "bg-info/10",
-    },
-    {
-      icon: TrendingUp,
-      value: formatPrice(quincenaTotals.prior),
-      label: language === "es" ? "Anterior a esa" : "Two ago",
-      hint: quincenaLabel(priorQ, language),
-      color: "text-success",
-      bg: "bg-success/10",
-    },
-  ];
 
   const presetOptions: { key: PresetRange; label: string }[] = [
     { key: "current", label: language === "es" ? "Quincena actual" : "Current fortnight" },
@@ -358,30 +367,24 @@ export default function StylistEarningsPage() {
         </p>
       </motion.div>
 
-      {/* Fixed summary cards */}
-      <motion.div
-        variants={fadeInUp}
-        className="grid grid-cols-1 sm:grid-cols-3 gap-4"
-      >
-        {summaryCards.map((card) => {
-          const Icon = card.icon;
-          return (
-            <Card key={card.label} className="flex items-center gap-4">
-              <div className={cn("p-3 rounded-xl shrink-0", card.bg)}>
-                <Icon size={22} className={card.color} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-2xl font-bold text-text-primary truncate">
-                  {card.value}
-                </p>
-                <p className="text-sm text-text-secondary">{card.label}</p>
-                <p className="text-xs text-text-muted mt-0.5 truncate">
-                  {card.hint}
-                </p>
-              </div>
-            </Card>
-          );
-        })}
+      {/* Current quincena summary card */}
+      <motion.div variants={fadeInUp}>
+        <Card className="flex items-center gap-4">
+          <div className={cn("p-3 rounded-xl shrink-0", "bg-mila-gold/10")}>
+            <CalendarDays size={22} className="text-mila-gold" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-2xl font-bold text-text-primary truncate">
+              {formatPrice(currentQuincenaTotal)}
+            </p>
+            <p className="text-sm text-text-secondary">
+              {language === "es" ? "Quincena actual" : "Current fortnight"}
+            </p>
+            <p className="text-xs text-text-muted mt-0.5 truncate">
+              {quincenaLabel(currentQ, language)}
+            </p>
+          </div>
+        </Card>
       </motion.div>
 
       {/* Filter + grouped detail */}
@@ -510,7 +513,12 @@ export default function StylistEarningsPage() {
                       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
                       className="overflow-hidden border-t border-border-default"
                     >
-                      <CommissionRows items={g.items} language={language} />
+                      <CommissionRows
+                        items={g.items}
+                        language={language}
+                        resolveName={resolveName}
+                        resolveDate={resolveDate}
+                      />
                     </motion.div>
                   )}
                 </AnimatePresence>

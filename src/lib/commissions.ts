@@ -77,6 +77,28 @@ export function commissionRateFor(
 const COMMISSIONABLE_ITEM_TYPES = new Set(["service", "product"]);
 
 /**
+ * Effective date (YYYY-MM-DD) a commission belongs to for quincena grouping
+ * and period filters. Preference order:
+ *   1. `workDate` — stamped from the invoice's `date` at generation time.
+ *   2. The source invoice's `date`, when the caller can provide a lookup —
+ *      covers records created before `workDate` existed.
+ *   3. `createdAt` — last resort (e.g. booking-generated legacy rows).
+ * Without this, billing loaded retroactively piles into the quincena in
+ * which it was TYPED instead of the one in which the work happened.
+ */
+export function commissionWorkDate(
+  commission: CommissionRecord,
+  invoiceDateById?: ReadonlyMap<string, string>
+): string {
+  if (commission.workDate) return commission.workDate;
+  if (commission.invoiceId) {
+    const invoiceDate = invoiceDateById?.get(commission.invoiceId);
+    if (invoiceDate) return invoiceDate;
+  }
+  return commission.createdAt.slice(0, 10);
+}
+
+/**
  * Build a deterministic commission id for an (invoice, item, stylist) tuple.
  * Two callers writing the same id end up with one document instead of two —
  * that's the idempotency guarantee.
@@ -109,6 +131,12 @@ export function buildCommissionsForInvoice(
   const warnings: CommissionWarning[] = [];
 
   if (invoice.status !== "paid") return { records, warnings };
+
+  // The date the work happened — the invoice's issue date, NOT today. This is
+  // what quincena grouping keys on, so re-generating months later (rebuilds,
+  // retroactive data entry) still lands the commission in the right period.
+  const workDate =
+    invoice.date ?? (invoice.paidAt ?? new Date().toISOString()).slice(0, 10);
 
   // Fallback path: no items[]. Operators commonly create "quick invoices"
   // through the admin form by typing just a total + stylist + description.
@@ -173,6 +201,12 @@ export function buildCommissionsForInvoice(
     }
     const commissionAmount =
       Math.round(((commissionableBase * rate) / 100) * 100) / 100;
+    // Quick invoices carry no items — the free-text description is the best
+    // available display name for the earnings views.
+    const quickName =
+      typeof invoice.description === "string" && invoice.description.trim()
+        ? invoice.description.trim()
+        : undefined;
     records.push({
       id: buildCommissionId(invoice.id, 0, stylist.id),
       stylistId: stylist.id,
@@ -183,6 +217,8 @@ export function buildCommissionsForInvoice(
       commissionAmount,
       quantity: 1,
       itemType: "service",
+      workDate,
+      ...(quickName && { serviceName: quickName }),
       status: "pending",
       createdAt: new Date().toISOString(),
     });
@@ -265,6 +301,8 @@ export function buildCommissionsForInvoice(
         commissionFlatPerUnit: PRODUCT_FLAT_COMMISSION_PER_UNIT,
         quantity: item.quantity,
         itemType: "product",
+        workDate,
+        ...(item.name && { serviceName: item.name }),
         status: "pending",
         createdAt,
       });
@@ -299,6 +337,8 @@ export function buildCommissionsForInvoice(
       commissionAmount,
       quantity: item.quantity,
       itemType: "service",
+      workDate,
+      ...(item.name && { serviceName: item.name }),
       status: "pending",
       createdAt,
     });

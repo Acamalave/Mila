@@ -9,6 +9,7 @@ import { useCommissions } from "@/providers/CommissionProvider";
 import { useExpenses } from "@/providers/ExpenseProvider";
 import { cn, formatPrice } from "@/lib/utils";
 import { totalGatewayFees, gatewayFeeForAmount, wasChargedByGateway, PF_FEE_PERCENT, PF_FEE_FIXED_USD } from "@/lib/gateway-fees";
+import { commissionWorkDate } from "@/lib/commissions";
 import {
   invoicesInRange as invoicesInRangeHelper,
   paidInvoicesInRange,
@@ -104,12 +105,17 @@ export default function AccountingOverview() {
     [paidInvoices]
   );
 
+  // Commissions belong to the period in which the WORK happened (workDate,
+  // falling back to the source invoice's date for older records), not the
+  // period in which the record was typed into the system.
   const commissionsInRange = useMemo(() => {
+    const invoiceDateById = new Map<string, string>();
+    for (const inv of invoices) if (inv.date) invoiceDateById.set(inv.id, inv.date);
     return commissions.filter((c) => {
-      const d = c.createdAt.slice(0, 10);
+      const d = commissionWorkDate(c, invoiceDateById);
       return d >= startDate && d <= endDate;
     });
-  }, [commissions, startDate, endDate]);
+  }, [commissions, invoices, startDate, endDate]);
 
   const expensesPeriod = useMemo(
     () => expensesInRange(startDate, endDate),

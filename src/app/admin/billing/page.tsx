@@ -8,9 +8,10 @@ import { useInvoices } from "@/providers/InvoiceProvider";
 import { useCommissions } from "@/providers/CommissionProvider";
 import { useStaff } from "@/providers/StaffProvider";
 import { useProducts } from "@/providers/ProductProvider";
+import { useService } from "@/providers/ServiceProvider";
+import { commissionWorkDate } from "@/lib/commissions";
 import { cn, formatPrice } from "@/lib/utils";
 import { formatShortDate } from "@/lib/date-utils";
-import { services } from "@/data/services";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
@@ -46,6 +47,7 @@ export default function AdminBillingPage() {
   const { invoices, addInvoice, updateInvoice, sendInvoice, deleteInvoice, markAsPaid, markAsDeclined } = useInvoices();
   const { commissions, markAllPaidForStylist, rebuildAllCommissions } = useCommissions();
   const { allProducts } = useProducts();
+  const { allServices } = useService();
   const { allStylists } = useStaff();
 
   const [view, setView] = useState<"invoices" | "commissions">("invoices");
@@ -169,25 +171,38 @@ export default function AdminBillingPage() {
     return { total, paid, pending };
   }, [invoicesInRange]);
 
+  // Source-invoice issue dates — fallback for commissions created before
+  // `workDate` existed, so they still filter/group by the day of the work.
+  const invoiceDateById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const inv of invoices) if (inv.date) map.set(inv.id, inv.date);
+    return map;
+  }, [invoices]);
+
+  /** Effective YYYY-MM-DD the work happened (workDate → invoice date → createdAt). */
+  const commissionDate = useCallback(
+    (c: (typeof commissions)[number]) => commissionWorkDate(c, invoiceDateById),
+    [invoiceDateById]
+  );
+
   /**
-   * Commissions filtered by both date range AND status. The date range is
-   * inclusive on both ends (we add 1 day to the end so it captures everything
-   * created during the chosen end day).
+   * Commissions filtered by both date range AND status. The range compares
+   * against the date the work happened — NOT the record's createdAt — so
+   * billing typed in retroactively still settles in the right period.
+   * Inclusive on both ends.
    */
   const filteredCommissions = useMemo(() => {
-    const startMs = new Date(`${commissionStartDate}T00:00:00`).getTime();
-    const endMs = new Date(`${commissionEndDate}T23:59:59.999`).getTime();
     const inRange = commissions.filter((c) => {
-      const t = new Date(c.createdAt).getTime();
-      return t >= startMs && t <= endMs;
+      const d = commissionDate(c);
+      return d >= commissionStartDate && d <= commissionEndDate;
     });
-    const sorted = [...inRange].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    const sorted = [...inRange].sort((a, b) =>
+      commissionDate(b).localeCompare(commissionDate(a))
     );
     return commissionFilter === "all"
       ? sorted
       : sorted.filter((c) => c.status === commissionFilter);
-  }, [commissions, commissionFilter, commissionStartDate, commissionEndDate]);
+  }, [commissions, commissionDate, commissionFilter, commissionStartDate, commissionEndDate]);
 
   /** Totals — always computed off the filtered (period-scoped) list. */
   const commissionSummary = useMemo(() => {
@@ -227,7 +242,7 @@ export default function AdminBillingPage() {
     return Array.from(groups.values()).sort((a, b) => b.total - a.total);
   }, [filteredCommissions]);
 
-  const getService = (id: string) => services.find((s) => s.id === id);
+  const getService = (id: string) => allServices.find((s) => s.id === id);
 
   const handleSaveInvoice = useCallback(
     (data: Omit<Invoice, "id" | "createdAt">) => {
@@ -814,8 +829,8 @@ export default function AdminBillingPage() {
                     </button>
                   ))}
                   <button
-                    onClick={() => {
-                      const { regenerated, orphansRemoved } = rebuildAllCommissions();
+                    onClick={async () => {
+                      const { regenerated, orphansRemoved } = await rebuildAllCommissions();
                       const parts: string[] = [];
                       if (regenerated > 0) {
                         parts.push(
@@ -1026,29 +1041,36 @@ export default function AdminBillingPage() {
                           </thead>
                           <tbody className="divide-y divide-border-subtle">
                             {group.rows.map((c) => {
-                              // Resolve the display name from the right
-                              // catalog. Services live in `services`, products
-                              // in `allProducts`, and the special
+                              // Resolve the display name: the name captured
+                              // at sale time wins; then the live catalogs
+                              // (services incl. custom ones, products); the
                               // "invoice-amount" sentinel marks an items-less
                               // invoice (the whole amount → one commission).
-                              const matchedService = services.find(
+                              const matchedService = allServices.find(
                                 (s) => s.id === c.serviceId
                               );
                               const matchedProduct = !matchedService
                                 ? allProducts.find((p) => p.id === c.serviceId)
                                 : null;
-                              const displayName = matchedService
+                              const sourceInvoice = c.invoiceId
+                                ? invoices.find((i) => i.id === c.invoiceId)
+                                : null;
+                              const invoiceItemName = sourceInvoice?.items?.find(
+                                (it) => it.id === c.serviceId
+                              )?.name;
+                              const displayName = c.serviceName
+                                ? c.serviceName
+                                : matchedService
                                 ? matchedService.name[language]
                                 : matchedProduct
                                 ? matchedProduct.name
+                                : invoiceItemName
+                                ? invoiceItemName
                                 : c.serviceId === "invoice-amount"
                                 ? language === "es"
                                   ? "Factura completa"
                                   : "Whole invoice"
                                 : c.serviceId;
-                              const sourceInvoice = c.invoiceId
-                                ? invoices.find((i) => i.id === c.invoiceId)
-                                : null;
                               const clientName = sourceInvoice?.clientName ?? "—";
                               // Format the rate column: flat per-unit
                               // commissions display as e.g. "$3 / und"
@@ -1062,7 +1084,7 @@ export default function AdminBillingPage() {
                                   className="hover:bg-white/[0.03] transition-colors"
                                 >
                                   <td className="px-3 sm:px-6 py-2 text-xs text-text-secondary whitespace-nowrap">
-                                    {formatShortDate(c.createdAt, language)}
+                                    {formatShortDate(commissionDate(c), language)}
                                   </td>
                                   <td className="px-3 sm:px-6 py-2 text-xs text-text-primary">
                                     {displayName}

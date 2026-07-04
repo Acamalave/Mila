@@ -19,6 +19,16 @@ export interface CommissionRecord {
   /** Optional: distinguishes "service" vs "product" rows so the UI can
    *  resolve the name from the right catalog without guessing. */
   itemType?: "service" | "product";
+  /** YYYY-MM-DD date the work was performed — copied from the source
+   *  invoice's `date` (or the booking date). Quincena grouping and period
+   *  filters use this instead of `createdAt`, so billing loaded
+   *  retroactively still lands in the correct fortnight. Records created
+   *  before this field existed lack it; readers must fall back to the
+   *  source invoice date, then `createdAt` (see commissionWorkDate). */
+  workDate?: string;
+  /** Display name of the service/product captured at sale time, so views
+   *  don't depend on the catalog still containing the item. */
+  serviceName?: string;
   status: "pending" | "paid";
   paidAt?: string;
   createdAt: string;

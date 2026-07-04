@@ -7,13 +7,12 @@ import {
   useCallback,
   useMemo,
   useEffect,
-  useRef,
   type ReactNode,
 } from "react";
 import type { CommissionRecord, Booking, Invoice, Stylist } from "@/types";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { useEventBus } from "@/providers/EventBusProvider";
-import { setDocument, deleteDocument, onCollectionChange } from "@/lib/firestore";
+import { setDocument, deleteDocument, onCollectionChange, getCollection } from "@/lib/firestore";
 import { useStaff } from "@/providers/StaffProvider";
 import { getEffectivePrice } from "@/lib/service-overrides";
 import {
@@ -39,18 +38,19 @@ interface CommissionContextValue {
   deleteCommissionsForInvoice: (invoiceId: string) => void;
   /**
    * Sweep every commission whose invoiceId no longer corresponds to a live
-   * invoice and remove it. Returns the number of orphans cleaned. Reads
-   * the current invoice snapshot from localStorage so it works without
-   * depending on InvoiceProvider being a parent.
+   * invoice in FIRESTORE and remove it. Async because it fetches the
+   * authoritative invoice list instead of trusting this device's cache.
+   * Returns the number of orphans cleaned.
    */
-  cleanupOrphanedCommissions: () => number;
+  cleanupOrphanedCommissions: () => Promise<number>;
   /**
    * One-shot recovery action: cleans orphan commissions, then regenerates
-   * commissions for every paid invoice using the latest stylist data and
-   * invoice state. Use after schema changes or to backfill missing rows.
+   * commissions for every paid invoice in Firestore using the latest
+   * stylist data. Use after schema changes or to backfill missing rows
+   * (e.g. stamping workDate on records created before that field existed).
    * Returns a summary {regenerated, orphansRemoved}.
    */
-  rebuildAllCommissions: () => { regenerated: number; orphansRemoved: number };
+  rebuildAllCommissions: () => Promise<{ regenerated: number; orphansRemoved: number }>;
   getCommissionsForStylist: (stylistId: string) => CommissionRecord[];
   getStylistEarnings: (stylistId: string, period?: "week" | "month" | "all") => {
     total: number;
@@ -131,6 +131,7 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
           serviceAmount: servicePrice,
           commissionRate: rate,
           commissionAmount,
+          workDate: booking.date,
           status: "pending",
           createdAt: new Date().toISOString(),
         });
@@ -367,21 +368,35 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
 
   /**
    * Find commissions whose source invoice no longer exists and delete them.
-   * Reads invoices directly from localStorage so the cleanup is robust to
-   * provider order. Returns the number of orphan records removed so admin
-   * UI can surface a toast.
+   *
+   * IMPORTANT: verifies against the invoices that actually live in
+   * FIRESTORE, never against this browser's local cache. A device with a
+   * partial/stale invoice cache used to tombstone perfectly valid
+   * commissions for every device — that's how live commissions ended up
+   * hidden in production. An invoice counts as gone only when its document
+   * is missing from Firestore or its id is in the cross-device deleted set.
+   *
+   * Returns the number of orphan records removed so admin UI can surface a
+   * toast.
    */
-  const cleanupOrphanedCommissions = useCallback((): number => {
-    const liveInvoices = getStoredData<Invoice[]>("mila-invoices", []);
-    if (liveInvoices.length === 0 && commissions.length > 0) {
-      // Safety guard — if invoices haven't hydrated yet, refuse to delete
-      // anything. Otherwise we'd wipe out every commission on a fresh tab.
-      console.warn(
-        "[Commissions] Skipping orphan cleanup — invoice cache is empty"
-      );
+  const cleanupOrphanedCommissions = useCallback(async (): Promise<number> => {
+    let firestoreInvoices: Invoice[];
+    try {
+      firestoreInvoices = await getCollection<Invoice>("invoices");
+    } catch (err) {
+      console.warn("[Commissions] Orphan cleanup skipped — could not read invoices from Firestore:", err);
       return 0;
     }
-    const liveIds = new Set(liveInvoices.map((i) => i.id));
+    if (firestoreInvoices.length === 0 && commissions.length > 0) {
+      // Safety guard — an empty read on a database that clearly has activity
+      // is more likely an outage than a truly empty collection.
+      console.warn("[Commissions] Skipping orphan cleanup — Firestore returned no invoices");
+      return 0;
+    }
+    const deletedInvoices = getDeletedSet("invoices");
+    const liveIds = new Set(
+      firestoreInvoices.filter((i) => !deletedInvoices.has(i.id)).map((i) => i.id)
+    );
     const orphans: string[] = [];
     for (const c of commissions) {
       if (c.invoiceId && !liveIds.has(c.invoiceId)) orphans.push(c.id);
@@ -410,13 +425,24 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
    *   • the commission rules in lib/commissions changed
    *   • there's drift between commissions and what the invoices say
    */
-  const rebuildAllCommissions = useCallback((): {
+  const rebuildAllCommissions = useCallback(async (): Promise<{
     regenerated: number;
     orphansRemoved: number;
-  } => {
-    const orphansRemoved = cleanupOrphanedCommissions();
-    const liveInvoices = getStoredData<Invoice[]>("mila-invoices", []);
-    const paidInvoices = liveInvoices.filter((i) => i.status === "paid");
+  }> => {
+    const orphansRemoved = await cleanupOrphanedCommissions();
+    // Regenerate from Firestore — the shared source of truth — so a device
+    // with a stale local cache can't rebuild from outdated invoice data.
+    let liveInvoices: Invoice[];
+    try {
+      liveInvoices = await getCollection<Invoice>("invoices");
+    } catch (err) {
+      console.warn("[Commissions] Rebuild aborted — could not read invoices from Firestore:", err);
+      return { regenerated: 0, orphansRemoved };
+    }
+    const deletedInvoices = getDeletedSet("invoices");
+    const paidInvoices = liveInvoices.filter(
+      (i) => i.status === "paid" && !deletedInvoices.has(i.id)
+    );
     for (const inv of paidInvoices) {
       regenerateCommissionsForInvoice(inv);
     }
@@ -440,7 +466,11 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
 
       if (period !== "all") {
         const start = getStartOfPeriod(period);
-        filtered = filtered.filter((c) => new Date(c.createdAt) >= start);
+        // Filter by the date the work happened (workDate), not by when the
+        // record was typed into the system.
+        filtered = filtered.filter(
+          (c) => new Date(c.workDate ?? c.createdAt) >= start
+        );
       }
 
       return {
@@ -548,16 +578,12 @@ export function CommissionProvider({ children }: { children: ReactNode }) {
     deleteCommissionsForInvoice,
   ]);
 
-  // Auto-cleanup orphans whenever the commissions set settles. Debounced so
-  // bursts of Firestore sync events don't trigger N cleanups in a row.
-  const cleanupOrphanedCommissionsRef = useRef(cleanupOrphanedCommissions);
-  cleanupOrphanedCommissionsRef.current = cleanupOrphanedCommissions;
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      cleanupOrphanedCommissionsRef.current();
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, [commissions.length]);
+  // NOTE: there used to be an automatic, debounced orphan cleanup here that
+  // ran on every device whenever the commissions set settled. It compared
+  // against the local invoice cache and repeatedly tombstoned valid
+  // commissions from devices with partial caches. Cleanup is now explicit —
+  // admin triggers it from the billing page (Rebuild) — and verifies against
+  // Firestore.
 
   const value = useMemo(
     () => ({
