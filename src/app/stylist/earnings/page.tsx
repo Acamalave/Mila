@@ -93,6 +93,7 @@ function CommissionRows({
   language,
   resolveName,
   resolveDate,
+  resolveClient,
 }: {
   items: CommissionRecord[];
   language: "es" | "en";
@@ -100,6 +101,8 @@ function CommissionRows({
   resolveName: (c: CommissionRecord) => string;
   /** Effective YYYY-MM-DD date of the work (invoice date, not typing date). */
   resolveDate: (c: CommissionRecord) => string;
+  /** Client name from the source invoice, when known. */
+  resolveClient: (c: CommissionRecord) => string | null;
 }) {
   if (items.length === 0) {
     return (
@@ -119,7 +122,7 @@ function CommissionRows({
               {language === "es" ? "Servicio" : "Service"}
             </th>
             <th className="px-4 sm:px-6 py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider hidden md:table-cell">
-              {language === "es" ? "Origen" : "Source"}
+              {language === "es" ? "Cliente" : "Client"}
             </th>
             <th className="px-4 sm:px-6 py-3 text-[10px] sm:text-xs font-medium text-text-muted uppercase tracking-wider hidden md:table-cell">
               {language === "es" ? "Fecha" : "Date"}
@@ -140,31 +143,25 @@ function CommissionRows({
             const isFlat = !!c.commissionFlatPerUnit;
             const isBooking = !!c.bookingId;
             const isInvoice = !!c.invoiceId;
-            const sourceId = c.invoiceId ?? c.bookingId ?? "";
-            const sourceShort = sourceId ? sourceId.slice(-8) : "—";
-            const sourceIcon = isInvoice ? FileText : isBooking ? BookOpen : null;
-            const sourceLabel = isInvoice
-              ? language === "es" ? "Factura" : "Invoice"
-              : isBooking
-                ? language === "es" ? "Reserva" : "Booking"
-                : "";
+            const SourceIcon = isInvoice ? FileText : isBooking ? BookOpen : null;
+            const client = resolveClient(c);
             return (
               <tr key={c.id} className="hover:bg-white/5 transition-colors">
                 <td className="px-4 sm:px-6 py-3 sm:py-4 text-sm font-medium text-text-primary">
                   {resolveName(c)}
+                  {/* On phones the Cliente column is hidden, so the client
+                      rides under the service name where it's always visible. */}
+                  {client && (
+                    <p className="text-xs font-normal text-text-muted mt-0.5 md:hidden">
+                      {client}
+                    </p>
+                  )}
                 </td>
                 <td className="px-4 sm:px-6 py-3 sm:py-4 text-sm text-text-secondary hidden md:table-cell">
-                  {sourceId ? (
+                  {client ? (
                     <span className="inline-flex items-center gap-1.5">
-                      {sourceIcon &&
-                        (() => {
-                          const Icon = sourceIcon;
-                          return <Icon size={12} className="text-text-muted" />;
-                        })()}
-                      <span className="text-xs">
-                        {sourceLabel}{" "}
-                        <span className="font-mono text-text-muted">…{sourceShort}</span>
-                      </span>
+                      {SourceIcon && <SourceIcon size={12} className="text-text-muted" />}
+                      <span className="text-xs">{client}</span>
                     </span>
                   ) : (
                     <span className="text-text-muted text-xs">—</span>
@@ -215,6 +212,16 @@ export default function StylistEarningsPage() {
     () => (c: CommissionRecord) => commissionWorkDate(c, invoiceDateById),
     [invoiceDateById]
   );
+
+  /** Client name from the source invoice — null for booking-only records. */
+  const resolveClient = useMemo(() => {
+    const byInvoiceId = new Map<string, string>();
+    for (const inv of invoices) {
+      if (inv.clientName) byInvoiceId.set(inv.id, inv.clientName);
+    }
+    return (c: CommissionRecord): string | null =>
+      (c.invoiceId && byInvoiceId.get(c.invoiceId)) || null;
+  }, [invoices]);
 
   /** Name from the record itself, then the live catalogs (incl. custom
    * services/products the static seed doesn't know about), then the line
@@ -518,6 +525,7 @@ export default function StylistEarningsPage() {
                         language={language}
                         resolveName={resolveName}
                         resolveDate={resolveDate}
+                        resolveClient={resolveClient}
                       />
                     </motion.div>
                   )}
