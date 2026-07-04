@@ -18,7 +18,8 @@
 // =============================================================================
 
 import { NextRequest, NextResponse } from "next/server";
-import { setDocument, getDocument, getCollection } from "@/lib/firestore";
+import { setDocument, getDocument } from "@/lib/firestore";
+import { fetchStylistsById } from "@/lib/staff-resolution";
 import { internalAuthHeaders } from "@/lib/internal-auth";
 import {
   buildCommissionsForInvoice,
@@ -207,20 +208,20 @@ function notifyWhatsApp(
  * any client-side generation: same id → Firestore merges into one document.
  */
 async function generateCommissionsServerSide(invoice: Invoice): Promise<void> {
-  let stylists: Stylist[] = [];
+  // Full effective roster (seed stylists + overrides + custom staff) — the
+  // bare `staff` collection lacks the seed stylists, which used to make every
+  // webhook-confirmed payment resolve to stylist_not_found and pay $0.
+  let stylistsById: Map<string, Stylist>;
   try {
-    stylists = await getCollection<Stylist>("staff");
+    stylistsById = await fetchStylistsById();
   } catch (err) {
     console.warn(
-      `[Webhook] Could not read staff to generate commissions for invoice ${invoice.id}:`,
+      `[Webhook] Could not resolve stylists to generate commissions for invoice ${invoice.id}:`,
       err
     );
     return;
   }
 
-  const stylistsById = new Map<string, Stylist>(
-    stylists.map((s) => [s.id, s])
-  );
   const { records, warnings } = buildCommissionsForInvoice(invoice, stylistsById);
 
   for (const warning of warnings) {
