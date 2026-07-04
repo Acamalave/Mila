@@ -8,12 +8,8 @@ import { useLanguage } from "@/providers/LanguageProvider";
 import { useAuth } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
 import {
-  LayoutDashboard,
   CalendarDays,
   DollarSign,
-  Users,
-  Star,
-  UserCircle,
   ChevronLeft,
   LogOut,
 } from "lucide-react";
@@ -24,13 +20,12 @@ export default function StylistSidebar() {
   const { t } = useLanguage();
   const { logout } = useAuth();
 
+  // Deliberately trimmed to the two surfaces stylists actually use:
+  // earnings (their landing page) and their schedule. /stylist redirects
+  // to /stylist/earnings, so no dashboard/overview entry.
   const links = [
-    { href: "/stylist", icon: LayoutDashboard, label: t("stylistDash", "overview") },
-    { href: "/stylist/schedule", icon: CalendarDays, label: t("stylistDash", "mySchedule") },
     { href: "/stylist/earnings", icon: DollarSign, label: t("stylistDash", "myEarnings") },
-    { href: "/stylist/clients", icon: Users, label: t("stylistDash", "myClients") },
-    { href: "/stylist/reviews", icon: Star, label: t("stylistDash", "myReviews") },
-    { href: "/stylist/profile", icon: UserCircle, label: t("stylistDash", "myProfile") },
+    { href: "/stylist/schedule", icon: CalendarDays, label: t("stylistDash", "mySchedule") },
   ];
 
   return (

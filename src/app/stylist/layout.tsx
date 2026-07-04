@@ -12,12 +12,8 @@ import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import {
   Menu,
   X,
-  LayoutDashboard,
   CalendarDays,
   DollarSign,
-  Users,
-  Star,
-  UserCircle,
   LogOut,
 } from "lucide-react";
 
@@ -54,13 +50,10 @@ export default function StylistLayout({
     return null;
   }
 
+  // Same two-entry nav as StylistSidebar: earnings (landing) + schedule.
   const mobileLinks = [
-    { href: "/stylist", icon: LayoutDashboard, label: t("stylistDash", "overview") },
-    { href: "/stylist/schedule", icon: CalendarDays, label: t("stylistDash", "mySchedule") },
     { href: "/stylist/earnings", icon: DollarSign, label: t("stylistDash", "myEarnings") },
-    { href: "/stylist/clients", icon: Users, label: t("stylistDash", "myClients") },
-    { href: "/stylist/reviews", icon: Star, label: t("stylistDash", "myReviews") },
-    { href: "/stylist/profile", icon: UserCircle, label: t("stylistDash", "myProfile") },
+    { href: "/stylist/schedule", icon: CalendarDays, label: t("stylistDash", "mySchedule") },
   ];
 
   return (
