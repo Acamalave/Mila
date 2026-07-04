@@ -10,6 +10,7 @@ import { cn, formatPrice } from "@/lib/utils";
 import { formatShortDate } from "@/lib/date-utils";
 import {
   getCurrentQuincena,
+  getPreviousQuincena,
   getQuincenaOf,
   quincenaLabel,
   type Quincena,
@@ -223,28 +224,33 @@ export default function StylistEarningsPage() {
     });
   }, [commissions, range]);
 
-  // Fixed at-a-glance totals — independent of the range filter.
-  const now = new Date();
-  const thisYear = now.getFullYear();
-  const thisMonth = now.getMonth();
+  // At-a-glance cards: the three most recent quincenas, each with its own
+  // date range and total — so the operator can compare period-to-period
+  // instead of seeing overlapping month/year rollups.
   const currentQ = useMemo(() => getCurrentQuincena(), []);
+  const previousQ = useMemo(() => getPreviousQuincena(currentQ), [currentQ]);
+  const priorQ = useMemo(() => getPreviousQuincena(previousQ), [previousQ]);
 
-  const totals = useMemo(() => {
-    let quincena = 0;
-    let month = 0;
-    let year = 0;
+  const totalForQuincena = (q: Quincena): number => {
+    const fromMs = q.start.getTime();
+    const toMs = q.end.getTime();
+    let sum = 0;
     for (const c of commissions) {
-      const d = new Date(c.createdAt);
-      if (d.getFullYear() === thisYear) {
-        year += c.commissionAmount;
-        if (d.getMonth() === thisMonth) month += c.commissionAmount;
-      }
-      if (d >= currentQ.start && d <= currentQ.end) {
-        quincena += c.commissionAmount;
-      }
+      const t = new Date(c.createdAt).getTime();
+      if (t >= fromMs && t <= toMs) sum += c.commissionAmount;
     }
-    return { quincena, month, year };
-  }, [commissions, thisYear, thisMonth, currentQ]);
+    return sum;
+  };
+
+  const quincenaTotals = useMemo(
+    () => ({
+      current: totalForQuincena(currentQ),
+      previous: totalForQuincena(previousQ),
+      prior: totalForQuincena(priorQ),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [commissions, currentQ, previousQ, priorQ]
+  );
 
   // Group filtered commissions by quincena (newest first).
   const groups = useMemo<QuincenaGroup[]>(() => {
@@ -289,7 +295,7 @@ export default function StylistEarningsPage() {
   const summaryCards = [
     {
       icon: CalendarDays,
-      value: formatPrice(totals.quincena),
+      value: formatPrice(quincenaTotals.current),
       label: language === "es" ? "Quincena actual" : "Current fortnight",
       hint: quincenaLabel(currentQ, language),
       color: "text-mila-gold",
@@ -297,20 +303,17 @@ export default function StylistEarningsPage() {
     },
     {
       icon: CalendarRange,
-      value: formatPrice(totals.month),
-      label: language === "es" ? "Este mes" : "This month",
-      hint: new Intl.DateTimeFormat(language === "es" ? "es-ES" : "en-US", {
-        month: "long",
-        year: "numeric",
-      }).format(now),
+      value: formatPrice(quincenaTotals.previous),
+      label: language === "es" ? "Quincena anterior" : "Previous fortnight",
+      hint: quincenaLabel(previousQ, language),
       color: "text-info",
       bg: "bg-info/10",
     },
     {
       icon: TrendingUp,
-      value: formatPrice(totals.year),
-      label: language === "es" ? "Este año" : "This year",
-      hint: String(thisYear),
+      value: formatPrice(quincenaTotals.prior),
+      label: language === "es" ? "Anterior a esa" : "Two ago",
+      hint: quincenaLabel(priorQ, language),
       color: "text-success",
       bg: "bg-success/10",
     },

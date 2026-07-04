@@ -88,6 +88,11 @@ export function getCurrentQuincena(): Quincena {
   return getQuincenaOf(new Date());
 }
 
+/** The quincena immediately before the given one. */
+export function getPreviousQuincena(q: Quincena): Quincena {
+  return getQuincenaOf(new Date(q.start.getTime() - 1));
+}
+
 /** Convenience: a bilingual label picker. */
 export function quincenaLabel(q: Quincena, language: "es" | "en"): string {
   return language === "es" ? q.labelEs : q.labelEn;
