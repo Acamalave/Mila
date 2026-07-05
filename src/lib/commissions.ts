@@ -132,6 +132,13 @@ export function buildCommissionsForInvoice(
 
   if (invoice.status !== "paid") return { records, warnings };
 
+  // Deposits are partial pre-payments to hold a slot, not completed sales —
+  // the commission is earned when the full service is billed. The webhook
+  // already skipped deposits, but the client-side listener and the admin
+  // "Rebuild commissions" path call this builder directly, so the guard has
+  // to live HERE or a paid deposit would pay the stylist twice.
+  if (invoice.isDeposit) return { records, warnings };
+
   // The date the work happened — the invoice's issue date, NOT today. This is
   // what quincena grouping keys on, so re-generating months later (rebuilds,
   // retroactive data entry) still lands the commission in the right period.

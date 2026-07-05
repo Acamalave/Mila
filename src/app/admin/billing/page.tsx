@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { motion } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useToast } from "@/providers/ToastProvider";
@@ -37,9 +37,39 @@ import {
   Calendar,
 } from "lucide-react";
 import { invoicesInRange as invoicesInRangeHelper } from "@/lib/revenue";
+import { onCollectionChange, deleteDocument } from "@/lib/firestore";
+import { AlertTriangle } from "lucide-react";
 import type { Invoice, InvoiceStatus } from "@/types";
 
 type FilterTab = "all" | "draft" | "sent" | "paid" | "declined";
+
+/** Row in the commissionWarnings collection — written by the commission
+ * generators when a paid invoice item couldn't be attributed to a stylist. */
+interface CommissionWarningDoc {
+  id: string;
+  invoiceId: string;
+  itemIndex: number;
+  itemId: string;
+  itemType: string;
+  reason: string;
+  stylistId?: string;
+  detail?: string;
+  createdAt?: string;
+  resolved?: boolean;
+}
+
+const WARNING_REASON_ES: Record<string, string> = {
+  missing_stylist_id: "Ítem sin estilista asignada — nadie cobró esta comisión",
+  stylist_not_found: "La estilista asignada no existe en el sistema",
+  zero_amount: "Monto en cero — no se calculó comisión",
+  invalid_rate: "Tasa de comisión inválida",
+};
+const WARNING_REASON_EN: Record<string, string> = {
+  missing_stylist_id: "Item has no stylist assigned — nobody earned this commission",
+  stylist_not_found: "The assigned stylist doesn't exist in the system",
+  zero_amount: "Zero amount — no commission was computed",
+  invalid_rate: "Invalid commission rate",
+};
 
 export default function AdminBillingPage() {
   const { language, t } = useLanguage();
@@ -58,6 +88,40 @@ export default function AdminBillingPage() {
   const [deletingInvoice, setDeletingInvoice] = useState<Invoice | null>(null);
   /** Read-only detail popup shown when clicking an invoice row. */
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+
+  // ── Commission warnings (unattributed payouts) ──
+  // Live view of commissionWarnings so the admin actually SEES money that
+  // couldn't be assigned to a stylist instead of it rotting in Firestore.
+  const [commissionWarnings, setCommissionWarnings] = useState<CommissionWarningDoc[]>([]);
+  useEffect(() => {
+    const unsub = onCollectionChange<CommissionWarningDoc>(
+      "commissionWarnings",
+      (docs) => setCommissionWarnings(docs.filter((w) => !w.resolved))
+    );
+    return unsub;
+  }, []);
+
+  const resolveWarning = useCallback(
+    (id: string) => {
+      deleteDocument("commissionWarnings", id)
+        .then(() => {
+          setCommissionWarnings((prev) => prev.filter((w) => w.id !== id));
+          addToast(
+            language === "es" ? "Advertencia resuelta" : "Warning resolved",
+            "success"
+          );
+        })
+        .catch(() =>
+          addToast(
+            language === "es"
+              ? "No se pudo resolver la advertencia"
+              : "Could not resolve the warning",
+            "error"
+          )
+        );
+    },
+    [addToast, language]
+  );
 
   // ── Commission period filter ──
   // Default to "this month" — most operators settle commissions monthly.
@@ -922,6 +986,70 @@ export default function AdminBillingPage() {
               </div>
             </Card>
           </motion.div>
+
+          {/* Unattributed-commission warnings */}
+          {commissionWarnings.length > 0 && (
+            <motion.div variants={fadeInUp}>
+              <Card padding="none" className="border border-warning/30">
+                <div className="p-4 border-b border-border-default flex items-center gap-2">
+                  <AlertTriangle size={16} className="text-warning" />
+                  <h3 className="text-sm font-semibold text-text-primary">
+                    {language === "es"
+                      ? `Comisiones sin asignar (${commissionWarnings.length})`
+                      : `Unassigned commissions (${commissionWarnings.length})`}
+                  </h3>
+                  <p className="text-xs text-text-muted ml-auto hidden sm:block">
+                    {language === "es"
+                      ? "Facturas pagadas donde nadie cobró comisión"
+                      : "Paid invoices where nobody earned the commission"}
+                  </p>
+                </div>
+                <div className="divide-y divide-border-subtle">
+                  {commissionWarnings.map((w) => {
+                    const sourceInvoice = invoices.find((i) => i.id === w.invoiceId);
+                    const reasonText =
+                      (language === "es" ? WARNING_REASON_ES : WARNING_REASON_EN)[w.reason] ??
+                      w.reason;
+                    return (
+                      <div
+                        key={w.id}
+                        className="px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-1"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-text-primary">{reasonText}</p>
+                          <p className="text-xs text-text-muted mt-0.5">
+                            {sourceInvoice ? (
+                              <button
+                                onClick={() => setViewingInvoice(sourceInvoice)}
+                                className="hover:text-mila-gold transition-colors cursor-pointer underline decoration-dotted"
+                              >
+                                {sourceInvoice.clientName} · {sourceInvoice.date} ·{" "}
+                                {formatPrice(sourceInvoice.amount)}
+                              </button>
+                            ) : (
+                              <span className="font-mono">…{w.invoiceId.slice(-8)}</span>
+                            )}
+                            {w.detail ? ` — ${w.detail}` : ""}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => resolveWarning(w.id)}
+                          className="px-3 py-1.5 rounded-md text-xs font-medium border border-border-default text-text-secondary hover:bg-white/5 hover:text-text-primary transition-colors cursor-pointer shrink-0"
+                          title={
+                            language === "es"
+                              ? "Marcar como resuelta (p. ej. ya corregiste la factura)"
+                              : "Mark as resolved (e.g. you already fixed the invoice)"
+                          }
+                        >
+                          {language === "es" ? "Resolver" : "Resolve"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            </motion.div>
+          )}
 
           {/* Stylist cards */}
           <motion.div variants={fadeInUp} className="space-y-3">
