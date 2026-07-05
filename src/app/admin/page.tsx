@@ -16,7 +16,6 @@ import { fadeInUp, staggerContainer } from "@/styles/animations";
 import {
   CalendarDays,
   DollarSign,
-  ShoppingCart,
   Clock,
   TrendingUp,
   AlertCircle,
@@ -172,12 +171,6 @@ export default function AdminOverviewPage() {
     [invoices, week]
   );
 
-  // POS sales = paid invoices with no bookingId (counter sale, not tied to a booking)
-  const posSalesToday = useMemo(
-    () => paidInvoicesToday.filter((inv) => !inv.bookingId),
-    [paidInvoicesToday]
-  );
-
   const pendingInvoices = useMemo(
     () =>
       invoices.filter((inv) => inv.status === "sent" || inv.status === "overdue"),
@@ -231,7 +224,6 @@ export default function AdminOverviewPage() {
   // ── Aggregates ───────────────────────────────────────────────────────────
   const revenueToday = paidInvoicesToday.reduce((s, i) => s + i.amount, 0);
   const revenueWeek = paidInvoicesWeek.reduce((s, i) => s + i.amount, 0);
-  const posTodayTotal = posSalesToday.reduce((s, i) => s + i.amount, 0);
   const weekCountVsPrev =
     prevWeekBookings.length === 0
       ? null
@@ -312,7 +304,7 @@ export default function AdminOverviewPage() {
           ────────────────────────────────────────────────────────────────── */}
       <motion.div
         variants={fadeInUp}
-        className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3"
+        className="grid grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3"
       >
         {/* Today's bookings */}
         <KpiCard
@@ -345,23 +337,6 @@ export default function AdminOverviewPage() {
               : paidInvoicesToday.length === 1
                 ? "invoice paid"
                 : "invoices paid"
-          }`}
-        />
-
-        {/* POS sales today */}
-        <KpiCard
-          icon={ShoppingCart}
-          color="accent"
-          label={language === "es" ? "Ventas POS Hoy" : "POS Sales Today"}
-          value={formatPrice(posTodayTotal)}
-          sub={`${posSalesToday.length} ${
-            language === "es"
-              ? posSalesToday.length === 1
-                ? "venta"
-                : "ventas"
-              : posSalesToday.length === 1
-                ? "sale"
-                : "sales"
           }`}
         />
 
