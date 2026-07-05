@@ -5,7 +5,7 @@ import { motion } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useInvoices } from "@/providers/InvoiceProvider";
 import { cn, formatPrice } from "@/lib/utils";
-import { formatShortDate } from "@/lib/date-utils";
+import { formatShortDate, localIsoDate } from "@/lib/date-utils";
 import { services } from "@/data/services";
 import { invoicesInRange as invoicesInRangeHelper } from "@/lib/revenue";
 import Card from "@/components/ui/Card";
@@ -25,11 +25,11 @@ type FilterTab = "all" | "draft" | "sent" | "paid" | "declined";
 type Preset = "thisWeek" | "thisMonth" | "lastMonth" | "thisYear" | "allTime";
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return localIsoDate();
 }
 function firstOfMonthIso() {
   const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  return localIsoDate(new Date(d.getFullYear(), d.getMonth(), 1));
 }
 
 /**

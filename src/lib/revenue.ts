@@ -17,6 +17,7 @@
 // =============================================================================
 
 import type { Invoice } from "@/types";
+import { localIsoDate } from "@/lib/date-utils";
 
 /**
  * Decide which timestamp counts an invoice as "in this period". A paid
@@ -24,9 +25,14 @@ import type { Invoice } from "@/types";
  * cleared. Unpaid / draft / sent invoices fall back to their `date`
  * (issue date), which is what the operator filters by in the billing
  * tab.
+ *
+ * `paidAt` is a UTC ISO timestamp, so it is converted to the LOCAL
+ * calendar day. Slicing the raw string put every payment made after
+ * 7:00 PM (Panamá, UTC-5) on the NEXT day, zeroing the evening's
+ * "revenue today" KPI.
  */
 function settlementDate(inv: Invoice): string {
-  if (inv.status === "paid" && inv.paidAt) return inv.paidAt.slice(0, 10);
+  if (inv.status === "paid" && inv.paidAt) return localIsoDate(inv.paidAt);
   return inv.date;
 }
 

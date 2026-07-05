@@ -1,5 +1,6 @@
 "use client";
 
+import { localIsoDate } from "@/lib/date-utils";
 import { useState, useEffect, useMemo } from "react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
@@ -25,7 +26,7 @@ function generateClientId(name: string): string {
 }
 
 function todayStr(): string {
-  return new Date().toISOString().split("T")[0];
+  return localIsoDate();
 }
 
 export default function InvoiceFormModal({
@@ -254,7 +255,7 @@ export default function InvoiceFormModal({
       taxAmount,
       taxRate,
       status,
-      date: new Date().toISOString().split("T")[0],
+      date: localIsoDate(),
       ...(description.trim() ? { description: description.trim() } : {}),
       ...(lineItems.length > 0 ? { items: lineItems } : {}),
       ...(dueDate ? { dueDate } : {}),

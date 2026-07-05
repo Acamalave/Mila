@@ -9,7 +9,7 @@ import { useLanguage } from "@/providers/LanguageProvider";
 import { getStoredData, setStoredData, formatPrice } from "@/lib/utils";
 import { setDocument, onCollectionChange } from "@/lib/firestore";
 import { getDeletedSet, markDeleted } from "@/lib/deleted-set";
-import { formatShortDate, formatTime } from "@/lib/date-utils";
+import { formatShortDate, formatTime, localIsoDate } from "@/lib/date-utils";
 import { services } from "@/data/services";
 import { useStaff } from "@/providers/StaffProvider";
 import { useCart } from "@/providers/CartProvider";
@@ -264,7 +264,7 @@ export default function DashboardPage() {
       taxRate: tax.taxRate,
       items: invoiceItems,
       status: "sent",
-      date: new Date().toISOString().split("T")[0],
+      date: localIsoDate(),
       sentAt: new Date().toISOString(),
       description: language === "es" ? "Compra de productos en Mila Shop" : "Product purchase from Mila Shop",
     });

@@ -1,5 +1,6 @@
 "use client";
 
+import { localIsoDate } from "@/lib/date-utils";
 import { useState, useMemo, useEffect } from "react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useToast } from "@/providers/ToastProvider";
@@ -430,7 +431,7 @@ export default function NewBookingModal({ isOpen, onClose, onCreated }: NewBooki
           type="date"
           value={bookingDate}
           onChange={(e) => setBookingDate(e.target.value)}
-          min={new Date().toISOString().split("T")[0]}
+          min={localIsoDate()}
         />
 
         {/* Time slots */}

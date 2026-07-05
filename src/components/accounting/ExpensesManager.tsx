@@ -6,7 +6,7 @@ import { useLanguage } from "@/providers/LanguageProvider";
 import { useToast } from "@/providers/ToastProvider";
 import { useExpenses } from "@/providers/ExpenseProvider";
 import { cn, formatPrice } from "@/lib/utils";
-import { formatShortDate } from "@/lib/date-utils";
+import { formatShortDate, localIsoDate } from "@/lib/date-utils";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -46,7 +46,7 @@ const CATEGORY_LABELS: Record<ExpenseCategory, { es: string; en: string }> = {
 };
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return localIsoDate();
 }
 
 /**

@@ -13,7 +13,7 @@ import {
 } from "@/lib/utils";
 import { setDocument, onCollectionChange, getCollection } from "@/lib/firestore";
 import { getDeletedSet } from "@/lib/deleted-set";
-import { formatTime } from "@/lib/date-utils";
+import { formatTime, localIsoDate } from "@/lib/date-utils";
 import { useService } from "@/providers/ServiceProvider";
 import { useStaff } from "@/providers/StaffProvider";
 import { getInitialDemoAppointments } from "@/data/appointments";
@@ -62,7 +62,7 @@ function formatWeekDay(d: Date, lang: string): string {
 }
 
 function toDateString(d: Date): string {
-  return d.toISOString().split("T")[0];
+  return localIsoDate(d);
 }
 
 export default function AdminCalendarPage() {

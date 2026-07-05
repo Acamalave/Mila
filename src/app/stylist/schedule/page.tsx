@@ -10,7 +10,7 @@ import { useToast } from "@/providers/ToastProvider";
 import { getStoredData, setStoredData } from "@/lib/utils";
 import { onCollectionChange, setDocument } from "@/lib/firestore";
 import { getDeletedSet } from "@/lib/deleted-set";
-import { formatShortDate, formatTime } from "@/lib/date-utils";
+import { formatShortDate, formatTime, localIsoDate } from "@/lib/date-utils";
 import { getInitialDemoAppointments } from "@/data/appointments";
 import { services } from "@/data/services";
 import Card from "@/components/ui/Card";
@@ -88,10 +88,7 @@ export default function StylistSchedulePage() {
   );
 
   // --- Week dates ---
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    const d = new Date();
-    return d.toISOString().split("T")[0];
-  });
+  const [selectedDate, setSelectedDate] = useState<string>(() => localIsoDate());
 
   const weekDates = useMemo(() => {
     const today = new Date();
@@ -106,11 +103,11 @@ export default function StylistSchedulePage() {
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
-      return d.toISOString().split("T")[0];
+      return localIsoDate(d);
     });
   }, []);
 
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = localIsoDate();
 
   // --- Day names ---
   const dayNames =

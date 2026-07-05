@@ -9,6 +9,19 @@ function parseLocalDate(date: string): Date {
   return new Date(year, month - 1, day);
 }
 
+/**
+ * "YYYY-MM-DD" for the given moment in LOCAL time. Never use
+ * `toISOString().slice(0, 10)` for calendar dates: that yields the UTC
+ * date, which in Panamá (UTC-5) flips to "tomorrow" at 7:00 PM — the
+ * dashboard then reports $0 revenue for the rest of the evening and
+ * invoices created at night get stamped with the wrong day.
+ */
+export function localIsoDate(input: Date | string = new Date()): string {
+  const d = input instanceof Date ? input : new Date(input);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 export function formatDate(date: string, locale: string = "en"): string {
   if (!date) return "—";
   const d = date.includes("T") ? new Date(date) : parseLocalDate(date);

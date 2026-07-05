@@ -11,7 +11,7 @@ import { useProducts } from "@/providers/ProductProvider";
 import { useService } from "@/providers/ServiceProvider";
 import { commissionWorkDate } from "@/lib/commissions";
 import { cn, formatPrice } from "@/lib/utils";
-import { formatShortDate } from "@/lib/date-utils";
+import { formatShortDate, localIsoDate } from "@/lib/date-utils";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
@@ -61,10 +61,10 @@ export default function AdminBillingPage() {
 
   // ── Commission period filter ──
   // Default to "this month" — most operators settle commissions monthly.
-  const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todayIso = useMemo(() => localIsoDate(), []);
   const firstOfMonthIso = useMemo(() => {
     const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+    return localIsoDate(new Date(d.getFullYear(), d.getMonth(), 1));
   }, []);
   const [commissionStartDate, setCommissionStartDate] = useState<string>(firstOfMonthIso);
   const [commissionEndDate, setCommissionEndDate] = useState<string>(todayIso);
@@ -95,22 +95,20 @@ export default function AdminBillingPage() {
       setEnd: (v: string) => void
     ) => {
       const today = new Date();
-      const todayStr = today.toISOString().slice(0, 10);
+      const todayStr = localIsoDate(today);
       if (preset === "thisWeek") {
         const day = today.getDay();
         const diff = today.getDate() - day + (day === 0 ? -6 : 1);
         const monday = new Date(today.getFullYear(), today.getMonth(), diff);
-        setStart(monday.toISOString().slice(0, 10));
+        setStart(localIsoDate(monday));
         setEnd(todayStr);
       } else if (preset === "thisMonth") {
-        setStart(
-          new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10)
-        );
+        setStart(localIsoDate(new Date(today.getFullYear(), today.getMonth(), 1)));
         setEnd(todayStr);
       } else if (preset === "last30") {
         const d = new Date();
         d.setDate(d.getDate() - 30);
-        setStart(d.toISOString().slice(0, 10));
+        setStart(localIsoDate(d));
         setEnd(todayStr);
       } else {
         setStart("1970-01-01");

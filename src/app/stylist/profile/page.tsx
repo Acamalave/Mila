@@ -1,5 +1,6 @@
 "use client";
 
+import { localIsoDate } from "@/lib/date-utils";
 import { useMemo, useState } from "react";
 import Image from "next/image";
 import { motion } from "motion/react";
@@ -544,7 +545,7 @@ export default function StylistProfilePage() {
               type="date"
               value={newBlockedDate}
               onChange={(e) => setNewBlockedDate(e.target.value)}
-              min={new Date().toISOString().split("T")[0]}
+              min={localIsoDate()}
               className="px-3 py-1.5 rounded-md text-sm"
               style={{ background: "var(--color-bg-input)", color: "var(--color-text-primary)", border: "1px solid var(--color-border-default)" }}
             />

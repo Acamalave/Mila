@@ -1,5 +1,6 @@
 "use client";
 
+import { localIsoDate } from "@/lib/date-utils";
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
@@ -196,7 +197,7 @@ export default function POSPage() {
         // and cash change notes all flow through it.
         ...(note.trim() ? { counterNote: note.trim() } : {}),
         status: "paid",
-        date: new Date().toISOString().split("T")[0],
+        date: localIsoDate(),
         description:
           language === "es"
             ? "Venta en punto de venta"
@@ -250,7 +251,7 @@ export default function POSPage() {
       items,
       paymentMethod: "card",
       status: "draft",
-      date: new Date().toISOString().split("T")[0],
+      date: localIsoDate(),
       description:
         language === "es"
           ? "Venta en punto de venta"

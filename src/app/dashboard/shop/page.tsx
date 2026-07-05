@@ -1,5 +1,6 @@
 "use client";
 
+import { localIsoDate } from "@/lib/date-utils";
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
@@ -88,7 +89,7 @@ export default function ShopPage() {
       clientName: user.name,
       amount: totalPrice,
       status: "sent",
-      date: new Date().toISOString().split("T")[0],
+      date: localIsoDate(),
       sentAt: new Date().toISOString(),
       description: language === "es" ? "Compra de productos en Mila Shop" : "Product purchase from Mila Shop",
     });

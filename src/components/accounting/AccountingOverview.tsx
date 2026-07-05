@@ -10,6 +10,7 @@ import { useExpenses } from "@/providers/ExpenseProvider";
 import { cn, formatPrice } from "@/lib/utils";
 import { totalGatewayFees, gatewayFeeForAmount, wasChargedByGateway, PF_FEE_PERCENT, PF_FEE_FIXED_USD } from "@/lib/gateway-fees";
 import { commissionWorkDate } from "@/lib/commissions";
+import { localIsoDate } from "@/lib/date-utils";
 import {
   invoicesInRange as invoicesInRangeHelper,
   paidInvoicesInRange,
@@ -32,11 +33,11 @@ import {
 type Preset = "thisWeek" | "thisMonth" | "lastMonth" | "thisYear" | "allTime";
 
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return localIsoDate();
 }
 function firstOfMonthIso(): string {
   const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  return localIsoDate(new Date(d.getFullYear(), d.getMonth(), 1));
 }
 
 /**
@@ -56,23 +57,21 @@ export default function AccountingOverview() {
 
   const applyPreset = useCallback((preset: Preset) => {
     const today = new Date();
-    const todayStr = today.toISOString().slice(0, 10);
+    const todayStr = localIsoDate(today);
     if (preset === "thisWeek") {
       const day = today.getDay();
       const diff = today.getDate() - day + (day === 0 ? -6 : 1);
       const monday = new Date(today.getFullYear(), today.getMonth(), diff);
-      setStartDate(monday.toISOString().slice(0, 10));
+      setStartDate(localIsoDate(monday));
       setEndDate(todayStr);
     } else if (preset === "thisMonth") {
-      setStartDate(
-        new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10)
-      );
+      setStartDate(localIsoDate(new Date(today.getFullYear(), today.getMonth(), 1)));
       setEndDate(todayStr);
     } else if (preset === "lastMonth") {
       const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
       const end = new Date(today.getFullYear(), today.getMonth(), 0);
-      setStartDate(start.toISOString().slice(0, 10));
-      setEndDate(end.toISOString().slice(0, 10));
+      setStartDate(localIsoDate(start));
+      setEndDate(localIsoDate(end));
     } else if (preset === "thisYear") {
       setStartDate(`${today.getFullYear()}-01-01`);
       setEndDate(todayStr);

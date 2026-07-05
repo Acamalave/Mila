@@ -5,7 +5,7 @@ import { motion } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { cn, formatPrice, getStoredData, setStoredData } from "@/lib/utils";
 import { onCollectionChange, onDocumentChange, deleteDocument } from "@/lib/firestore";
-import { formatTime } from "@/lib/date-utils";
+import { formatTime, localIsoDate } from "@/lib/date-utils";
 import { services } from "@/data/services";
 import { useStaff } from "@/providers/StaffProvider";
 import { useInvoices } from "@/providers/InvoiceProvider";
@@ -33,7 +33,7 @@ import type { Booking, BookingStatus, User } from "@/types";
 
 /** "2026-05-20" for today in local time, suitable for comparing with booking.date strings. */
 function todayIsoDate(): string {
-  return new Date().toISOString().split("T")[0];
+  return localIsoDate();
 }
 
 /** Monday-start week range as ISO date strings (inclusive both ends). */
@@ -45,8 +45,8 @@ function weekRangeIso(): { start: string; end: string } {
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
   return {
-    start: monday.toISOString().split("T")[0],
-    end: sunday.toISOString().split("T")[0],
+    start: localIsoDate(monday),
+    end: localIsoDate(sunday),
   };
 }
 
@@ -58,8 +58,8 @@ function previousWeekRangeIso(): { start: string; end: string } {
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
   return {
-    start: monday.toISOString().split("T")[0],
-    end: sunday.toISOString().split("T")[0],
+    start: localIsoDate(monday),
+    end: localIsoDate(sunday),
   };
 }
 
@@ -187,7 +187,7 @@ export default function AdminOverviewPage() {
   // ── Next appointment (today or future, after current time) ───────────────
   const nextAppointment = useMemo(() => {
     const now = new Date();
-    const nowDate = now.toISOString().split("T")[0];
+    const nowDate = localIsoDate(now);
     const nowTime = now.toTimeString().slice(0, 5); // "HH:MM"
     return bookings
       .filter(
