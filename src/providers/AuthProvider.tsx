@@ -12,6 +12,7 @@ import type { User } from "@/types";
 import { getStoredData, setStoredData, generateId } from "@/lib/utils";
 import { stylists as seedStylists } from "@/data/stylists";
 import { setDocument, deleteDocument, getCollection, onCollectionChange, onDocumentChange } from "@/lib/firestore";
+import { getDeletedSet } from "@/lib/deleted-set";
 
 interface AuthContextValue {
   user: User | null;
@@ -29,6 +30,12 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 // No hardcoded mock users — all users come from Firestore + localStorage registry
 
+/** Auto-generated placeholder names look like "User 1234". A placeholder must
+ *  never overwrite a real name the customer already set. */
+function isPlaceholderName(name: string | undefined): boolean {
+  return !name || /^User\s/i.test(name.trim());
+}
+
 /* ── User registry: localStorage + Firestore sync ── */
 async function addToUserRegistry(user: User): Promise<void> {
   if (!user.id || !user.phone) return;
@@ -43,19 +50,31 @@ async function addToUserRegistry(user: User): Promise<void> {
       byPhone.set(u.phone, u);
     }
   }
-  // Upsert current user
+  // Upsert current user — but never let a placeholder name clobber a real one
+  // already on record (happens on a fresh device where the registry hasn't
+  // hydrated yet, so `user.name` is "User 1234").
   const existing = byPhone.get(user.phone);
   if (existing) {
-    byPhone.set(user.phone, { ...existing, ...user });
+    const merged = { ...existing, ...user };
+    if (isPlaceholderName(user.name) && !isPlaceholderName(existing.name)) {
+      merged.name = existing.name;
+    }
+    byPhone.set(user.phone, merged);
   } else {
     byPhone.set(user.phone, user);
   }
   setStoredData("mila-users", Array.from(byPhone.values()));
 
-  // Sync to Firestore (await instead of fire-and-forget)
+  // Sync to Firestore (await instead of fire-and-forget). If we only have a
+  // placeholder name, OMIT `name` from the merge write so the customer's real
+  // name in Firestore is preserved instead of being overwritten with "User NNN".
   try {
     const { id, ...userData } = user;
-    await setDocument("users", id, { ...userData, phone: user.phone });
+    const payload: Record<string, unknown> = { ...userData, phone: user.phone };
+    if (isPlaceholderName(user.name)) {
+      delete payload.name;
+    }
+    await setDocument("users", id, payload);
   } catch (err) {
     console.warn("[Mila] Failed to sync user to Firestore:", err);
   }
@@ -105,9 +124,19 @@ function createUserFromPhone(
     return ov ? { ...s, ...ov } : s;
   });
 
-  const linkedStaff =
+  const matchedStaff =
     mergedSeedStylists.find((s) => s.linkedPhone === phone) ||
     allStaffCustom.find((s) => s.linkedPhone === phone);
+
+  // A staff member the admin has deleted (soft-delete tombstone) must NOT keep
+  // their staff role on the next login. Seed stylists match by a hardcoded
+  // linkedPhone forever, so without this check a tombstoned stylist could log
+  // straight back into /stylist. When they're tombstoned we drop the link and
+  // force a client role, ignoring any stale "stylist" role left in the registry.
+  const staffDeleted = getDeletedSet("staff");
+  const staffId = (matchedStaff as { id?: string } | undefined)?.id;
+  const isDeletedStaff = !!matchedStaff && !!staffId && staffDeleted.has(staffId);
+  const linkedStaff = isDeletedStaff ? undefined : matchedStaff;
 
   // Deterministic ID based on phone to ensure consistency across devices
   const determinedId = existingUser?.id || `user-${phone}`;
@@ -129,13 +158,16 @@ function createUserFromPhone(
     };
   }
 
-  // Regular user: always a client (roles are managed from Staff panel, not here)
+  // Regular user: always a client (roles are managed from Staff panel, not here).
+  // Ex-staff who were just deleted get "client" outright — never the stale
+  // staff role their registry entry may still carry.
+  const resolvedRole = isDeletedStaff ? "client" : existingUser?.role || "client";
   return {
     id: determinedId,
     name: (existingUser?.name && !existingUser.name.startsWith("User ")) ? existingUser.name : (providedName || existingUser?.name || `User ${phone.slice(-4)}`),
     phone,
     countryCode,
-    role: existingUser?.role || "client",
+    role: resolvedRole,
     createdAt: existingUser?.createdAt || new Date().toISOString(),
     ...(resolvedEmail ? { email: resolvedEmail } : {}),
   };

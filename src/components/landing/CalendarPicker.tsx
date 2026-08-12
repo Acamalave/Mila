@@ -27,6 +27,7 @@ import { useLanguage } from "@/providers/LanguageProvider";
 import { useBooking } from "@/providers/BookingProvider";
 import { formatPrice, getStoredData } from "@/lib/utils";
 import { onCollectionChange } from "@/lib/firestore";
+import { getDeletedSet, subscribeDeletedSet } from "@/lib/deleted-set";
 import BookingPolicyModal from "@/components/landing/BookingPolicyModal";
 import type { DepositServiceInfo } from "@/components/landing/BookingPolicyModal";
 import type { TimeSlot, Booking } from "@/types";
@@ -51,23 +52,38 @@ export default function CalendarPicker({ onBook, onLoginRequired }: CalendarPick
   const [showPolicyModal, setShowPolicyModal] = useState(false);
   const [showAllSlots, setShowAllSlots] = useState(false);
   const [existingBookings, setExistingBookings] = useState<Booking[]>(() =>
-    getStoredData<Booking[]>("mila-bookings", [])
+    getStoredData<Booking[]>("mila-bookings", []).filter(
+      (b) => !getDeletedSet("bookings").has(b.id)
+    )
   );
   const bookBtnRef = useRef<HTMLDivElement>(null);
 
-  // Keep bookings in sync with localStorage and Firestore
+  // Keep bookings in sync with localStorage and Firestore. Deleted bookings
+  // (soft-delete tombstones) must be dropped from BOTH sources — otherwise a
+  // cancelled booking still in this device's localStorage keeps blocking its
+  // time slot for new clients, since Firestore no longer returns it to
+  // overwrite the stale local copy.
   useEffect(() => {
-    const unsub = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
+    const unsubBookings = onCollectionChange<Booking>("bookings", (firestoreBookings) => {
       if (firestoreBookings.length > 0) {
         setExistingBookings((prev) => {
+          const deleted = getDeletedSet("bookings");
           const merged = new Map<string, Booking>();
-          for (const b of prev) merged.set(b.id, b);
-          for (const b of firestoreBookings) merged.set(b.id, b);
+          for (const b of prev) if (!deleted.has(b.id)) merged.set(b.id, b);
+          for (const b of firestoreBookings) if (!deleted.has(b.id)) merged.set(b.id, b);
           return Array.from(merged.values());
         });
       }
     });
-    return () => unsub();
+    // React to deletions performed on any device — drop the slot immediately.
+    const unsubDeleted = subscribeDeletedSet("bookings", (deletedIds) => {
+      const deleted = new Set(deletedIds);
+      setExistingBookings((prev) => prev.filter((b) => !deleted.has(b.id)));
+    });
+    return () => {
+      unsubBookings();
+      unsubDeleted();
+    };
   }, []);
 
   const locale = language === "es" ? es : enUS;
