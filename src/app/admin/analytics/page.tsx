@@ -23,7 +23,16 @@ import {
 } from "lucide-react";
 import { onCollectionChange } from "@/lib/firestore";
 import { getDeletedSet } from "@/lib/deleted-set";
+import { localIsoDate } from "@/lib/date-utils";
 import type { Booking } from "@/types";
+
+/** Local day-of-week (0=Sun..6=Sat) for a "YYYY-MM-DD" string, parsed as a
+ *  LOCAL calendar date. `new Date("2026-07-06").getDay()` parses as UTC
+ *  midnight and returns the PREVIOUS weekday in UTC-5 — this avoids that. */
+function localDayOfWeek(dateStr: string): number {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d).getDay();
+}
 
 const DAY_NAMES_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const DAY_NAMES_ES = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"];
@@ -74,8 +83,10 @@ export default function AdminAnalyticsPage() {
     sunday.setDate(monday.getDate() + 6);
     sunday.setHours(23, 59, 59, 999);
 
-    const mondayStr = monday.toISOString().split("T")[0];
-    const sundayStr = sunday.toISOString().split("T")[0];
+    // Local calendar dates — toISOString() would push Sunday 23:59 local to
+    // the next Monday in UTC-5, making "this week" an 8-day window.
+    const mondayStr = localIsoDate(monday);
+    const sundayStr = localIsoDate(sunday);
 
     // Exclude cancelled / no-show so the number reflects business that
     // actually happened (or is about to). Counting cancelled rows
@@ -176,8 +187,10 @@ export default function AdminAnalyticsPage() {
     bookings
       .filter((b) => b.status !== "cancelled" && b.status !== "no-show")
       .forEach((b) => {
-        const d = new Date(b.date);
-        const jsDay = d.getDay(); // 0=Sun
+        // Parse b.date ("YYYY-MM-DD") as a LOCAL day. `new Date(str).getDay()`
+        // reads it as UTC midnight and returns the previous weekday in UTC-5,
+        // which shifted every bar one day to the left.
+        const jsDay = localDayOfWeek(b.date); // 0=Sun
         const idx = jsDay === 0 ? 6 : jsDay - 1; // shift to Mon=0
         counts[idx]++;
       });

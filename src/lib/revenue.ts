@@ -31,7 +31,7 @@ import { localIsoDate } from "@/lib/date-utils";
  * 7:00 PM (Panamá, UTC-5) on the NEXT day, zeroing the evening's
  * "revenue today" KPI.
  */
-function settlementDate(inv: Invoice): string {
+export function settlementDate(inv: Invoice): string {
   if (inv.status === "paid" && inv.paidAt) return localIsoDate(inv.paidAt);
   return inv.date;
 }

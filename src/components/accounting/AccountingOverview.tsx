@@ -14,6 +14,7 @@ import { localIsoDate } from "@/lib/date-utils";
 import {
   invoicesInRange as invoicesInRangeHelper,
   paidInvoicesInRange,
+  settlementDate,
 } from "@/lib/revenue";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
@@ -486,14 +487,14 @@ export default function AccountingOverview() {
                   </tr>
                 ) : (
                   cardPaid
-                    .sort((a, b) => (b.paidAt ?? b.date).localeCompare(a.paidAt ?? a.date))
+                    .sort((a, b) => settlementDate(b).localeCompare(settlementDate(a)))
                     .map((inv) => {
                       const fee = gatewayFeeForAmount(inv.amount);
                       const net = inv.amount - fee;
                       return (
                         <tr key={inv.id} className="hover:bg-white/5 transition-colors">
                           <td className="px-3 sm:px-6 py-2 text-xs text-text-secondary whitespace-nowrap">
-                            {(inv.paidAt ?? inv.date).slice(0, 10)}
+                            {settlementDate(inv)}
                           </td>
                           <td className="px-3 sm:px-6 py-2 text-xs text-text-primary">
                             {inv.clientName}

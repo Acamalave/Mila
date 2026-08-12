@@ -373,7 +373,10 @@ export default function DashboardPage() {
       const dow = d.getDay();
       const schedule = stylist.schedule?.find((s) => s.dayOfWeek === dow);
       if (schedule?.isAvailable) {
-        dates.push(d.toISOString().split("T")[0]);
+        // Local date string — must match the weekday we validated with the
+        // LOCAL getDay(). toISOString() would push the offered day +1 after
+        // 7pm in UTC-5, letting a client reschedule onto a day off.
+        dates.push(localIsoDate(d));
       }
     }
     return dates;

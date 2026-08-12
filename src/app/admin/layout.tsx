@@ -227,7 +227,10 @@ function AdminNotificationBell() {
   );
 }
 
-const SUPER_ADMIN_PHONE = "68204698";
+// Rotatable via env — see the note in AuthProvider. Same fallback so both
+// stay in lock-step.
+const SUPER_ADMIN_PHONE =
+  process.env.NEXT_PUBLIC_SUPER_ADMIN_PHONE?.trim() || "68204698";
 
 export default function AdminLayout({
   children,

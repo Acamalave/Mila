@@ -118,13 +118,22 @@ function mapStatus(pgfStatus: string | undefined): NormalizedStatus {
     normalized === "RECHAZADA" ||
     normalized === "FAILED" ||
     normalized === "ERROR" ||
-    normalized === "0" ||
-    normalized === "2"
+    normalized === "0"
   ) {
     return "declined";
   }
 
-  if (normalized === "PENDING" || normalized === "PENDIENTE") {
+  // Paguelo Facil uses "2" / "Pendiente" / "En revisión" for in-review
+  // transactions that may still settle later. Mapping "2" to declined (as
+  // before) would prematurely fail a payment that later captures — and fire
+  // decline notifications for money that's actually on its way.
+  if (
+    normalized === "PENDING" ||
+    normalized === "PENDIENTE" ||
+    normalized === "EN REVISIÓN" ||
+    normalized === "EN REVISION" ||
+    normalized === "2"
+  ) {
     return "pending";
   }
 
@@ -432,12 +441,17 @@ export async function POST(request: NextRequest) {
         console.warn("[Webhook] payment-confirmed dispatch failed:", err)
       );
     } else if (mappedStatus === "declined") {
-      // Only transition to "declined" if the invoice was in a valid prior state.
+      // Only transition to "declined" from a genuine pre-payment state. We
+      // require a SUCCESSFULLY READ invoice in one of those states — a null
+      // `invoice` here means the doc is missing OR the read failed, and we must
+      // NOT assume it's safe: a late/duplicate decline arriving during a
+      // transient Firestore read error would otherwise clobber an already-paid
+      // invoice back to "declined" and silently drop the money from revenue.
       const canTransition =
-        !invoice ||
-        invoice.status === "sent" ||
-        invoice.status === "overdue" ||
-        invoice.status === "draft";
+        !!invoice &&
+        (invoice.status === "sent" ||
+          invoice.status === "overdue" ||
+          invoice.status === "draft");
 
       if (canTransition) {
         await setDocument("invoices", invoiceId, {
@@ -446,7 +460,7 @@ export async function POST(request: NextRequest) {
         });
       } else {
         console.warn(
-          `[Webhook] Skipping invoice status transition — current status "${invoice?.status}" cannot move to "declined".`
+          `[Webhook] Skipping decline transition — invoice ${invoiceId} status "${invoice?.status ?? "unreadable/missing"}" is not a valid prior state.`
         );
       }
 
@@ -496,13 +510,24 @@ export async function POST(request: NextRequest) {
         `[Webhook] Payment still pending for invoice ${invoiceId} — no action taken.`
       );
     } else if (mappedStatus === "refunded") {
-      // We don't have a first-class "refunded" invoice status, so we fall back to
-      // "declined" + a note, and record a refund transaction separately.
-      await setDocument("invoices", invoiceId, {
-        status: "declined",
-        declinedAt: nowIso,
-        refundedAt: nowIso,
-      });
+      // A refund only makes sense for a payment that actually cleared. Require a
+      // successfully-read PAID invoice before reversing it — otherwise a
+      // spoofed/duplicate refund payload (or one arriving during a read error)
+      // could flip any invoice to "declined". We record the refund transaction
+      // regardless so there's an audit trail even when we don't touch the invoice.
+      if (invoice && invoice.status === "paid") {
+        // We don't have a first-class "refunded" invoice status, so we fall
+        // back to "declined" + a refundedAt note.
+        await setDocument("invoices", invoiceId, {
+          status: "declined",
+          declinedAt: nowIso,
+          refundedAt: nowIso,
+        });
+      } else {
+        console.warn(
+          `[Webhook] Refund payload for invoice ${invoiceId} — not reversing (status "${invoice?.status ?? "unreadable/missing"}" is not "paid"). Recording refund txn only.`
+        );
+      }
 
       await setDocument("payments", transactionId, {
         invoiceId,

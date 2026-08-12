@@ -63,8 +63,15 @@ async function addToUserRegistry(user: User): Promise<void> {
 
 // User registry is now fully managed via Firestore — no mock seeding needed
 
-// Hidden super admin — full access, invisible in the system
-const SUPER_ADMIN_PHONE = "68204698";
+// Hidden super admin — full access, invisible in the system.
+// Read from an env var so the number can be ROTATED without a code change and
+// isn't hardcoded in the public repo. Note: because auth is phone-only and
+// checked client-side, whatever value is active is still present in the built
+// bundle — the real hardening is Firestore security rules + server-side auth.
+// Falls back to the legacy number only if the env var is unset (avoids locking
+// the operator out mid-migration).
+const SUPER_ADMIN_PHONE =
+  process.env.NEXT_PUBLIC_SUPER_ADMIN_PHONE?.trim() || "68204698";
 
 function createUserFromPhone(
   phone: string,
