@@ -33,12 +33,6 @@ function pick(fields: URLSearchParams, ...keys: string[]): string {
   return "";
 }
 
-function parseAmount(raw: string): number | null {
-  if (!raw) return null;
-  const n = parseFloat(raw.replace(/[^0-9.]/g, ""));
-  return Number.isNaN(n) ? null : n;
-}
-
 /** Forward a confirmed payment to our own webhook so all settlement logic
  *  (invoice → paid, booking deposit → confirmed, commissions, notifications)
  *  runs in one place. Returns true on a 2xx from the webhook. */
@@ -95,14 +89,13 @@ async function handle(request: NextRequest, fields: URLSearchParams) {
   }
   dashboardUrl.searchParams.set("invoice", invoiceId);
 
-  // Result params from the redirect.
+  // Result params from the redirect. These arrive through the CUSTOMER'S
+  // browser and are therefore attacker-controlled — they may steer the UX
+  // message but must NEVER, on their own, settle an invoice.
   const oper = pick(fields, "Oper", "oper", "codOper", "OPER", "CODOPER");
   const estado = pick(fields, "Estado", "estado", "RESPONSE", "status").toLowerCase();
-  const totalPagado = parseAmount(pick(fields, "TotalPagado", "totalPagado", "Total", "CMTN"));
-  const paramsSayApproved =
-    totalPagado != null && totalPagado > 0 && estado !== "denegada" && estado !== "rechazada" && estado !== "0";
 
-  // Load the invoice for the amount check and to short-circuit if already paid.
+  // Load the invoice to short-circuit if already paid.
   let invoice: Invoice | null = null;
   try {
     invoice = await getDocument<Invoice>("invoices", invoiceId);
@@ -117,34 +110,43 @@ async function handle(request: NextRequest, fields: URLSearchParams) {
 
   const invoiceAmount = typeof invoice?.amount === "number" ? invoice.amount : null;
 
-  // ── Server-side verification (authoritative) ──
+  // ── Server-side verification (the ONLY thing that can settle) ──
+  // We settle exclusively on Paguelo Facil's own record of the transaction,
+  // looked up by operation code with our secret token. Without a verifiable
+  // `Oper` there is nothing to confirm, so we never settle from the redirect
+  // params alone — that fallback let anyone with an invoice id + amount mark
+  // it paid by hitting this URL with no Oper.
   const lookup = oper ? await queryTransactionByOper(oper) : null;
 
-  // Pick the amount to validate against: prefer PF's recorded amount, fall back
-  // to the redirect's TotalPagado.
-  const effectiveAmount = lookup?.amount ?? totalPagado;
+  // The amount must match Paguelo Facil's recorded amount for the transaction.
+  // We do NOT fall back to the browser-supplied TotalPagado here.
   const amountMatches =
     invoiceAmount == null ||
-    (effectiveAmount != null && Math.abs(effectiveAmount - invoiceAmount) <= 0.01);
+    (lookup?.amount != null && Math.abs(lookup.amount - invoiceAmount) <= 0.01);
 
   let outcome: "ok" | "error" | "pendiente";
 
   if (lookup?.declined || estado === "denegada" || estado === "rechazada") {
     outcome = "error";
   } else if (lookup?.approved && amountMatches) {
-    // Strongest signal: PF's own record says approved and the amount checks out.
-    const settled = await settleViaWebhook(origin, invoiceId, oper, effectiveAmount ?? invoiceAmount ?? 0);
-    outcome = settled ? "ok" : "pendiente";
-  } else if (lookup === null && paramsSayApproved && amountMatches) {
-    // Lookup was inconclusive (network / unknown shape). Fall back to the
-    // redirect params, but only when the amount matches the invoice exactly.
-    console.warn(
-      `[payments/return] Settling invoice ${invoiceId} from RETURN_URL params (lookup inconclusive). oper=${oper} amount=${effectiveAmount}`
+    // Verified approved by Paguelo Facil AND the amount checks out.
+    const settled = await settleViaWebhook(
+      origin,
+      invoiceId,
+      oper,
+      lookup.amount ?? invoiceAmount ?? 0
     );
-    const settled = await settleViaWebhook(origin, invoiceId, oper, effectiveAmount ?? invoiceAmount ?? 0);
     outcome = settled ? "ok" : "pendiente";
   } else {
-    // Not confirmed approved — leave the invoice as-is for review.
+    // Could not verify the payment server-side (no Oper, lookup inconclusive,
+    // amount mismatch, or approved-but-amount-off). Leave the invoice untouched
+    // for manual review rather than trusting the browser. The webhook, if it
+    // later arrives, is the other authoritative settlement path.
+    if (lookup?.approved && !amountMatches) {
+      console.warn(
+        `[payments/return] Amount mismatch for ${invoiceId}: PF ${lookup.amount} vs invoice ${invoiceAmount} — not settling.`
+      );
+    }
     outcome = "pendiente";
   }
 

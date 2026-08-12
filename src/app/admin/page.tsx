@@ -4,7 +4,8 @@ import { useState, useEffect, useMemo } from "react";
 import { motion } from "motion/react";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { cn, formatPrice, getStoredData, setStoredData } from "@/lib/utils";
-import { onCollectionChange, onDocumentChange, deleteDocument } from "@/lib/firestore";
+import { onCollectionChange } from "@/lib/firestore";
+import { getDeletedSet, subscribeDeletedSet } from "@/lib/deleted-set";
 import { formatTime, localIsoDate } from "@/lib/date-utils";
 import { services } from "@/data/services";
 import { useStaff } from "@/providers/StaffProvider";
@@ -72,34 +73,25 @@ export default function AdminOverviewPage() {
   const [allUsers, setAllUsers] = useState<User[]>([]);
 
   useEffect(() => {
-    const localDeleted = getStoredData<string[]>("mila-bookings-deleted", []);
-    for (const id of localDeleted) {
-      deleteDocument("bookings", id).catch(() => {});
-    }
-
-    const getDeletedSet = () => new Set(getStoredData<string[]>("mila-bookings-deleted", []));
-
+    // Soft-delete only: bookings are hidden via the shared tombstone helper
+    // (deleted minus restored). The old code here hard-deleted every id in the
+    // raw local list from Firestore on each mount — destroying booking docs
+    // and permanently undoing any restore performed via bookings-config/restored.
     const stored = getStoredData<Booking[]>("mila-bookings", []).filter(
-      (b) => !getDeletedSet().has(b.id)
+      (b) => !getDeletedSet("bookings").has(b.id)
     );
     setBookings(stored);
     setAllUsers(getStoredData<User[]>("mila-users", []));
 
     const unsubs = [
-      onDocumentChange<{ ids?: string[] }>("bookings-config", "deleted", (data) => {
-        if (data?.ids) {
-          const merged = Array.from(
-            new Set([...getStoredData<string[]>("mila-bookings-deleted", []), ...data.ids])
-          );
-          setStoredData("mila-bookings-deleted", merged);
-          for (const id of data.ids) deleteDocument("bookings", id).catch(() => {});
-          setBookings((prev) => prev.filter((b) => !new Set(merged).has(b.id)));
-        }
+      subscribeDeletedSet("bookings", (deletedIds) => {
+        const deleted = new Set(deletedIds);
+        setBookings((prev) => prev.filter((b) => !deleted.has(b.id)));
       }),
       onCollectionChange<Booking>("bookings", (firestoreBookings) => {
         if (firestoreBookings.length > 0) {
           setBookings((prev) => {
-            const deletedSet = getDeletedSet();
+            const deletedSet = getDeletedSet("bookings");
             const merged = new Map<string, Booking>();
             for (const b of prev) if (!deletedSet.has(b.id)) merged.set(b.id, b);
             for (const b of firestoreBookings) if (!deletedSet.has(b.id)) merged.set(b.id, b);
