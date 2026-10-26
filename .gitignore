@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 *.key
 *.001.png
+
+# Claude Code session worktrees (scratch)
+.claude/worktrees/
