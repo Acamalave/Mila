@@ -4,7 +4,7 @@
 // machine-readable "server-generated text" that powers Google local results
 // and the Business Profile knowledge panel. No "use client" on purpose.
 
-const SITE_URL = "https://milapty.com";
+const SITE_URL = "https://www.milapty.com";
 
 const structuredData = {
   "@context": "https://schema.org",

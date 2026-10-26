@@ -29,7 +29,7 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
-const SITE_URL = "https://milapty.com";
+const SITE_URL = "https://www.milapty.com";
 const SITE_DESCRIPTION =
   "Milà Concept es un salón de belleza exclusivo en Ciudad de Panamá: coloración de lujo, balayage, cortes, tratamientos capilares, peinados y maquillaje profesional. Reserva tu cita con nuestras especialistas.";
 
