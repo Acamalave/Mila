@@ -1,12 +1,14 @@
 "use client";
 
 import { motion } from "motion/react";
-import { Calendar, Clock, FileText, User as UserIcon } from "lucide-react";
+import { Calendar, Clock, FileText, Printer, User as UserIcon } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import Badge from "@/components/ui/Badge";
+import Button from "@/components/ui/Button";
 import { useLanguage } from "@/providers/LanguageProvider";
 import { useStaff } from "@/providers/StaffProvider";
 import { formatPrice } from "@/lib/utils";
+import { printReceipt, type ReceiptLine } from "@/lib/print-receipt";
 import { services } from "@/data/services";
 import type { Invoice, InvoiceStatus } from "@/types";
 
@@ -56,6 +58,34 @@ export default function AdminInvoiceDetailModal({
 
   const stylistName = (id?: string) =>
     id ? allStylists.find((s) => s.id === id)?.name ?? id : null;
+
+  const resolveItemName = (item: NonNullable<Invoice["items"]>[number]) => {
+    const matchedService =
+      item.type === "service" ? services.find((s) => s.id === item.id) : null;
+    return (
+      matchedService?.name[language] ??
+      (typeof item.name === "object"
+        ? (item.name as Record<string, string>)[language] ??
+          (item.name as Record<string, string>).en
+        : item.name)
+    );
+  };
+
+  const handlePrint = () => {
+    const lines: ReceiptLine[] = (invoice.items ?? []).map((item) => ({
+      name: resolveItemName(item),
+      quantity: item.quantity,
+      price: item.price,
+      stylistName: stylistName(item.stylistId),
+    }));
+    printReceipt({
+      invoice,
+      lines,
+      language,
+      stylistName: invoice.stylistId ? stylistName(invoice.stylistId) : null,
+      descriptionText: descriptionText || undefined,
+    });
+  };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="lg">
@@ -402,6 +432,14 @@ export default function AdminInvoiceDetailModal({
             </div>
           )}
         </motion.div>
+
+        {/* Actions */}
+        <div className="flex justify-center pt-1">
+          <Button variant="outline" size="sm" onClick={handlePrint}>
+            <Printer size={16} />
+            {language === "es" ? "Imprimir recibo" : "Print receipt"}
+          </Button>
+        </div>
       </div>
     </Modal>
   );
