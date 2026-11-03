@@ -148,9 +148,9 @@ function buildReceiptHtml(data: ReceiptData): string {
   }
   .brand-logo {
     display: block;
-    width: 54mm;
+    width: 46mm;
     height: auto;
-    margin: 0 auto 4px;
+    margin: 0 auto 5px;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
