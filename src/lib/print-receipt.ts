@@ -8,15 +8,12 @@ import { formatPrice } from "@/lib/utils";
 // purpose so the receipt is NOT styled by the app's dark/glass theme and so
 // popup blockers don't swallow it.
 
-// Black vector rendition of the Milà Concept wordmark. Inlined (not an <img>
-// to /logo-mila*.png, which are WHITE logos for dark backgrounds and would be
-// invisible on a white receipt) so it prints crisp at any size on thermal or
-// regular printers and needs no network fetch inside the print iframe.
-const LOGO_SVG = `<svg class="brand-logo" viewBox="0 0 300 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Milà Concept">
-  <text x="150" y="52" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="48" font-weight="bold" letter-spacing="10" fill="#000">MILÀ</text>
-  <line x1="80" y1="60" x2="220" y2="60" stroke="#000" stroke-width="1" />
-  <text x="150" y="80" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="15" letter-spacing="11" fill="#000">CONCEPT</text>
-</svg>`;
+// The real brand mark (same wordmark used across the web app) in black. The
+// /logo-mila-brand.png asset is WHITE — built for dark backgrounds and would be
+// invisible on a white receipt — so we ship a black-on-transparent copy at
+// /logo-mila-black.png for print. print-color-adjust keeps it solid black when
+// the browser would otherwise lighten images to save ink.
+const LOGO_IMG = `<img class="brand-logo" src="/logo-mila-black.png" alt="Milà Concept" onerror="this.style.display='none'" />`;
 
 const SALON = {
   tagline: "Salón de Belleza",
@@ -149,7 +146,14 @@ function buildReceiptHtml(data: ReceiptData): string {
     line-height: 1.45;
     color: #000;
   }
-  .brand-logo { display: block; width: 56mm; height: auto; margin: 0 auto 3px; }
+  .brand-logo {
+    display: block;
+    width: 54mm;
+    height: auto;
+    margin: 0 auto 4px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
   .tagline { text-align: center; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
   .contact { text-align: center; font-size: 10px; color: #222; line-height: 1.5; }
   .divider { border: none; border-top: 1px dashed #000; margin: 8px 0; }
@@ -171,7 +175,7 @@ function buildReceiptHtml(data: ReceiptData): string {
 </style>
 </head>
 <body>
-  ${LOGO_SVG}
+  ${LOGO_IMG}
   <div class="tagline">${SALON.tagline}</div>
   <div class="contact">
     ${SALON.addressLines.map((l) => esc(l)).join("<br/>")}<br/>
@@ -248,14 +252,17 @@ export function printReceipt(data: ReceiptData): void {
     }
   };
 
-  iframe.onload = () => setTimeout(trigger, 80);
+  // The iframe's load event fires only after its subresources (the logo image)
+  // have loaded, so printing from here guarantees the logo is on the ticket.
+  iframe.onload = () => setTimeout(trigger, 120);
 
   doc.open();
   doc.write(html);
   doc.close();
 
-  // Fallback if onload already fired before it was wired up.
+  // Safety net in case `load` never fires (e.g. the logo request hangs): by now
+  // the image has had plenty of time, so print whatever is there.
   setTimeout(() => {
-    if (!printed && doc.readyState === "complete") trigger();
-  }, 400);
+    if (!printed) trigger();
+  }, 2500);
 }
