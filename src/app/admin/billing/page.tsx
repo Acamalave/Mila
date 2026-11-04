@@ -316,17 +316,22 @@ export default function AdminBillingPage() {
             : "Invoice updated",
           "success"
         );
+        setEditingInvoice(null);
+        setShowFormModal(false);
       } else {
-        addInvoice(data);
+        const created = addInvoice(data);
         addToast(
           language === "es"
             ? "Factura creada"
             : "Invoice created",
           "success"
         );
+        setEditingInvoice(null);
+        setShowFormModal(false);
+        // Abrir el detalle de la factura recién creada para que el staff pueda
+        // imprimir el recibo en el acto, sin buscarla en la lista.
+        setViewingInvoice(created);
       }
-      setEditingInvoice(null);
-      setShowFormModal(false);
     },
     [editingInvoice, addInvoice, updateInvoice, addToast, language]
   );
